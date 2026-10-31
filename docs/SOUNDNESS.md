@@ -1068,6 +1068,66 @@ used by this confluence theorem. Full formal conversion compatibility is
 constructed above; filtered/erased frames, η and the other implementation
 soundness/refinement obligations remain open.
 
+### Host-shaped tables and a mechanical representation boundary (M2a)
+
+The executable registry is an Elixir MAP — an unordered keyed collection
+with no duplicate keys — while the formal registry is an ORDERED list
+searched first-match. `Core.CanonicalSnapshot` related a canonical LIST to
+formal lookup but took that list as given: nothing related it to a
+host-shaped source, and nothing stated which host behaviours were modelled.
+
+`Core.HostTable` supplies that host side. A `HostTable` is a finite
+association list that MAY contain duplicate keys, MAY be presented in any
+order, and carries alias spellings in a SEPARATE table. `host-key-agrees`
+proves for ARBITRARY tables that host key resolution IS
+`CanonicalSnapshot.lookup`, which fixes which formal lookup the host is
+claimed to implement. Order-insensitivity is proved in BOTH directions:
+`unique-lookup-stable` and `insert-fresh` show a duplicate-free table is
+re-presentation-invariant, while
+`duplicate-first-wins`/`duplicate-second-wins`/`duplicate-not-unique` show
+a duplicate key makes resolution order-dependent — so the executable's
+duplicate-key rejection is load-bearing rather than cosmetic. `check-table`
+reuses `CanonicalSnapshot.unique?`, so the development has exactly one
+definition of duplicate-freedom, and `checked-resolves` turns a passing
+check plus membership into resolution. Alias discipline is proved
+separately because an alias table is the other way resolution can silently
+change: `alias-cannot-shadow` (a present key ignores aliases) and
+`alias-absent-target` (a dangling alias yields nothing, not a fabricated
+binding).
+
+`Core.RepresentationBoundary` makes the remaining adapter trust MECHANICAL
+rather than prose, as `PLAN.md` §7 requires. Its `Boundary` record has one
+field per adapter obligation, each stated as the PROPERTY a consumer needs
+rather than a boolean flag: `duplicates-rejected` is the actual
+`Unique (bindings extracted)` evidence, `aliases-separate` is the
+disjointness of the alias and binding key spaces, `order-preserved` is
+first-match agreement between the extracted table and the host's own
+declaration order, `flags-uninterpreted` is the certification subset
+relation, `hidden-bodies-captured` is "no certified global is dropped", and
+`signature-immutable` is stage-invariance of the extracted table. A consumer
+of a representation claim must therefore CONSUME a `Boundary` value and gets
+the facts it needs, so the trust surface cannot grow silently. Its `m2a-ledger` separates the seven facts
+`Core.HostTable` PROVES from the eight adapter obligations it does NOT, and
+`proved-nonempty`/`assumed-nonempty` keep that split non-vacuous. The
+record proves none of its fields; stating them is the point.
+
+`Proof.HostTableExamples` fixes two concrete presentations of the
+executable fixture's owner-qualified names in different orders, proves both
+duplicate-free, and shows the reordered presentation resolves identically.
+Negative controls pin the boundary: a duplicated table is refused by
+`check-table` and its two presentations provably disagree; a shadowing
+alias is ignored; a dangling alias yields nothing; an alias to a present
+target resolves through it.
+
+**Scope.** This models the host's resolution ORDER, duplicate and alias
+behaviour. It is NOT a model of Elixir's map, of atom interning, of
+`Cure.Elab.Name.split/1`, or of the producer that fills the table, and it
+does not prove that any Elixir function implements the model. Universal
+producer/extraction correspondence, kernel-acceptance-to-recipe production,
+semantic contexts, η/certified delta, erased layouts, semantic totality and
+backend soundness remain open. No native or executable semantics, trust
+root or older artifact byte changed.
+
 ### Item-by-item evidence
 
 1. **Release firewall — implemented and regression-tested.** The ordinary

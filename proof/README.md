@@ -3216,6 +3216,82 @@ the all-directory scanner, shell syntax and byte-for-byte reproduction of all
 older generated artifacts pass. Strict Credo checks all 1,455 source files
 without issues. Maintainer-waived suites were not run; no commit was made.
 
+### Host-shaped tables and the representation boundary (M2a)
+`Core.HostTable` supplies the HOST side of representation fidelity, which
+the canonical snapshot previously took for granted. A `HostTable` is a
+finite association list that MAY contain duplicate keys, MAY be presented
+in any order, and carries alias spellings in a SEPARATE table. Its
+`host-key` is first-match resolution over the presented order, and
+`host-key-agrees` proves for ARBITRARY tables that this IS
+`Core.CanonicalSnapshot.lookup` — fixing which formal lookup the host is
+claimed to implement, so a change to either side breaks the equation.
+
+Order-insensitivity is proved rather than assumed, in both directions.
+`unique-lookup-stable` shows a duplicate-free table resolves each key to
+its unique binding, so ANY re-presentation is equivalent; `insert-fresh`
+shows inserting a fresh key does not disturb other keys.
+`duplicate-first-wins`/`duplicate-second-wins`/`duplicate-not-unique` show
+a duplicate key makes resolution depend on presentation order, so the
+executable's duplicate-key rejection is LOAD-BEARING rather than a nicety.
+`check-table` reuses `CanonicalSnapshot.unique?` so there is exactly one
+definition of duplicate-freedom in the development, and
+`checked-resolves` turns a passing check plus membership into resolution.
+
+Alias discipline is proved separately, because an alias table is the other
+way resolution can silently change: `alias-cannot-shadow` shows a present
+key ignores aliases entirely, and `alias-absent-target` shows an alias to
+an absent target yields nothing rather than a fabricated binding.
+
+`Proof.HostTableExamples` fixes two concrete presentations of the
+executable fixture's owner-qualified names (`Boundary#Packed`,
+`Boundary#Pack`, `Boundary#answer`, `Boundary#held`) in different orders,
+proves both duplicate-free, and shows the reordered presentation resolves
+identically. Negative controls pin the boundary: a duplicated table is
+REFUSED by `check-table` and its two presentations provably DISAGREE; a
+shadowing alias is ignored; a dangling alias yields nothing; an alias to a
+present target resolves through it.
+
+`Core.RepresentationBoundary` makes the remaining adapter trust MECHANICAL
+rather than prose. Its `Boundary` record has one field per obligation an
+adapter must establish, and each field is stated as the PROPERTY a consumer
+needs rather than as a boolean flag: `duplicates-rejected` is the actual
+`Unique (bindings extracted)` evidence, `aliases-separate` is the
+disjointness of the alias and binding key spaces, `order-preserved` is
+first-match agreement between the extracted table and the host's own
+declaration order, `flags-uninterpreted` is the certification subset
+relation, `hidden-bodies-captured` is "no certified global is dropped", and
+`signature-immutable` is stage-invariance of the extracted table. A consumer
+of a representation claim must therefore CONSUME a `Boundary` value and gets
+the facts it needs, so the trust surface cannot grow silently. Its
+`m2a-ledger` separates the seven facts `Core.HostTable` PROVES from the
+eight adapter obligations it does NOT, and
+`proved-nonempty`/`assumed-nonempty` keep the split from collapsing to an
+empty list. The record proves none of its fields; stating them precisely is
+the point.
+
+**Scope.** This models the host's name-resolution ORDER, duplicate and
+alias behaviour. It is NOT a model of Elixir's map, of atom interning, of
+`Cure.Elab.Name.split/1`, or of the producer that fills the table, and it
+does not prove that any Elixir function implements the model. Universal
+producer/extraction correspondence, kernel-acceptance-to-recipe production,
+semantic contexts, eta/certified delta, erased layouts, semantic totality
+and backend soundness remain separate obligations. No native or executable
+semantics, trust inventory or older artifact byte changed.
+
+Validation for this continuation: all 231 Agda modules pass without
+warnings and every source is registered exactly once (`./proof/check.sh`,
+exit 0, 2018 s). The exact `funext`/legacy `tree-decides` postulate
+inventory is unchanged, the ten hygiene regressions and the all-directory
+scanner pass with no new holes or checking bypasses, shell syntax checks
+pass, and the standalone generator reports all proof artifacts
+byte-for-byte reproducible, so no older artifact byte changed. Strict Credo
+reports no issues across all 1,456 source files (19,178 modules/functions),
+`mix format --check-formatted` passes, and `git diff --check` is clean.
+The focused suite `test/cure/core/host_table_audit_test.exs` was executed
+explicitly and passed 13 tests with 0 failures (seed 186595). The default
+Mix/ExUnit suite, documentation checks and the stdlib/example gate were NOT
+run under the maintainer policy and are not reported as passing.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

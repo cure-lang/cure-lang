@@ -1007,9 +1007,79 @@ all-directory hygiene, shell syntax and older generated artifact reproduction
 pass. Strict Credo reports no issues across all 1,455 source files. Waived
 Mix/ExUnit, documentation and stdlib/example suites were not run.
 
+## Host-shaped tables and a mechanical representation boundary (M2a)
+The M2 bottleneck was split rather than attacked wholesale. M2 bundles
+three obligations of very different difficulty: universal producer
+correspondence (needs a host-semantics proof), source/snapshot/context
+correspondence (partly done by the universal `WireSnapshot` codec), and
+kernel-acceptance-to-recipe production (Stage 3/M6). Starting with the
+first wholesale would repeat the "indefinite increments" failure mode
+`PLAN.md` §4 warns against, so M2a takes the piece that is provable now
+and that §7 names as its acceptance gate.
+
+`Core.HostTable` supplies the HOST side the canonical snapshot previously
+took for granted. The executable registry is an unordered keyed
+collection; the formal registry is an ordered first-match list.
+`CanonicalSnapshot` related a canonical LIST to formal lookup but took
+that list as given. A `HostTable` is now a finite association list that
+MAY contain duplicate keys, MAY be presented in any order, and carries
+alias spellings in a SEPARATE table.
+
+`host-key-agrees` proves for ARBITRARY tables that host key resolution IS
+`CanonicalSnapshot.lookup`, fixing which formal lookup the host is
+claimed to implement. Order-insensitivity is proved in BOTH directions:
+`unique-lookup-stable` and `insert-fresh` show a duplicate-free table is
+re-presentation-invariant, while
+`duplicate-first-wins`/`duplicate-second-wins`/`duplicate-not-unique`
+show a duplicate key makes resolution order-dependent — so the
+executable's duplicate-key rejection is load-bearing, not cosmetic.
+`check-table` reuses `CanonicalSnapshot.unique?` so the development has
+exactly one definition of duplicate-freedom, and `checked-resolves`
+turns a passing check plus membership into resolution. Alias discipline
+is proved separately because an alias table is the other way resolution
+can silently change: `alias-cannot-shadow` and `alias-absent-target`.
+
+`Core.RepresentationBoundary` makes the remaining adapter trust
+MECHANICAL rather than prose, as §7 requires. Its `Boundary` record has
+one field per adapter obligation (name encoding and injectivity, faithful
+extraction, duplicate rejection, alias separation, uninterpreted
+certification flags, preserved declaration order, captured hidden bodies,
+one immutable signature), so a consumer must CONSUME a `Boundary` value
+and the trust surface cannot grow silently. Its `m2a-ledger` separates
+the seven PROVED facts from the eight ASSUMED obligations, with
+`proved-nonempty`/`assumed-nonempty` keeping the split non-vacuous. The
+record proves none of its fields; stating them is the point.
+
+`Proof.HostTableExamples` fixes two concrete presentations of the
+executable fixture's owner-qualified names in different orders, proves
+both duplicate-free, and shows the reordered presentation resolves
+identically. Negative controls pin the boundary: a duplicated table is
+refused and its presentations provably disagree; a shadowing alias is
+ignored; a dangling alias yields nothing.
+
+This models the host's resolution ORDER, duplicate and alias behaviour.
+It is NOT a model of Elixir's map, atom interning, `Cure.Elab.Name.split/1`
+or the producer, and it does not prove any Elixir function implements the
+model. Universal producer/extraction correspondence,
+kernel-acceptance-to-recipe production, semantic contexts, eta/certified
+delta, erased layouts, semantic totality and backend soundness remain
+separate. No native or executable semantics, trust inventory or older
+artifact byte changed.
+Validation: all 231 Agda modules pass without warnings and every source is
+registered once (`./proof/check.sh`, exit 0). The exact postulate inventory,
+ten hygiene regressions, all-directory hygiene and shell syntax pass, and
+the standalone generator confirms every proof artifact is byte-for-byte
+reproducible. Strict Credo reports no issues across all 1,456 source files,
+formatting and whitespace checks pass. The focused new suite was executed
+and passed 13 tests with 0 failures; the default Mix/ExUnit suite,
+documentation checks and the stdlib/example gate were not run under the
+maintainer policy and are not reported as passing.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
-   source/snapshot/context correspondence,
+   source/snapshot/context correspondence (M2a supplies the host-side
+   resolution laws and a mechanical adapter-trust ledger; the Elixir
+   producer correspondence itself is still open),
    then connect actual kernel acceptance to replayable recipes and checked
    native evidence. The character scanner, all current codecs, the explicit
    Elixir source/recipe data producers and complete generated artifacts already

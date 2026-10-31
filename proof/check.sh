@@ -259,6 +259,9 @@ MODULES=(
   Core/WireArgumentCaller
   Proof/ArgumentCallerExamples
   Core/WireResidualCaller
+  Core/HostTable
+  Proof/HostTableExamples
+  Core/RepresentationBoundary
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples
 )
