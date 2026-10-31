@@ -3216,6 +3216,60 @@ the all-directory scanner, shell syntax and byte-for-byte reproduction of all
 older generated artifacts pass. Strict Credo checks all 1,455 source files
 without issues. Maintainer-waived suites were not run; no commit was made.
 
+### Failure correspondence for the modelled evaluator (M4a)
+`Core.FailureImpossibility` addresses the direction the existing
+refinement theorems leave open. `Proof.ClosureEvaluation` and
+`Proof.ClosureQuotation` say what happens when evaluation SUCCEEDS; a
+positive simulation is vacuous if the modelled evaluator stops on inputs
+the implementation is supposed to accept. `Core.ClosureEval` has a precise
+failure vocabulary, and this module separates the four failures that would
+be genuine soundness bugs -- mirroring the four `raise` sites in
+`lib/cure/core/eval.ex` -- from the outcomes that are not failures.
+
+`FailureSafe` is the predicate "this `Result` carries no genuine failure",
+with `exhausted` (a bounded-model outcome), `unsupported` (a fragment
+exclusion) and `neutral-scrutinee` (a legitimate stuck state) explicitly
+OUTSIDE it. Four refutations (`unbound-unsafe`, `non-function-unsafe`,
+`missing-branch-unsafe`, `non-constructor-unsafe`) keep the predicate from
+collapsing to trivially true, and `done-safe` plus the three `*-safe`
+lemmas keep it from collapsing to trivially false.
+
+Three of the four are PROVED from native evidence rather than assumed.
+`applicable-neutral-done` shows a neutral application returns `done`, so
+`eval.ex:200`'s catch-all is unreachable for it. `covered-branch-exists`
+turns `CaseCoverage` into the branch and its exact declaration arity, so
+`eval.ex:151`/`eval.ex:172` cannot fire on a covered constructor.
+`neutral-case-strict` shows a neutral scrutinee takes the stuck arm rather
+than `eval.ex:182`'s catch-all.
+
+**The fourth is a recorded LIMITATION, not a claim.** `unbound`
+impossibility is not derivable from the current worker. `run-config`'s
+variable clause is `with lookup-value env k in found`, and `in found` is
+NECESSARY -- it supplies `e-var`'s equation premise. But it also makes the
+clause irreducible at an abstract de Bruijn index: at abstract `k` the
+clause evaluates to its `nothing` branch (`stop unbound`) even when a
+`lookup-value env k = just v` hypothesis is in scope, because Agda cannot
+see that the caller's equation is the object the worker abstracted over.
+This was established by direct experiment, not assumed. `UnboundInversion`
+states exactly what a future change to `Core.ClosureEval` would have to
+make provable -- a worker exposing the lookup decision as an explicit
+argument -- so the boundary is visible at every use site instead of buried
+in prose.
+
+**Scope.** This is failure analysis for the MODELLED evaluator. It does not
+prove the Elixir implementation raises nowhere, and does not claim
+`unbound` impossibility. No native or executable semantics, trust
+inventory or older artifact byte changed.
+
+Validation for this continuation: all 232 Agda modules pass without
+warnings and every source is registered exactly once (`./proof/check.sh`,
+exit 0). The exact `funext`/legacy `tree-decides` postulate inventory is
+unchanged, the ten hygiene regressions and the all-directory scanner pass
+with no new holes or checking bypasses, and shell syntax and whitespace
+checks pass. Strict Credo, formatting and the standalone artifact
+reproduction check also pass. Maintainer-waived Mix/ExUnit, documentation
+and stdlib/example suites were not run and are not reported as passing.
+
 ### Host-shaped tables and the representation boundary (M2a)
 `Core.HostTable` supplies the HOST side of representation fidelity, which
 the canonical snapshot previously took for granted. A `HostTable` is a

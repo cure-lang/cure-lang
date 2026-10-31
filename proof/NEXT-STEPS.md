@@ -1075,6 +1075,51 @@ and passed 13 tests with 0 failures; the default Mix/ExUnit suite,
 documentation checks and the stdlib/example gate were not run under the
 maintainer policy and are not reported as passing.
 
+## Failure correspondence for the modelled evaluator (M4a)
+M4 was scoped to "universal positive execution and failure
+correspondence". The positive half already exists
+(`Proof.ClosureEvaluation`, `Proof.ClosureQuotation`); the FAILURE half
+did not, and without it the positive simulation is vacuous for an
+implementation that might simply stop. M4a takes that half for the
+modelled slice rather than attempting universal correspondence wholesale.
+
+`Core.FailureImpossibility` separates the four failures that would be
+genuine soundness bugs -- mirroring the four `raise` sites in
+`lib/cure/core/eval.ex` -- from the outcomes that are not failures.
+`FailureSafe` is the predicate "this `Result` carries no genuine
+failure"; `exhausted` (bounded-model outcome), `unsupported` (fragment
+exclusion) and `neutral-scrutinee` (legitimate stuck state) are explicitly
+outside it. Four `*-unsafe` refutations keep the predicate from being
+trivially true and `done-safe` plus three `*-safe` lemmas keep it from
+being trivially false.
+
+Three of the four are PROVED from native evidence.
+`applicable-neutral-done` shows a neutral application returns `done`, so
+`eval.ex:200`'s catch-all is unreachable for it. `covered-branch-exists`
+turns `CaseCoverage` into the branch and its exact declaration arity, so
+`eval.ex:151`/`eval.ex:172` cannot fire on a covered constructor.
+`neutral-case-strict` shows a neutral scrutinee takes the stuck arm
+rather than `eval.ex:182`'s catch-all.
+
+**The fourth is a recorded LIMITATION.** `unbound` impossibility is not
+derivable from the current worker: `run-config`'s variable clause is
+`with lookup-value env k in found`, and `in found` is NECESSARY (it
+supplies `e-var`'s equation premise) but makes the clause irreducible at
+an abstract de Bruijn index. At abstract `k` the clause evaluates to its
+`nothing` branch -- `stop unbound` -- even with a successful-lookup
+hypothesis in scope, because Agda cannot see that the caller's equation is
+the object the worker abstracted over. This was established by direct
+experiment across a dozen probe modules, not assumed. `UnboundInversion`
+states exactly what a future change to `Core.ClosureEval` would have to
+make provable, so the boundary is visible at every use site.
+
+This is failure analysis for the MODELLED evaluator. It does not prove the
+Elixir implementation raises nowhere and does not claim `unbound`
+impossibility. Universal implementation/model execution correspondence,
+semantic contexts, eta/certified delta, erased layouts, semantic totality
+and backend soundness remain separate. No native or executable semantics,
+trust inventory or older artifact byte changed.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence (M2a supplies the host-side
@@ -1087,6 +1132,9 @@ maintainer policy and are not reported as passing.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
+   (M4a supplies failure impossibility for three of the four genuine
+   failures and records the fourth as a limitation of the current worker;
+   universal implementation/model execution correspondence is still open.)
 3. Extend the proved executable fragment to the remaining literal/payload,
    subtyping/effect, indexed-coverage and filtered/erased-frame contracts.
 4. Prove semantic positivity and totality certification, including extraction,

@@ -1068,6 +1068,46 @@ used by this confluence theorem. Full formal conversion compatibility is
 constructed above; filtered/erased frames, η and the other implementation
 soundness/refinement obligations remain open.
 
+### Failure correspondence for the modelled evaluator (M4a)
+
+The existing refinement theorems (`Proof.ClosureEvaluation`,
+`Proof.ClosureQuotation`) say what happens when evaluation SUCCEEDS. A
+positive simulation is vacuous if the modelled evaluator stops on inputs
+the implementation is supposed to accept, so the failure direction is a
+separate obligation.
+
+`Core.FailureImpossibility` separates the four failures that would be
+genuine soundness bugs -- mirroring the four `raise` sites in
+`lib/cure/core/eval.ex` -- from the outcomes that are not failures.
+`FailureSafe` is the predicate "this `Result` carries no genuine
+failure", with `exhausted` (a bounded-model outcome), `unsupported` (a
+fragment exclusion) and `neutral-scrutinee` (a legitimate stuck state)
+explicitly outside it. Four `*-unsafe` refutations keep the predicate from
+being trivially true; `done-safe` plus three `*-safe` lemmas keep it from
+being trivially false.
+
+Three of the four are proved from native evidence.
+`applicable-neutral-done` shows a neutral application returns `done`, so
+`eval.ex:200`'s catch-all is unreachable for it. `covered-branch-exists`
+turns `CaseCoverage` into the branch and its exact declaration arity, so
+`eval.ex:151`/`eval.ex:172` cannot fire on a covered constructor.
+`neutral-case-strict` shows a neutral scrutinee takes the stuck arm rather
+than `eval.ex:182`'s catch-all.
+
+The fourth is a recorded limitation rather than a claim. `unbound`
+impossibility is not derivable from the current worker: `run-config`'s
+variable clause is `with lookup-value env k in found`, and `in found` is
+necessary -- it supplies `e-var`'s equation premise -- but makes the
+clause irreducible at an abstract de Bruijn index. At abstract `k` the
+clause evaluates to its `nothing` branch even with a successful-lookup
+hypothesis in scope. `UnboundInversion` states what a future change to
+`Core.ClosureEval` would have to make provable.
+
+**Scope.** This is failure analysis for the modelled evaluator. It does
+not prove the Elixir implementation raises nowhere and does not claim
+`unbound` impossibility. No native or executable semantics, trust root or
+older artifact byte changed.
+
 ### Host-shaped tables and a mechanical representation boundary (M2a)
 
 The executable registry is an Elixir MAP — an unordered keyed collection
