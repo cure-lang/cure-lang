@@ -1068,6 +1068,37 @@ used by this confluence theorem. Full formal conversion compatibility is
 constructed above; filtered/erased frames, η and the other implementation
 soundness/refinement obligations remain open.
 
+### Typed eta as a proved extension of conversion (M5b)
+
+`Cure.Core.Conv` performs function eta, but the formal `Conversion`
+record has no eta field, and the common-reduct model in
+`Proof.ReductionConversion` explicitly refutes eta between well-typed
+open functions: an eta expansion and its neutral are distinct normal
+forms, so no common reduct exists. Adding an eta field to the record
+would invalidate that model.
+
+`Core.TypedEta` defines eta as a SEPARATE relation layered on any
+`Conversion` and proves its soundness as a property of that extension.
+The relation is a congruence, and `≈-embeds` shows it contains every
+ordinary conversion, so it extends rather than replaces the record.
+
+Head separation -- the property that makes eta safe -- holds for a
+precise reason: `HasTypeHead` classifies type formers only, and a lambda
+has none. The eta rule relates a lambda to a neutral, so it can never be
+the term whose head is separated. Eta is head-safe by construction.
+
+The eta rule still carries a Pi-typing premise on the neutral side, and
+that premise is load-bearing: without it the relation would equate a
+lambda with a data-typed term. The transitive case takes the middle
+term's head explicitly, which is what a caller comparing at a shared
+expected type supplies.
+
+**Scope.** Positive eta and its congruence/head laws only. Eta
+completeness, adding eta to the `Conversion` record, migrating its
+consumers, and the eta rule's renaming/substitution stability remain
+open. The existing refutation is untouched. No native or executable
+semantics, trust root or older artifact byte changed.
+
 ### The delta-unfolding policy and its native simulation (M5a)
 
 The native relation has exactly one delta rule, gated on the visible

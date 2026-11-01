@@ -3216,6 +3216,66 @@ the all-directory scanner, shell syntax and byte-for-byte reproduction of all
 older generated artifacts pass. Strict Credo checks all 1,455 source files
 without issues. Maintainer-waived suites were not run; no commit was made.
 
+### Typed eta as a proved extension of conversion (M5b)
+`Cure.Core.Conv` performs function eta: `conv_struct?` compares a
+`{:vlam, ...}` against a non-lambda by applying both to a fresh neutral
+(`conv.ex:104`-`106`, `eta_eq?/4` at `conv.ex:210`). The formal
+`Conversion` record has NO eta field, and the common-reduct model in
+`Proof.ReductionConversion` explicitly REFUTES eta between well-typed
+open functions (`eta-not-in-this-model`): an eta expansion and its
+neutral are distinct normal forms, so no common reduct exists.
+
+Adding an eta field to `Conversion` would invalidate that model, so
+`Core.TypedEta` takes the honest route: eta is a SEPARATE relation
+`_≈η_` layered on top of any `Conversion`, and its soundness is proved
+as a property of that extension rather than by weakening the record.
+
+`_≈η_` is reflexive, symmetric and transitive, so it is a congruence
+rather than a one-way rewrite. `≈-embeds` proves it contains every
+ordinary conversion, so no existing derivation is lost -- the relation
+is a genuine EXTENSION.
+
+**Head separation is the property that makes eta safe**, and it holds
+for a reason worth stating precisely. `HasTypeHead` classifies TYPE
+FORMERS only, and `lam-has-no-head` shows a lambda has none. The eta
+rule relates a lambda to a neutral, so it can never be the term whose
+head is being separated: eta is head-safe BY CONSTRUCTION rather than by
+a side condition. `eta-step-heads` proves separation for a single eta
+step, and `eta-rule-not-head` records the reason.
+
+The eta rule still carries `HasTypeHead f h-pi` -- the neutral side is
+known to be a FUNCTION type. That premise is load-bearing: without it
+the relation would equate a lambda with a data-typed term, which is
+exactly the unsoundness the executable avoids by only comparing values
+at a shared expected type. `eta-needs-pi` pins that the premise cannot
+be satisfied at a non-Pi head.
+
+`≈η-heads-with` states the transitive closure case, taking the middle
+term's head as an explicit argument. That is honest: head separation for
+an untyped chain does not hold, and a caller comparing two terms at a
+SHARED expected type is exactly the situation where the middle's head is
+available -- which is the only way the executable ever uses eta.
+
+**Scope.** This is a positive eta relation and its congruence/head laws.
+It does not prove eta COMPLETENESS (that the executable's eta is
+derivable here for every accepted pair), does not add eta to the
+`Conversion` record or migrate its consumers, and does not touch
+`Proof.ReductionConversion`'s refutation, which remains a true statement
+about the common-reduct model. The renaming/substitution stability of
+the eta rule needs commutation laws that live in `Proof.Substitution`,
+which imports `Core.Typing` and therefore cannot be imported back; that
+stability is left as the next increment rather than assumed. No native
+or executable semantics, trust inventory or older artifact byte changed.
+
+Validation for this continuation: all 234 Agda modules pass without
+warnings and every source is registered exactly once (`./proof/check.sh`,
+exit 0). The exact `funext`/legacy `tree-decides` postulate inventory is
+unchanged, the ten hygiene regressions and the all-directory scanner pass
+with no new holes or checking bypasses, and shell syntax and whitespace
+checks pass. Strict Credo, formatting and the standalone artifact
+reproduction check also pass. Maintainer-waived Mix/ExUnit, documentation
+and stdlib/example suites were not run and are not reported as passing.
+
 ### The delta-unfolding policy and its native simulation (M5a)
 `Core.DeltaPolicy` formalises the policy `Cure.Core.Normalise` owns
 between `Eval` and `Quote`, and proves the direction that matters for

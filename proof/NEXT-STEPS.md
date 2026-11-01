@@ -1155,6 +1155,42 @@ arithmetic, stuck-case exposure and the builtin-op fold remain separate
 obligations. No native or executable semantics, trust inventory or older
 artifact byte changed.
 
+## Typed eta as a proved extension of conversion (M5b)
+`Cure.Core.Conv` performs function eta, but the formal `Conversion`
+record has no eta field and `Proof.ReductionConversion` explicitly
+REFUTES eta between well-typed open functions: an eta expansion and its
+neutral are distinct normal forms, so no common reduct exists. Adding an
+eta field to the record would invalidate that model.
+
+`Core.TypedEta` therefore defines eta as a SEPARATE relation `_≈η_`
+layered on any `Conversion`, and proves its soundness as a property of
+that extension. `_≈η_` is a congruence (reflexive, symmetric,
+transitive) and `≈-embeds` shows it contains every ordinary conversion,
+so it is a genuine extension rather than a replacement.
+
+Head separation -- the property that makes eta safe -- holds for a
+reason worth recording. `HasTypeHead` classifies TYPE FORMERS only, and
+`lam-has-no-head` shows a lambda has none. The eta rule relates a lambda
+to a neutral, so it can never be the term whose head is being separated.
+Eta is head-safe BY CONSTRUCTION. `eta-step-heads` proves separation for
+a single eta step and `eta-rule-not-head` records the reason.
+
+The eta rule still carries `HasTypeHead f h-pi`: the neutral side is
+known to be a function type. That premise is load-bearing, and
+`eta-needs-pi` pins that it cannot be satisfied at a non-Pi head. The
+transitive closure case (`≈η-heads-with`) takes the middle term's head
+as an explicit argument, because head separation for an untyped chain
+does not hold; a caller comparing two terms at a shared expected type is
+exactly where that witness is available.
+
+This is a positive eta relation and its congruence/head laws. Eta
+COMPLETENESS, adding eta to the `Conversion` record, migrating its
+consumers, and the eta rule's renaming/substitution stability (which
+needs commutation laws from `Proof.Substitution`, a module that imports
+`Core.Typing`) all remain open. `Proof.ReductionConversion`'s refutation
+is untouched and remains true for the common-reduct model. No native or
+executable semantics, trust inventory or older artifact byte changed.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence (M2a supplies the host-side

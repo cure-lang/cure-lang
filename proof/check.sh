@@ -264,6 +264,7 @@ MODULES=(
   Core/RepresentationBoundary
   Core/FailureImpossibility
   Core/DeltaPolicy
+  Core/TypedEta
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples
 )
