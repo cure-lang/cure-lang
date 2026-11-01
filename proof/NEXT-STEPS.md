@@ -1126,8 +1126,12 @@ that a finite derivation fits in some fuel requires transporting an
 external lookup equation into `run-config`'s `with`-abstracted variable
 clause, which is unavailable without proof irrelevance on the equation
 itself. That finding is recorded in the M4a section's `UnboundInversion`
-and was reported rather than forced. M5a takes the adjacent obligation
-that IS provable and that `PLAN.md` scopes to M2/M4.
+and was reported rather than forced. **The exact migration that unblocks
+it is planned in [`M4B-PLAN.md`](M4B-PLAN.md)**: drop the equation from
+`e-var`, which has exactly two consumers and both recover it from their
+environment relation, then prove fuel monotonicity as a mutual
+induction. M5a takes the adjacent obligation that IS provable and that
+`PLAN.md` scopes to M2/M4.
 
 `Core.DeltaPolicy` formalises the policy `Cure.Core.Normalise` owns
 between `Eval` and `Quote`, and proves that every successful policy
