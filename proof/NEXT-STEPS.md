@@ -1120,6 +1120,41 @@ semantic contexts, eta/certified delta, erased layouts, semantic totality
 and backend soundness remain separate. No native or executable semantics,
 trust inventory or older artifact byte changed.
 
+## Delta-unfolding policy soundness (M5a)
+M4b's fuel-adequacy theorem was investigated and found blocked: proving
+that a finite derivation fits in some fuel requires transporting an
+external lookup equation into `run-config`'s `with`-abstracted variable
+clause, which is unavailable without proof irrelevance on the equation
+itself. That finding is recorded in the M4a section's `UnboundInversion`
+and was reported rather than forced. M5a takes the adjacent obligation
+that IS provable and that `PLAN.md` scopes to M2/M4.
+
+`Core.DeltaPolicy` formalises the policy `Cure.Core.Normalise` owns
+between `Eval` and `Quote`, and proves that every successful policy
+unfold is a native delta step. The native relation has one delta rule
+gated on the visible body; the executable policy adds three modes, an
+allowlist, a fuel counter, lazy unfolding and an identical-neutral
+shortcut. `policy-unfold` transcribes the decision procedure in the
+executable's guard order.
+
+The key design choice, made in light of the M4b finding: every success
+branch of `policy-unfold` returns `visible-of policy name` (or the
+`visible` field at a resolved entry under `:reducible`), so the policy's
+result and the table's visible body are the same term BY CONSTRUCTION.
+`policy-sound` therefore needs no equation transport. It takes an
+explicit `Agrees policy sig` hypothesis -- the representation obligation
+M2 owns -- rather than assuming the correspondence silently.
+
+Five refusal controls (`none-refuses`, `empty-allow-refuses`,
+`unregistered-refuses`, `hidden-refuses`, `not-reducible-refuses`) and
+two positive controls (`certified-unfolds`, `reducible-unfolds`) keep
+the theorem from being vacuous in either direction.
+
+This is the SOUNDNESS direction only. Completeness, the fuel counter's
+arithmetic, stuck-case exposure and the builtin-op fold remain separate
+obligations. No native or executable semantics, trust inventory or older
+artifact byte changed.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence (M2a supplies the host-side

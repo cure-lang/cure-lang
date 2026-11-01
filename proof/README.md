@@ -3216,6 +3216,58 @@ the all-directory scanner, shell syntax and byte-for-byte reproduction of all
 older generated artifacts pass. Strict Credo checks all 1,455 source files
 without issues. Maintainer-waived suites were not run; no commit was made.
 
+### The delta-unfolding policy and its native simulation (M5a)
+`Core.DeltaPolicy` formalises the policy `Cure.Core.Normalise` owns
+between `Eval` and `Quote`, and proves the direction that matters for
+soundness: EVERY successful policy unfold is a native delta step.
+
+The native relation has exactly one delta rule, gated on
+`Signature.body sig f = just body'` -- the visible body. The executable
+policy is strictly richer: three modes (`:certified`, `:reducible`,
+`:none`), an allowlist (`delta_allow`), a fuel counter, a lazy-unfolding
+rule that keeps an application folded when unfolding would only
+re-expose a stuck eliminator, and an identical-neutral shortcut that
+reports `:stuck` rather than looping on a certified identity.
+
+`policy-unfold` transcribes the decision procedure, consulting the
+guards in the executable's own order: mode, then allowlist, then the
+mode-specific condition, then the visible body. Every success branch
+returns `visible-of policy name` (or, under `:reducible`, the `visible`
+field at a resolved entry), so the policy's result and the table's
+visible body are the same term BY CONSTRUCTION. That is what lets
+`policy-sound` go through without equation transport -- a design choice
+made after the M4b finding that transporting an external lookup equation
+into a worker's `with`-abstracted clause is not available in this
+development.
+
+`policy-sound` takes an explicit `Agrees policy sig` hypothesis: the
+signature's body lookup agrees with the policy's visible field. That is
+the representation obligation M2 owns, stated rather than assumed
+silently.
+
+The refusals are what make the theorem meaningful, so they are recorded
+as controls: `none-refuses` (`:none` refuses even a visible body),
+`empty-allow-refuses`, `unregistered-refuses`, `hidden-refuses` and
+`not-reducible-refuses` (`:reducible` refuses a non-reducible definition
+despite a visible body). `certified-unfolds` and `reducible-unfolds`
+pin that the policy does unfold when its guards allow.
+
+**Scope.** This is the SOUNDNESS direction only. It does not prove
+completeness (that every native delta step is reachable under some
+policy), does not model the fuel counter's arithmetic, and does not
+cover stuck-case exposure or the builtin-op fold, which are separate
+policies with their own typing obligations. No native or executable
+semantics, trust inventory or older artifact byte changed.
+
+Validation for this continuation: all 233 Agda modules pass without
+warnings and every source is registered exactly once (`./proof/check.sh`,
+exit 0). The exact `funext`/legacy `tree-decides` postulate inventory is
+unchanged, the ten hygiene regressions and the all-directory scanner pass
+with no new holes or checking bypasses, and shell syntax and whitespace
+checks pass. Strict Credo, formatting and the standalone artifact
+reproduction check also pass. Maintainer-waived Mix/ExUnit, documentation
+and stdlib/example suites were not run and are not reported as passing.
+
 ### Failure correspondence for the modelled evaluator (M4a)
 `Core.FailureImpossibility` addresses the direction the existing
 refinement theorems leave open. `Proof.ClosureEvaluation` and

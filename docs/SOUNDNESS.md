@@ -1068,6 +1068,34 @@ used by this confluence theorem. Full formal conversion compatibility is
 constructed above; filtered/erased frames, η and the other implementation
 soundness/refinement obligations remain open.
 
+### The delta-unfolding policy and its native simulation (M5a)
+
+The native relation has exactly one delta rule, gated on the visible
+body `Signature.body sig f = just body'`. The executable policy in
+`Cure.Core.Normalise` is strictly richer: three modes, an allowlist, a
+fuel counter, lazy unfolding and an identical-neutral shortcut.
+
+`Core.DeltaPolicy` transcribes that decision procedure and proves the
+SOUNDNESS direction: every successful policy unfold is a native delta
+step. The policy's extra conditions only ever refuse -- they narrow the
+native rule, never widen it -- so no policy success can produce a
+reduction the native relation does not admit.
+
+The design makes the proof go through without equation transport: every
+success branch of `policy-unfold` returns the table's visible body (or
+the `visible` field at a resolved entry under `:reducible`), so the
+policy's result and the visible body are the same term by construction.
+`policy-sound` takes an explicit `Agrees policy sig` hypothesis -- the
+representation obligation M2 owns -- rather than assuming it silently.
+
+Five refusal controls and two positive controls keep the theorem
+non-vacuous in both directions.
+
+**Scope.** Soundness only. Completeness, the fuel counter's arithmetic,
+stuck-case exposure and the builtin-op fold remain separate
+obligations. No native or executable semantics, trust root or older
+artifact byte changed.
+
 ### Failure correspondence for the modelled evaluator (M4a)
 
 The existing refinement theorems (`Proof.ClosureEvaluation`,

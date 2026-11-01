@@ -263,6 +263,7 @@ MODULES=(
   Proof/HostTableExamples
   Core/RepresentationBoundary
   Core/FailureImpossibility
+  Core/DeltaPolicy
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples
 )
