@@ -1,6 +1,10 @@
 # M4b — Fuel adequacy: exact implementation plan
 
-Status: **plan only**. Nothing in this document has been implemented.
+Status: **step 1 attempted and REFUTED.** See §8. The plan below is kept
+as written so the error stays visible; the refutation is the operative
+conclusion. Nothing from the attempt was kept; the tree is unchanged and
+`./proof/check.sh` is green.
+
 Prepared after the M4b investigation recorded in `proof/NEXT-STEPS.md` and
 `Core.FailureImpossibility`'s `UnboundInversion`.
 
@@ -212,3 +216,134 @@ Every step: `./proof/check.sh`, `./proof/scripts/check-postulates.sh`,
 --check-formatted`, and the standalone artifact reproduction check.
 
 The postulate inventory must remain exactly `funext` and `tree-decides`.
+
+## 8. OUTCOME — step 1 was attempted and refuted
+
+§3.1 and §3.2 were implemented. The migration does not work, and the reason
+is a property of the model rather than a gap in the proof. **§3.1's premise
+and §3.2's claim are both wrong.**
+
+### 8.1 `e-var` without its equation stops determining the value
+
+With
+
+```agda
+e-var : ∀ {k v} → Evaluates env (tm-var k) v
+```
+
+the constructor has no premise at all, so it inhabits `Evaluates env
+(tm-var k) v` for **every** `v`. Verified by probe:
+
+```agda
+any-value : ∀ {env k} (v : Value) → Evaluates env (tm-var k) v
+any-value v = e-var          -- checks
+```
+
+So `Evaluates` no longer determines *which* value a variable evaluates to.
+This is not something a better induction gets around: the relation itself
+lost the information.
+
+Both consumers must *produce* the value, so both fail:
+
+| Consumer | Needs | Available after the change |
+|---|---|---|
+| `ClosureScope.evaluate-scoped` | `ValueScoped d value` for the value the derivation produced | the relation fixes a value; `e-var` no longer says the derivation used it |
+| `ClosureEvaluation.evaluate` | `∃ term → Denotes d value term` | same |
+
+`evaluate-scoped`'s goal is `ValueScoped d value` at `e-var`'s *implicit*
+`value`, now unconstrained. A helper deriving `lookup-value env k ≡ just v`
+from `EnvironmentScoped` was written and does typecheck — but Agda cannot
+unify the value the relation determines with the one the goal mentions,
+because nothing connects them any more. That is precisely the finding §6
+asked to be reported rather than worked around.
+
+### 8.2 §3.2 is inverted: the plain `with` cannot build `e-var`
+
+§3.2 claims that with `e-var` equation-free the worker no longer needs `in
+found`. True, but useless: the *equation itself* then becomes unreachable.
+Probe, `e-var` still carrying its equation, clause written without `in`:
+
+```agda
+run (suc fuel) (tm-var k) env with lookup-value env k
+... | nothing = stop
+... | just v  = done (v , e-var {!!})     -- hole is UNSOLVABLE
+```
+
+`with` abstracts the scrutinee, so inside the `just v` branch Agda has no
+`lookup-value env k ≡ just v`. `in found` is what supplies it — and `in
+found` is exactly what makes the clause irreducible at an abstract index.
+The two requirements are one requirement seen from both sides:
+
+> A worker clause can produce `e-var`'s equation only by abstracting over
+> it, and abstracting over it is exactly what blocks adequacy.
+
+Making the field irrelevant (`.lookup-value env k ≡ just v`) does not help:
+the problem is the *existence* of the equation, not its identity. Verified
+by probe.
+
+### 8.3 Why §2's diagnosis was incomplete
+
+§2 blamed consequence 2 (the equation living inside the evidence) and
+treated consequence 1 (`in found`) as its symptom. The probes show they are
+independent: removing the equation from the evidence does not remove the
+need for `in found`, it only removes the worker's ability to *use* it.
+
+### 8.4 What this means for M4b
+
+`UnboundInversion` stays a recorded limitation and fuel adequacy for
+`run-config` is **not** reachable by this route. A future attempt needs one
+of:
+
+1. **A different worker shape** that does not return `Evaluates` evidence at
+   all — e.g. a fuel-indexed evaluator returning only values, with a
+   separate soundness theorem relating it to `Evaluates`. The equation then
+   never has to be produced inside a `with`. This is the only option
+   consistent with the standing constraints.
+2. Proof irrelevance on `Maybe`-equations, which this development
+   deliberately does not assume and §6 forbids introducing.
+3. §4's `height`/`mono` structure, but against a worker other than
+   `run-config`.
+
+Option 1 is a redesign of the worker, not a migration of it, and should be
+scoped as its own milestone rather than folded into M4b.
+
+### 8.5 State of the tree
+
+`Core/ClosureEval.agda` and `Core/ClosureScope.agda` are unmodified and
+typecheck. The probes are four throwaway modules, reproduced below so the
+refutation is auditable without trusting this prose. Each needs only
+`standard-library`:
+
+| Probe | Claim | Agda result |
+|---|---|---|
+| **A** | equation-free `e-var` admits every value | checks |
+| **B** | plain `with` cannot build `e-var` | hole unsolvable |
+| **C** | an irrelevant equation field does not help | hole unsolvable |
+| **D** | `with … in found` works (the status quo) | checks |
+
+Probe **A**:
+
+```agda
+data Evaluates (env : List Value) : Term → Value → Set where
+  e-var : ∀ {k v} → Evaluates env (tm-var k) v
+any-value : ∀ {env k} (v : Value) → Evaluates env (tm-var k) v
+any-value v = e-var
+```
+
+Probes **B**/**C** are the same module differing only in the constructor's
+premise (`lookup-value env k ≡ just v` vs `.lookup-value env k ≡ just v`)
+and in the worker clause:
+
+```agda
+run (suc fuel) (tm-var k) env with lookup-value env k
+... | nothing = stop
+... | just v  = done (v , e-var {!!})
+```
+
+Probe **D** is **B** with the clause restored to the shipped shape:
+
+```agda
+run (suc fuel) (tm-var k) env with lookup-value env k in found
+... | nothing = stop
+... | just v  = done (v , e-var found)
+```

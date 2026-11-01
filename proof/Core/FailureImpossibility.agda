@@ -215,6 +215,17 @@ neutral-case-strict evaluated = refl
 --   (b) a different route through the positive `Evaluates` relation.
 --
 -- Neither is claimed. This is a boundary, not a gap papered over.
+--
+-- A migration along route (a) was subsequently planned and ATTEMPTED:
+-- `M4B-PLAN.md` proposed dropping the equation from `e-var` so the clause
+-- could be written without `in found`. That fails, and §8 of that document
+-- records the probes. In short, an equation-free `e-var` no longer
+-- determines the value a variable evaluates to (every value inhabits it),
+-- so the two consumers that must PRODUCE that value cannot; and a plain
+-- `with` cannot build the equation at all, so `in found` is unavoidable
+-- while `e-var` carries it. Route (a) therefore requires a worker that
+-- returns values WITHOUT `Evaluates` evidence — a redesign, not a
+-- migration — with a separate soundness theorem relating the two.
 ------------------------------------------------------------------------
 
 -- The inversion that is NOT available. Stated as a record field so that

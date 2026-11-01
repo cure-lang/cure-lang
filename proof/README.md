@@ -3368,6 +3368,20 @@ make provable -- a worker exposing the lookup decision as an explicit
 argument -- so the boundary is visible at every use site instead of buried
 in prose.
 
+A migration along that route was then planned in `proof/M4B-PLAN.md` and
+ATTEMPTED; it was REFUTED, and §8 of that document records the probes.
+Dropping the equation from `e-var` does not unblock the clause, it breaks
+the two consumers that must PRODUCE the value: an equation-free `e-var`
+inhabits `Evaluates env (tm-var k) v` for EVERY `v`, so the relation stops
+determining what a variable evaluates to. Independently, a plain `with`
+cannot build the equation at all (the hole is unsolvable), so `in found`
+is unavoidable while `e-var` carries it -- and `in found` is exactly what
+blocks adequacy. Making the field irrelevant does not help; the problem is
+the equation's existence, not its identity. Fuel adequacy for `run-config`
+therefore needs a worker that returns values WITHOUT `Evaluates` evidence,
+related to the relation by a separate soundness theorem: a redesign, not a
+migration. No such worker exists and none is claimed.
+
 **Scope.** This is failure analysis for the MODELLED evaluator. It does not
 prove the Elixir implementation raises nowhere, and does not claim
 `unbound` impossibility. No native or executable semantics, trust
