@@ -1142,6 +1142,73 @@ or checking bypasses, and shell syntax and whitespace checks pass.
 Maintainer-waived Mix/ExUnit, documentation and stdlib/example suites
 were not run and are not reported as passing.
 
+## The remaining adapter obligations, checked rather than trusted (M2c)
+M2b discharged four of M2a's eight adapter obligations by defining the
+extraction. Four remained: (1) name encoding, (2) table extraction,
+(5) certification flags, (7) hidden bodies.
+
+Reading the ACTUAL producer changed the picture. `Cure.Core.ProofSnapshot`
+already rejects payloads that violate (5) and (7), and already refuses
+names that violate (1)'s encoding discipline:
+
+  proof_snapshot.ex:94   ensure!(subset?(set, keys(defs)), :unknown_certified_global)
+  proof_snapshot.ex:97   ensure!(subset?(certified, totality_certified),
+                                :inconsistent_certification)
+  proof_snapshot.ex:282  ensure!(text != "" and all printable ASCII,
+                                :unsupported_name_encoding)
+
+These are not silent assumptions but FAIL-CLOSED CHECKS the producer
+performs. The formal gap was that the Agda development did not MODEL
+them, so a consumer had to take them on trust.
+`Core.AdapterChecks` closes that gap by making a `Validated` payload one
+that passed both checks, so the obligations hold by construction:
+
+* **(5) flags-uninterpreted** and **(7) hidden-bodies-captured** are
+  projections from `Validated`. The point is that the projection is the
+  ONLY way to obtain them: a payload that failed the producer's check
+  has no `Validated` value, so the theorems cannot be instantiated on it.
+  Both refutations are constructive controls.
+
+* **(1) name-encoding** is proved in the INTERNED form the wire layer
+  already uses. A character-faithful `String -> Name` encoding with a
+  proved inverse is not available: the stdlib offers only
+  `primStringToList` injectivity, and the round-trip exists solely as a
+  postulate in `Data.String.Unsafe`, which this development refuses to
+  use. `index-of-sound` proves an index produced by `index-of` decodes
+  back to the name written; `absent-name` proves the encoding is PARTIAL
+  — a name absent from the table has no index at all. That partiality is
+  honest and harmless, because the adapter only encodes names it
+  captured. The full injectivity `RepresentationBoundary` asks for is
+  NOT claimed.
+
+* **(2) table extraction** is NOT discharged and is not provable from
+  the payload: it says the host payload IS the registry, a fact about
+  Elixir state that no Agda type can witness. It stays explicit trust,
+  and `m2c-ledger` records it as the single remaining obligation.
+
+`Proof.AdapterChecksExamples` supplies a payload that passes both checks
+and exercises (5), (7) and (1) at concrete names, plus one negative
+control per check: a payload certified but not totality-certified, and
+one whose certified global was dropped, each proved to have no
+`Validated` value. A further control shows `"Boundary#Missing"` has no
+index, which is what makes the interned encoding partial.
+
+This discharges three of the four remaining obligations. It does NOT
+prove that any Elixir function implements the checks, and (2) remains
+open. Universal producer correspondence,
+kernel-acceptance-to-recipe production, semantic contexts,
+eta/certified delta, erased layouts, semantic totality and backend
+soundness remain separate. No native or executable semantics, trust
+inventory or older artifact byte changed.
+
+Validation: all 238 Agda modules pass without warnings and every source
+is registered once (`./proof/check.sh`, exit 0). The exact
+`funext`/`tree-decides` postulate inventory is unchanged, the ten
+hygiene regressions and the all-directory scanner pass with no new holes
+or checking bypasses, and shell syntax and whitespace checks pass.
+Maintainer-waived Mix/ExUnit, documentation and stdlib/example suites
+were not run and are not reported as passing.
+
 ## Failure correspondence for the modelled evaluator (M4a)
 M4 was scoped to "universal positive execution and failure
 correspondence". The positive half already exists

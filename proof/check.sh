@@ -264,6 +264,8 @@ MODULES=(
   Core/RepresentationBoundary
   Core/AdapterConstruction
   Proof/AdapterConstructionExamples
+  Core/AdapterChecks
+  Proof/AdapterChecksExamples
   Core/FailureImpossibility
   Core/DeltaPolicy
   Core/TypedEta

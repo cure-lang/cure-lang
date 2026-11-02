@@ -178,6 +178,27 @@ record Boundary : Set where
 -- The four that remain are genuine adapter trust: (1) name encoding,
 -- (2) that the host payload IS the registry, (5) that host flags mean
 -- what we read, and (7) that hidden bodies were captured.
+--
+-- M2c UPDATE. `Core.AdapterChecks` then read the ACTUAL producer and
+-- found that (5) and (7) are not silent assumptions at all: they are
+-- FAIL-CLOSED CHECKS `Cure.Core.ProofSnapshot` already performs
+-- (`proof_snapshot.ex:94` and `:97`). Modelling those checks as a
+-- `Validated` payload makes both obligations theorems, and gives (1) a
+-- proved INTERNED form. So:
+--
+--   (5) flags-uninterpreted     -- `AdapterChecks.flags-uninterpreted`
+--   (7) hidden-bodies-captured  -- `AdapterChecks.hidden-bodies-captured`
+--   (1) name-encoding           -- `AdapterChecks.name-encoding-interned`
+--                                  (PARTIAL: names are interned as table
+--                                  indices, because a character-faithful
+--                                  String round-trip is unavailable
+--                                  without the `Data.String.Unsafe`
+--                                  postulate this development refuses)
+--
+-- Only (2) remains, and it is not provable at all: "the host payload IS
+-- the registry" is a fact about Elixir state that no Agda type can
+-- witness. A field claiming it would be exactly the unproved assumption
+-- this milestone exists to remove.
 ------------------------------------------------------------------------
 
 record Ledger : Set where
