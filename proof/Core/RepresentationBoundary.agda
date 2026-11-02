@@ -158,6 +158,26 @@ record Boundary : Set where
 -- lists the adapter obligations that remain. A consumer that needs the
 -- full claim must take a `Boundary`; a consumer that only needs the
 -- resolution laws can take `Core.HostTable` alone.
+--
+-- M2b UPDATE. `Core.AdapterConstruction` then asked which of the eight
+-- fields FOLLOW FROM THE ADAPTER'S DEFINITION rather than from an
+-- assumption, and proved four of them:
+--
+--   (6) order-preserved     -- `AdapterConstruction.order-preserved`
+--   (3) duplicates-rejected -- `AdapterConstruction.duplicates-rejected`
+--   (4) aliases-separate    -- `AdapterConstruction.aliases-separate`
+--   (8) signature-immutable -- `AdapterConstruction.signature-immutable-real`
+--
+-- Obligation (8) deserves a warning: as stated HERE its two sides are
+-- syntactically identical, so it is proved by `refl` for ANY function
+-- and cannot be violated. `Core.AdapterConstruction` replaces it with a
+-- version that quantifies over two DIFFERENT observations, which is
+-- falsifiable and therefore has content. Read the field below as the
+-- weakened statement it is, not as evidence of immutability.
+--
+-- The four that remain are genuine adapter trust: (1) name encoding,
+-- (2) that the host payload IS the registry, (5) that host flags mean
+-- what we read, and (7) that hidden bodies were captured.
 ------------------------------------------------------------------------
 
 record Ledger : Set where

@@ -262,6 +262,8 @@ MODULES=(
   Core/HostTable
   Proof/HostTableExamples
   Core/RepresentationBoundary
+  Core/AdapterConstruction
+  Proof/AdapterConstructionExamples
   Core/FailureImpossibility
   Core/DeltaPolicy
   Core/TypedEta

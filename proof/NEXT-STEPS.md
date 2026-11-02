@@ -1075,6 +1075,73 @@ and passed 13 tests with 0 failures; the default Mix/ExUnit suite,
 documentation checks and the stdlib/example gate were not run under the
 maintainer policy and are not reported as passing.
 
+## An adapter construction that discharges four obligations (M2b)
+M2a made the adapter trust MECHANICAL by stating eight obligations as
+`Core.RepresentationBoundary` record fields. A field is an ASSUMPTION,
+so M2b asked which of the eight follow from the adapter's own
+DEFINITION instead.
+
+The move is to stop treating the extracted table as an opaque field and
+DEFINE it from the host payload. `Core.AdapterConstruction` supplies
+that definition and proves four obligations from it:
+
+* **(6) order-preserved** — the extracted table's first match for a
+  name IS the host's own first match, by induction on the presented
+  name list. This was the obligation most obviously recoverable once
+  `extracted` is defined rather than postulated.
+* **(3) duplicates-rejected** — the `Checked` smart constructor REQUIRES
+  pairwise-distinct names, so the obligation holds by projection and
+  cannot be bypassed by not looking. `NoDup` is stated as head-vs-later
+  inequality, not "every pair including `a = b`", which would be
+  unsatisfiable; `distinct-of-distinct` turns it into `Unique` of the
+  extracted bindings.
+* **(4) aliases-separate** — reduces to a disjointness premise on the
+  SOURCES, which is a checkable property of the payload. The adapter's
+  job is to check it, not to prove something extra.
+* **(8) signature-immutable** — **the old statement was a tautology.**
+  Its two sides were syntactically identical (`x ≡ x`), so it held for
+  ANY function, including an obviously mutating one, and could not be
+  violated. `signature-immutable-real` replaces it with a version
+  quantifying over two DIFFERENT observations, which is falsifiable and
+  therefore has content.
+
+Four obligations remain genuine adapter trust and are now stated more
+precisely: (1) name encoding, (2) that the host payload IS the
+registry, (5) that host flags mean what we read, and (7) that hidden
+bodies were captured.
+
+`Proof.AdapterConstructionExamples` supplies a two-family payload and
+exercises every discharged obligation at a concrete name, plus a
+negative control for each hypothesis the construction RELIES ON: a
+repeated family violates `NoDup`, an alias whose key IS a family
+violates `SourcesDisjoint`, and two DIFFERENT tables make the
+immutability conclusion unavailable. A further control records that the
+old vacuous statement holds for an arbitrary function, so the
+replacement is not mistaken for a restatement.
+
+Two technical notes worth keeping. `Name` is a DEFINITION
+(`Name = String`), and Agda will not unfold definitions while checking a
+constructor's index, so `Unique` over `Name` blocks the `[]` case; the
+distinctness lemma is therefore stated over `String × String`.
+`extract-names` is written by structural recursion rather than `map` so
+that it reduces in the proofs.
+
+This discharges four of eight adapter obligations. It does NOT prove
+that any Elixir function implements the construction, and it does not
+touch obligations (1), (2), (5) or (7). Universal producer
+correspondence, kernel-acceptance-to-recipe production, semantic
+contexts, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate. No native or executable semantics,
+trust inventory or older artifact byte changed.
+
+Validation: all 236 Agda modules pass without warnings and every source
+is registered once (`./proof/check.sh`, exit 0). The exact
+`funext`/`tree-decides` postulate inventory is unchanged, the ten
+hygiene regressions and the all-directory scanner pass with no new holes
+or checking bypasses, and shell syntax and whitespace checks pass.
+Maintainer-waived Mix/ExUnit, documentation and stdlib/example suites
+were not run and are not reported as passing.
+
 ## Failure correspondence for the modelled evaluator (M4a)
 M4 was scoped to "universal positive execution and failure
 correspondence". The positive half already exists

@@ -3472,6 +3472,69 @@ explicitly and passed 13 tests with 0 failures (seed 186595). The default
 Mix/ExUnit suite, documentation checks and the stdlib/example gate were NOT
 run under the maintainer policy and are not reported as passing.
 
+### An adapter construction that discharges four obligations (M2b)
+M2a made the adapter trust mechanical by stating eight obligations as
+`Core.RepresentationBoundary` fields. A field is an ASSUMPTION, so M2b
+asked which of the eight follow from the adapter's own DEFINITION.
+
+`Core.AdapterConstruction` answers by DEFINING the extracted table from
+the host payload instead of postulating it. Four obligations then become
+theorems:
+
+* `order-preserved` — the extracted table's first match for a name IS the
+  host's own first match, by induction on the presented name list.
+* `duplicates-rejected` — the `Checked` smart constructor REQUIRES
+  pairwise-distinct names, so the obligation holds by projection and
+  cannot be bypassed by not looking. `NoDup` is stated as head-vs-later
+  inequality rather than "every pair including `a = b`", which would be
+  unsatisfiable; `distinct-of-distinct` lifts it to `Unique` of the
+  extracted bindings.
+* `aliases-separate` — reduces to a disjointness premise on the SOURCES,
+  which is a checkable property of the payload rather than an assumption
+  about adapter code.
+* `signature-immutable` — **the old statement was a tautology.** Its two
+  sides were syntactically identical (`x ≡ x`), so it held for ANY
+  function, including an obviously mutating one, and could not be
+  violated. `signature-immutable-real` replaces it with a version
+  quantifying over two DIFFERENT observations, which is falsifiable and
+  therefore has content. `signature-immutable-vacuous` records the old
+  shape so the replacement is not mistaken for a restatement.
+
+Four obligations remain genuine adapter trust, now stated more
+precisely: (1) name encoding, (2) that the host payload IS the registry,
+(5) that host flags mean what we read, and (7) that hidden bodies were
+captured. `m2b-ledger` records the four/four split with
+`discharged-nonempty`/`remaining-nonempty` keeping both sides nonempty.
+
+`Proof.AdapterConstructionExamples` supplies a two-family payload and
+exercises every discharged obligation at a concrete name, plus one
+negative control per hypothesis the construction RELIES on: a repeated
+family violates `NoDup`, an alias whose key IS a family violates
+`SourcesDisjoint`, and two DIFFERENT tables make the immutability
+conclusion unavailable. `m2b-split` pins the ledger at four and four.
+
+Two technical notes. `Name` is a DEFINITION (`Name = String`), and Agda
+will not unfold definitions while checking a constructor's index, so
+`Unique` over `Name` blocks the `[]` case; the distinctness lemma is
+stated over `String × String` instead. `extract-names` is written by
+structural recursion rather than `map` so that it reduces in the proofs.
+
+**Scope.** This discharges four of eight adapter obligations. It does NOT
+prove that any Elixir function implements the construction, and it does
+not touch obligations (1), (2), (5) or (7). Universal producer
+correspondence, kernel-acceptance-to-recipe production, semantic
+contexts, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate. No native or executable semantics,
+trust inventory or older artifact byte changed.
+
+Validation for this continuation: all 236 Agda modules pass without
+warnings and every source is registered exactly once (`./proof/check.sh`,
+exit 0). The exact `funext`/legacy `tree-decides` postulate inventory is
+unchanged, the ten hygiene regressions and the all-directory scanner pass
+with no new holes or checking bypasses, and shell syntax and whitespace
+checks pass. Maintainer-waived Mix/ExUnit, documentation and
+stdlib/example suites were NOT run and are not reported as passing.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
