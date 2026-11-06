@@ -44,8 +44,10 @@
 -- `Proof.ReductionConversion`'s refutation, which remains a true
 -- statement about the common-reduct model. The renaming/substitution
 -- stability of the eta rule needs commutation laws that live in
--- `Proof.Substitution` and is proved in `Proof.TypedEta`. No new axiom,
--- hole or checking override is introduced.
+-- `Proof.Substitution` (a module that imports `Core.Typing` and so
+-- cannot be imported back here) and is NOT proved in this module; it is
+-- the next increment rather than an assumption. No new axiom, hole or
+-- checking override is introduced.
 ------------------------------------------------------------------------
 module Core.TypedEta where
 

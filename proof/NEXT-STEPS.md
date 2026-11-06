@@ -1163,6 +1163,14 @@ them, so a consumer had to take them on trust.
 `Core.AdapterChecks` closes that gap by making a `Validated` payload one
 that passed both checks, so the obligations hold by construction:
 
+**Correction against the source.** The `unknown_certified_global` check
+at `proof_snapshot.ex:94` is a loop over BOTH certificate sets
+(`:89`-`:95`), so it fires for a dropped totality-certified global too.
+The obligation (7) needs is the GLOBAL side of it, `certified ⊆
+keys(defs)`, which `global!` (`:157`-`:179`) supplies when it emits each
+entry's flags. `Validated` states exactly that subset; the earlier
+reading of line 94 as certified-specific was imprecise.
+
 * **(5) flags-uninterpreted** and **(7) hidden-bodies-captured** are
   projections from `Validated`. The point is that the projection is the
   ONLY way to obtain them: a payload that failed the producer's check
@@ -1193,8 +1201,10 @@ one whose certified global was dropped, each proved to have no
 `Validated` value. A further control shows `"Boundary#Missing"` has no
 index, which is what makes the interned encoding partial.
 
-This discharges three of the four remaining obligations. It does NOT
-prove that any Elixir function implements the checks, and (2) remains
+This discharges three of the four remaining obligations, so seven of
+M2a's eight adapter obligations now have a proof. It does NOT prove that
+any Elixir function implements the checks -- `Validated` is a MODEL of
+them, not a refinement of `Cure.Core.ProofSnapshot` -- and (2) remains
 open. Universal producer correspondence,
 kernel-acceptance-to-recipe production, semantic contexts,
 eta/certified delta, erased layouts, semantic totality and backend
@@ -1219,7 +1229,8 @@ modelled slice rather than attempting universal correspondence wholesale.
 
 `Core.FailureImpossibility` separates the four failures that would be
 genuine soundness bugs -- mirroring the four `raise` sites in
-`lib/cure/core/eval.ex` -- from the outcomes that are not failures.
+`lib/cure/core/eval.ex` (lines 51, 151/172, 182 and 200) -- from the
+outcomes that are not failures.
 `FailureSafe` is the predicate "this `Result` carries no genuine
 failure"; `exhausted` (bounded-model outcome), `unsupported` (fragment
 exclusion) and `neutral-scrutinee` (legitimate stuck state) are explicitly
@@ -1339,8 +1350,11 @@ executable semantics, trust inventory or older artifact byte changed.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence (M2a supplies the host-side
-   resolution laws and a mechanical adapter-trust ledger; the Elixir
-   producer correspondence itself is still open),
+   resolution laws and a mechanical adapter-trust ledger; M2b/M2c then
+   discharge SEVEN of its eight adapter obligations -- four by defining
+   the extraction, three by modelling the producer's fail-closed checks --
+   leaving only "the host payload IS the registry", which no Agda type can
+   witness. The Elixir producer correspondence itself is still open),
    then connect actual kernel acceptance to replayable recipes and checked
    native evidence. The character scanner, all current codecs, the explicit
    Elixir source/recipe data producers and complete generated artifacts already

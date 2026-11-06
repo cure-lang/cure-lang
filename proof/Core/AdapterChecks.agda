@@ -10,21 +10,31 @@
 -- ALREADY rejects payloads that violate (5) and (7), and already refuses
 -- names that violate (1)'s encoding discipline:
 --
---   proof_snapshot.ex:94   ensure!(subset?(set, keys(defs)), :unknown_certified_global)
---   proof_snapshot.ex:97   ensure!(subset?(certified, totality_certified),
---                                 :inconsistent_certification)
---   proof_snapshot.ex:282  ensure!(text != "" and all printable ASCII,
---                                 :unsupported_name_encoding)
+--   proof_snapshot.ex:89-95  for BOTH certificate sets:
+--                            ensure!(subset?(set, keys(defs)), :unknown_certified_global)
+--   proof_snapshot.ex:97     ensure!(subset?(certified, totality_certified),
+--                                   :inconsistent_certification)
+--   proof_snapshot.ex:282    ensure!(text != "" and all printable ASCII,
+--                                   :unsupported_name_encoding)
+--
+-- CORRECTED AGAINST THE SOURCE (review of this checkpoint): the
+-- `unknown_certified_global` check is a LOOP over both sets, so it fires
+-- for a dropped totality-certified global too. The obligation (7) needs
+-- is the GLOBAL side of it -- `certified ⊆ keys(defs)` -- which
+-- `global!` (proof_snapshot.ex:157-179) supplies when it emits each
+-- entry's flags from the two sets. `Validated` below states exactly that
+-- subset; it does not claim the check is certified-specific.
 --
 -- So these are not silent assumptions: they are FAIL-CLOSED CHECKS the
 -- producer performs. The formal gap is that the Agda development did not
 -- MODEL those checks, so a consumer had to take them on trust.
 --
 -- This module closes that gap for (5) and (7) exactly, and states (1) and
--- (2) precisely enough to say what remains.
+-- (2) precisely enough to say what remains. It MODELS the checks: it does
+-- not prove that `Cure.Core.ProofSnapshot` implements this model.
 --
 -- (5) and (7) are PROVED here. Both are subset relations between host
--- lists, and a `Checked` payload only exists when the producer's checks
+-- lists, and a `Validated` payload only exists when the producer's checks
 -- passed, so the relations hold BY CONSTRUCTION.
 --
 -- (1) is PARTIAL, and the reason is a recorded finding rather than a

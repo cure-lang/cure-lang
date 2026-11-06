@@ -3336,7 +3336,8 @@ positive simulation is vacuous if the modelled evaluator stops on inputs
 the implementation is supposed to accept. `Core.ClosureEval` has a precise
 failure vocabulary, and this module separates the four failures that would
 be genuine soundness bugs -- mirroring the four `raise` sites in
-`lib/cure/core/eval.ex` -- from the outcomes that are not failures.
+`lib/cure/core/eval.ex` (lines 51, 151/172, 182 and 200) -- from the
+outcomes that are not failures.
 
 `FailureSafe` is the predicate "this `Result` carries no genuine failure",
 with `exhausted` (a bounded-model outcome), `unsupported` (a fragment
@@ -3550,6 +3551,16 @@ names that violate (1)'s encoding discipline:
   proof_snapshot.ex:282  ensure!(text != "" and all printable ASCII,
                                 :unsupported_name_encoding)
 
+**Corrected against the source.** The first of those three is a loop over
+BOTH certificate sets (`proof_snapshot.ex:89`-`95`), so line 94's
+`unknown_certified_global` fires for a totality-certified global that was
+dropped just as it does for a certified one. The obligation (7) actually
+needs is the GLOBAL side of that check, `certified ⊆ keys(defs)`, which
+`global!` (`proof_snapshot.ex:157`-`179`) supplies when it emits each
+entry's `certified`/`totality_certified` flags from the two sets; the
+formal model below states exactly that subset, not the weaker
+"certified implies totality-certified" reading the line number suggests.
+
 These are not silent assumptions but FAIL-CLOSED CHECKS the producer
 performs. The formal gap was that the Agda development did not MODEL
 them, so a consumer had to take them on trust. `Core.AdapterChecks`
@@ -3586,8 +3597,11 @@ one whose certified global was dropped, each proved to have no
 no index, which is what makes the interned encoding partial.
 
 **Scope.** This discharges three of the four remaining obligations. It
-does NOT prove that any Elixir function implements the checks, and (2)
-remains open. Universal producer correspondence,
+is a MODEL of the producer's checks, not a proof that the Elixir function
+implements them: `Validated` records the two subset relations a passing
+payload satisfies, and nothing here connects `Cure.Core.ProofSnapshot`'s
+`ensure!` calls to their construction. (2) remains open as well.
+Universal producer correspondence,
 kernel-acceptance-to-recipe production, semantic contexts, eta/certified
 delta, erased layouts, semantic totality and backend soundness remain
 separate. No native or executable semantics, trust inventory or older
