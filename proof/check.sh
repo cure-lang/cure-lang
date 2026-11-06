@@ -259,6 +259,16 @@ MODULES=(
   Core/WireArgumentCaller
   Proof/ArgumentCallerExamples
   Core/WireResidualCaller
+  Core/HostTable
+  Proof/HostTableExamples
+  Core/RepresentationBoundary
+  Core/AdapterConstruction
+  Proof/AdapterConstructionExamples
+  Core/AdapterChecks
+  Proof/AdapterChecksExamples
+  Core/FailureImpossibility
+  Core/DeltaPolicy
+  Core/TypedEta
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples
 )

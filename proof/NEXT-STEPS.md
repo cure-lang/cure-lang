@@ -1007,9 +1007,354 @@ all-directory hygiene, shell syntax and older generated artifact reproduction
 pass. Strict Credo reports no issues across all 1,455 source files. Waived
 Mix/ExUnit, documentation and stdlib/example suites were not run.
 
+## Host-shaped tables and a mechanical representation boundary (M2a)
+The M2 bottleneck was split rather than attacked wholesale. M2 bundles
+three obligations of very different difficulty: universal producer
+correspondence (needs a host-semantics proof), source/snapshot/context
+correspondence (partly done by the universal `WireSnapshot` codec), and
+kernel-acceptance-to-recipe production (Stage 3/M6). Starting with the
+first wholesale would repeat the "indefinite increments" failure mode
+`PLAN.md` §4 warns against, so M2a takes the piece that is provable now
+and that §7 names as its acceptance gate.
+
+`Core.HostTable` supplies the HOST side the canonical snapshot previously
+took for granted. The executable registry is an unordered keyed
+collection; the formal registry is an ordered first-match list.
+`CanonicalSnapshot` related a canonical LIST to formal lookup but took
+that list as given. A `HostTable` is now a finite association list that
+MAY contain duplicate keys, MAY be presented in any order, and carries
+alias spellings in a SEPARATE table.
+
+`host-key-agrees` proves for ARBITRARY tables that host key resolution IS
+`CanonicalSnapshot.lookup`, fixing which formal lookup the host is
+claimed to implement. Order-insensitivity is proved in BOTH directions:
+`unique-lookup-stable` and `insert-fresh` show a duplicate-free table is
+re-presentation-invariant, while
+`duplicate-first-wins`/`duplicate-second-wins`/`duplicate-not-unique`
+show a duplicate key makes resolution order-dependent — so the
+executable's duplicate-key rejection is load-bearing, not cosmetic.
+`check-table` reuses `CanonicalSnapshot.unique?` so the development has
+exactly one definition of duplicate-freedom, and `checked-resolves`
+turns a passing check plus membership into resolution. Alias discipline
+is proved separately because an alias table is the other way resolution
+can silently change: `alias-cannot-shadow` and `alias-absent-target`.
+
+`Core.RepresentationBoundary` makes the remaining adapter trust
+MECHANICAL rather than prose, as §7 requires. Its `Boundary` record has
+one field per adapter obligation (name encoding and injectivity, faithful
+extraction, duplicate rejection, alias separation, uninterpreted
+certification flags, preserved declaration order, captured hidden bodies,
+one immutable signature), so a consumer must CONSUME a `Boundary` value
+and the trust surface cannot grow silently. Its `m2a-ledger` separates
+the seven PROVED facts from the eight ASSUMED obligations, with
+`proved-nonempty`/`assumed-nonempty` keeping the split non-vacuous. The
+record proves none of its fields; stating them is the point.
+
+`Proof.HostTableExamples` fixes two concrete presentations of the
+executable fixture's owner-qualified names in different orders, proves
+both duplicate-free, and shows the reordered presentation resolves
+identically. Negative controls pin the boundary: a duplicated table is
+refused and its presentations provably disagree; a shadowing alias is
+ignored; a dangling alias yields nothing.
+
+This models the host's resolution ORDER, duplicate and alias behaviour.
+It is NOT a model of Elixir's map, atom interning, `Cure.Elab.Name.split/1`
+or the producer, and it does not prove any Elixir function implements the
+model. Universal producer/extraction correspondence,
+kernel-acceptance-to-recipe production, semantic contexts, eta/certified
+delta, erased layouts, semantic totality and backend soundness remain
+separate. No native or executable semantics, trust inventory or older
+artifact byte changed.
+Validation: all 231 Agda modules pass without warnings and every source is
+registered once (`./proof/check.sh`, exit 0). The exact postulate inventory,
+ten hygiene regressions, all-directory hygiene and shell syntax pass, and
+the standalone generator confirms every proof artifact is byte-for-byte
+reproducible. Strict Credo reports no issues across all 1,456 source files,
+formatting and whitespace checks pass. The focused new suite was executed
+and passed 13 tests with 0 failures; the default Mix/ExUnit suite,
+documentation checks and the stdlib/example gate were not run under the
+maintainer policy and are not reported as passing.
+
+## An adapter construction that discharges four obligations (M2b)
+M2a made the adapter trust MECHANICAL by stating eight obligations as
+`Core.RepresentationBoundary` record fields. A field is an ASSUMPTION,
+so M2b asked which of the eight follow from the adapter's own
+DEFINITION instead.
+
+The move is to stop treating the extracted table as an opaque field and
+DEFINE it from the host payload. `Core.AdapterConstruction` supplies
+that definition and proves four obligations from it:
+
+* **(6) order-preserved** — the extracted table's first match for a
+  name IS the host's own first match, by induction on the presented
+  name list. This was the obligation most obviously recoverable once
+  `extracted` is defined rather than postulated.
+* **(3) duplicates-rejected** — the `Checked` smart constructor REQUIRES
+  pairwise-distinct names, so the obligation holds by projection and
+  cannot be bypassed by not looking. `NoDup` is stated as head-vs-later
+  inequality, not "every pair including `a = b`", which would be
+  unsatisfiable; `distinct-of-distinct` turns it into `Unique` of the
+  extracted bindings.
+* **(4) aliases-separate** — reduces to a disjointness premise on the
+  SOURCES, which is a checkable property of the payload. The adapter's
+  job is to check it, not to prove something extra.
+* **(8) signature-immutable** — **the old statement was a tautology.**
+  Its two sides were syntactically identical (`x ≡ x`), so it held for
+  ANY function, including an obviously mutating one, and could not be
+  violated. `signature-immutable-real` replaces it with a version
+  quantifying over two DIFFERENT observations, which is falsifiable and
+  therefore has content.
+
+Four obligations remain genuine adapter trust and are now stated more
+precisely: (1) name encoding, (2) that the host payload IS the
+registry, (5) that host flags mean what we read, and (7) that hidden
+bodies were captured.
+
+`Proof.AdapterConstructionExamples` supplies a two-family payload and
+exercises every discharged obligation at a concrete name, plus a
+negative control for each hypothesis the construction RELIES ON: a
+repeated family violates `NoDup`, an alias whose key IS a family
+violates `SourcesDisjoint`, and two DIFFERENT tables make the
+immutability conclusion unavailable. A further control records that the
+old vacuous statement holds for an arbitrary function, so the
+replacement is not mistaken for a restatement.
+
+Two technical notes worth keeping. `Name` is a DEFINITION
+(`Name = String`), and Agda will not unfold definitions while checking a
+constructor's index, so `Unique` over `Name` blocks the `[]` case; the
+distinctness lemma is therefore stated over `String × String`.
+`extract-names` is written by structural recursion rather than `map` so
+that it reduces in the proofs.
+
+This discharges four of eight adapter obligations. It does NOT prove
+that any Elixir function implements the construction, and it does not
+touch obligations (1), (2), (5) or (7). Universal producer
+correspondence, kernel-acceptance-to-recipe production, semantic
+contexts, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate. No native or executable semantics,
+trust inventory or older artifact byte changed.
+
+Validation: all 236 Agda modules pass without warnings and every source
+is registered once (`./proof/check.sh`, exit 0). The exact
+`funext`/`tree-decides` postulate inventory is unchanged, the ten
+hygiene regressions and the all-directory scanner pass with no new holes
+or checking bypasses, and shell syntax and whitespace checks pass.
+Maintainer-waived Mix/ExUnit, documentation and stdlib/example suites
+were not run and are not reported as passing.
+
+## The remaining adapter obligations, checked rather than trusted (M2c)
+M2b discharged four of M2a's eight adapter obligations by defining the
+extraction. Four remained: (1) name encoding, (2) table extraction,
+(5) certification flags, (7) hidden bodies.
+
+Reading the ACTUAL producer changed the picture. `Cure.Core.ProofSnapshot`
+already rejects payloads that violate (5) and (7), and already refuses
+names that violate (1)'s encoding discipline:
+
+  proof_snapshot.ex:94   ensure!(subset?(set, keys(defs)), :unknown_certified_global)
+  proof_snapshot.ex:97   ensure!(subset?(certified, totality_certified),
+                                :inconsistent_certification)
+  proof_snapshot.ex:282  ensure!(text != "" and all printable ASCII,
+                                :unsupported_name_encoding)
+
+These are not silent assumptions but FAIL-CLOSED CHECKS the producer
+performs. The formal gap was that the Agda development did not MODEL
+them, so a consumer had to take them on trust.
+`Core.AdapterChecks` closes that gap by making a `Validated` payload one
+that passed both checks, so the obligations hold by construction:
+
+**Correction against the source.** The `unknown_certified_global` check
+at `proof_snapshot.ex:94` is a loop over BOTH certificate sets
+(`:89`-`:95`), so it fires for a dropped totality-certified global too.
+The obligation (7) needs is the GLOBAL side of it, `certified ⊆
+keys(defs)`, which `global!` (`:157`-`:179`) supplies when it emits each
+entry's flags. `Validated` states exactly that subset; the earlier
+reading of line 94 as certified-specific was imprecise.
+
+* **(5) flags-uninterpreted** and **(7) hidden-bodies-captured** are
+  projections from `Validated`. The point is that the projection is the
+  ONLY way to obtain them: a payload that failed the producer's check
+  has no `Validated` value, so the theorems cannot be instantiated on it.
+  Both refutations are constructive controls.
+
+* **(1) name-encoding** is proved in the INTERNED form the wire layer
+  already uses. A character-faithful `String -> Name` encoding with a
+  proved inverse is not available: the stdlib offers only
+  `primStringToList` injectivity, and the round-trip exists solely as a
+  postulate in `Data.String.Unsafe`, which this development refuses to
+  use. `index-of-sound` proves an index produced by `index-of` decodes
+  back to the name written; `absent-name` proves the encoding is PARTIAL
+  — a name absent from the table has no index at all. That partiality is
+  honest and harmless, because the adapter only encodes names it
+  captured. The full injectivity `RepresentationBoundary` asks for is
+  NOT claimed.
+
+* **(2) table extraction** is NOT discharged and is not provable from
+  the payload: it says the host payload IS the registry, a fact about
+  Elixir state that no Agda type can witness. It stays explicit trust,
+  and `m2c-ledger` records it as the single remaining obligation.
+
+`Proof.AdapterChecksExamples` supplies a payload that passes both checks
+and exercises (5), (7) and (1) at concrete names, plus one negative
+control per check: a payload certified but not totality-certified, and
+one whose certified global was dropped, each proved to have no
+`Validated` value. A further control shows `"Boundary#Missing"` has no
+index, which is what makes the interned encoding partial.
+
+This discharges three of the four remaining obligations, so seven of
+M2a's eight adapter obligations now have a proof. It does NOT prove that
+any Elixir function implements the checks -- `Validated` is a MODEL of
+them, not a refinement of `Cure.Core.ProofSnapshot` -- and (2) remains
+open. Universal producer correspondence,
+kernel-acceptance-to-recipe production, semantic contexts,
+eta/certified delta, erased layouts, semantic totality and backend
+soundness remain separate. No native or executable semantics, trust
+inventory or older artifact byte changed.
+
+Validation: all 238 Agda modules pass without warnings and every source
+is registered once (`./proof/check.sh`, exit 0). The exact
+`funext`/`tree-decides` postulate inventory is unchanged, the ten
+hygiene regressions and the all-directory scanner pass with no new holes
+or checking bypasses, and shell syntax and whitespace checks pass.
+Maintainer-waived Mix/ExUnit, documentation and stdlib/example suites
+were not run and are not reported as passing.
+
+## Failure correspondence for the modelled evaluator (M4a)
+M4 was scoped to "universal positive execution and failure
+correspondence". The positive half already exists
+(`Proof.ClosureEvaluation`, `Proof.ClosureQuotation`); the FAILURE half
+did not, and without it the positive simulation is vacuous for an
+implementation that might simply stop. M4a takes that half for the
+modelled slice rather than attempting universal correspondence wholesale.
+
+`Core.FailureImpossibility` separates the four failures that would be
+genuine soundness bugs -- mirroring the four `raise` sites in
+`lib/cure/core/eval.ex` (lines 51, 151/172, 182 and 200) -- from the
+outcomes that are not failures.
+`FailureSafe` is the predicate "this `Result` carries no genuine
+failure"; `exhausted` (bounded-model outcome), `unsupported` (fragment
+exclusion) and `neutral-scrutinee` (legitimate stuck state) are explicitly
+outside it. Four `*-unsafe` refutations keep the predicate from being
+trivially true and `done-safe` plus three `*-safe` lemmas keep it from
+being trivially false.
+
+Three of the four are PROVED from native evidence.
+`applicable-neutral-done` shows a neutral application returns `done`, so
+`eval.ex:200`'s catch-all is unreachable for it. `covered-branch-exists`
+turns `CaseCoverage` into the branch and its exact declaration arity, so
+`eval.ex:151`/`eval.ex:172` cannot fire on a covered constructor.
+`neutral-case-strict` shows a neutral scrutinee takes the stuck arm
+rather than `eval.ex:182`'s catch-all.
+
+**The fourth is a recorded LIMITATION.** `unbound` impossibility is not
+derivable from the current worker: `run-config`'s variable clause is
+`with lookup-value env k in found`, and `in found` is NECESSARY (it
+supplies `e-var`'s equation premise) but makes the clause irreducible at
+an abstract de Bruijn index. At abstract `k` the clause evaluates to its
+`nothing` branch -- `stop unbound` -- even with a successful-lookup
+hypothesis in scope, because Agda cannot see that the caller's equation is
+the object the worker abstracted over. This was established by direct
+experiment across a dozen probe modules, not assumed. `UnboundInversion`
+states exactly what a future change to `Core.ClosureEval` would have to
+make provable, so the boundary is visible at every use site.
+
+This is failure analysis for the MODELLED evaluator. It does not prove the
+Elixir implementation raises nowhere and does not claim `unbound`
+impossibility. Universal implementation/model execution correspondence,
+semantic contexts, eta/certified delta, erased layouts, semantic totality
+and backend soundness remain separate. No native or executable semantics,
+trust inventory or older artifact byte changed.
+
+## Delta-unfolding policy soundness (M5a)
+M4b's fuel-adequacy theorem was investigated and found blocked: proving
+that a finite derivation fits in some fuel requires transporting an
+external lookup equation into `run-config`'s `with`-abstracted variable
+clause, which is unavailable without proof irrelevance on the equation
+itself. That finding is recorded in the M4a section's `UnboundInversion`
+and was reported rather than forced. A migration was planned in
+[`M4B-PLAN.md`](M4B-PLAN.md) — drop the equation from `e-var`, which has
+exactly two consumers, then prove fuel monotonicity as a mutual
+induction — and **was then attempted and refuted**; §8 of that document
+records why. In short, an equation-free `e-var` no longer determines the
+value a variable evaluates to (every value inhabits it), so both
+consumers fail; and a `with`-clause cannot produce the equation without
+`in found`, which is the very thing that blocks adequacy. Fuel adequacy
+for `run-config` is not reachable by that route and needs a different
+worker shape (a fuel-indexed evaluator returning values only, with a
+separate relation to `Evaluates`), scoped as its own milestone. M5a takes
+the adjacent obligation that IS provable and that `PLAN.md` scopes to
+M2/M4.
+
+`Core.DeltaPolicy` formalises the policy `Cure.Core.Normalise` owns
+between `Eval` and `Quote`, and proves that every successful policy
+unfold is a native delta step. The native relation has one delta rule
+gated on the visible body; the executable policy adds three modes, an
+allowlist, a fuel counter, lazy unfolding and an identical-neutral
+shortcut. `policy-unfold` transcribes the decision procedure in the
+executable's guard order.
+
+The key design choice, made in light of the M4b finding: every success
+branch of `policy-unfold` returns `visible-of policy name` (or the
+`visible` field at a resolved entry under `:reducible`), so the policy's
+result and the table's visible body are the same term BY CONSTRUCTION.
+`policy-sound` therefore needs no equation transport. It takes an
+explicit `Agrees policy sig` hypothesis -- the representation obligation
+M2 owns -- rather than assuming the correspondence silently.
+
+Five refusal controls (`none-refuses`, `empty-allow-refuses`,
+`unregistered-refuses`, `hidden-refuses`, `not-reducible-refuses`) and
+two positive controls (`certified-unfolds`, `reducible-unfolds`) keep
+the theorem from being vacuous in either direction.
+
+This is the SOUNDNESS direction only. Completeness, the fuel counter's
+arithmetic, stuck-case exposure and the builtin-op fold remain separate
+obligations. No native or executable semantics, trust inventory or older
+artifact byte changed.
+
+## Typed eta as a proved extension of conversion (M5b)
+`Cure.Core.Conv` performs function eta, but the formal `Conversion`
+record has no eta field and `Proof.ReductionConversion` explicitly
+REFUTES eta between well-typed open functions: an eta expansion and its
+neutral are distinct normal forms, so no common reduct exists. Adding an
+eta field to the record would invalidate that model.
+
+`Core.TypedEta` therefore defines eta as a SEPARATE relation `_≈η_`
+layered on any `Conversion`, and proves its soundness as a property of
+that extension. `_≈η_` is a congruence (reflexive, symmetric,
+transitive) and `≈-embeds` shows it contains every ordinary conversion,
+so it is a genuine extension rather than a replacement.
+
+Head separation -- the property that makes eta safe -- holds for a
+reason worth recording. `HasTypeHead` classifies TYPE FORMERS only, and
+`lam-has-no-head` shows a lambda has none. The eta rule relates a lambda
+to a neutral, so it can never be the term whose head is being separated.
+Eta is head-safe BY CONSTRUCTION. `eta-step-heads` proves separation for
+a single eta step and `eta-rule-not-head` records the reason.
+
+The eta rule still carries `HasTypeHead f h-pi`: the neutral side is
+known to be a function type. That premise is load-bearing, and
+`eta-needs-pi` pins that it cannot be satisfied at a non-Pi head. The
+transitive closure case (`≈η-heads-with`) takes the middle term's head
+as an explicit argument, because head separation for an untyped chain
+does not hold; a caller comparing two terms at a shared expected type is
+exactly where that witness is available.
+
+This is a positive eta relation and its congruence/head laws. Eta
+COMPLETENESS, adding eta to the `Conversion` record, migrating its
+consumers, and the eta rule's renaming/substitution stability (which
+needs commutation laws from `Proof.Substitution`, a module that imports
+`Core.Typing`) all remain open. `Proof.ReductionConversion`'s refutation
+is untouched and remains true for the common-reduct model. No native or
+executable semantics, trust inventory or older artifact byte changed.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
-   source/snapshot/context correspondence,
+   source/snapshot/context correspondence (M2a supplies the host-side
+   resolution laws and a mechanical adapter-trust ledger; M2b/M2c then
+   discharge SEVEN of its eight adapter obligations -- four by defining
+   the extraction, three by modelling the producer's fail-closed checks --
+   leaving only "the host payload IS the registry", which no Agda type can
+   witness. The Elixir producer correspondence itself is still open),
    then connect actual kernel acceptance to replayable recipes and checked
    native evidence. The character scanner, all current codecs, the explicit
    Elixir source/recipe data producers and complete generated artifacts already
@@ -1017,6 +1362,9 @@ Mix/ExUnit, documentation and stdlib/example suites were not run.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
+   (M4a supplies failure impossibility for three of the four genuine
+   failures and records the fourth as a limitation of the current worker;
+   universal implementation/model execution correspondence is still open.)
 3. Extend the proved executable fragment to the remaining literal/payload,
    subtyping/effect, indexed-coverage and filtered/erased-frame contracts.
 4. Prove semantic positivity and totality certification, including extraction,

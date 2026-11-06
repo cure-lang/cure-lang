@@ -3,7 +3,7 @@
 Prepared 25 October 2026 against `da9d01dd0460bd72bfc1ba0c305f209eb2013bd6` (`Prove ambient residual checking and coherent caller closure`). This is a proposed implementation plan, not a claim that its milestones have been executed.
 The recorded baseline has 223 checked Agda modules, the exact `funext`/legacy `tree-decides` inventory, ten passing hygiene regressions, reproducible generated artifacts and strict Credo coverage of 1,455 source files. These are historical checkpoint results, not measurements of percentage completion or universal executable soundness.
 This document is the forward execution plan. `proof/NEXT-STEPS.md:1` retains the chronological developments and broader contract discussion; `proof/README.md:1` remains the proved-claim ledger; `docs/SOUNDNESS.md:1` must ultimately state the exact public theorem and trust boundary. Update these consistently as milestones land, rather than treating earlier checkpoint limitations as current requirements to reimplement.
-Implementation began after this plan was written; see the per-milestone progress notes (currently `## 6`, M1). Production behavior changes still require separate review, and no native or executable semantics have been changed.
+Implementation began after this plan was written; see the per-milestone progress notes (M1 in `## 6`, M2a/M2b/M2c in `## 7`, M4a/M4b in `## 9`, M5a/M5b in `## 10`). Production behavior changes still require separate review, and no native or executable semantics have been changed.
 ## 2. Preserve the completed foundation
 Do not restart native substitution, context conversion, dependent preservation or progress. Reuse the following established layers:
 * Native fixed-goal trace, fuel and guarded-tree safety: `proof/Proof/DependentSoundness.agda:30`, with its explicit specification evidence and fuel/tree agreement.
@@ -81,6 +81,47 @@ A lead integrator owns shared theorem interfaces and final integration. No child
 * If the first deliverable keeps an adapter in the TCB, state its exact obligations in G1. Do not hide universal correspondence in a module parameter and call G2 complete.
 * Bind program, expected goal, registry, certificate and later artifact identity to the same immutable data. Cached digests need a separately stated collision/integrity assumption or exact-content validation; a digest is not semantic evidence.
 **Acceptance gate:** quantified fidelity for the named boundary, plus an exact statement of any remaining adapter/compiler trust. Source mutation, changed name table, omitted hidden body, reordered declaration and stale certificate controls must fail at the correct boundary.
+
+**M2a/M2b/M2c progress — host side proved, seven of eight adapter
+obligations discharged.** `proof/Core/HostTable.agda` supplies the host side
+that `Core.CanonicalSnapshot` took for granted: a finite association list that
+MAY contain duplicates, MAY be presented in any order, and carries aliases in
+a SEPARATE table. For ARBITRARY tables it proves that host key resolution IS
+`CanonicalSnapshot.lookup` (`host-key-agrees`), that duplicate-freedom makes
+resolution re-presentation-invariant (`unique-lookup-stable`, `insert-fresh`),
+that a duplicate makes it order-DEPENDENT (`duplicate-first-wins`,
+`duplicate-second-wins`, `duplicate-not-unique`) -- so the executable's
+duplicate rejection is load-bearing -- and that an alias can neither shadow a
+present key (`alias-cannot-shadow`) nor fabricate a binding
+(`alias-absent-target`). `check-table` reuses `CanonicalSnapshot.unique?`, so
+there is exactly one definition of duplicate-freedom.
+
+`proof/Core/RepresentationBoundary.agda` makes the remaining adapter trust
+MECHANICAL: a `Boundary` record has one field per obligation, each stated as
+the PROPERTY a consumer needs rather than a boolean flag, so a consumer must
+CONSUME a `Boundary` value and the trust surface cannot grow silently.
+`proof/Core/AdapterConstruction.agda` then DEFINES the extraction from the
+host payload and proves four obligations from that definition:
+`order-preserved` (by induction on the presented name list),
+`duplicates-rejected` (by the `Checked` smart constructor's precondition),
+`aliases-separate` (from a disjointness premise on the SOURCES) and a
+`signature-immutable-real` that replaces the old `x ≡ x` statement -- which
+was a TAUTOLOGY, provable for any function including a mutating one -- with
+one quantifying over two DIFFERENT observations.
+`proof/Core/AdapterChecks.agda` then models the producer's own fail-closed
+checks (`proof_snapshot.ex:89`-`99`, `:282`) as a `Validated` payload, so
+`flags-uninterpreted` and `hidden-bodies-captured` are projections that
+cannot be obtained for a payload the producer would have rejected, and
+`name-encoding` is proved in the INTERNED form the wire layer already uses
+(`index-of-sound`, with `absent-name` recording that the encoding is
+PARTIAL, because a character-faithful `String` round-trip would need the
+`Data.String.Unsafe` postulate this development refuses).
+
+Only obligation (2) remains, and it is not provable from the payload: "the
+host payload IS the registry" is a fact about Elixir state that no Agda type
+can witness. **Open:** that any Elixir function implements the construction
+or the checks -- `Validated` is a MODEL of them, not a refinement of
+`Cure.Core.ProofSnapshot` -- plus every other item in this section.
 ## 8. M3 — Closure-valued semantic contexts and defined locals
 **Priority/dependencies:** after the representation contracts are fixed; reuse the syntactic caller theorem rather than weakening fresh comparison.
 **Existing anchors:** `lib/cure/core/context.ex:40`, `lib/cure/core/context.ex:58`, `proof/Core/FlatContext.agda:1`, `proof/Core/FlatContextTyping.agda:1`, `proof/Core/ClosureScope.agda:1` and `proof/Proof/ClosureWeakening.agda:1`.
@@ -101,6 +142,38 @@ A lead integrator owns shared theorem interfaces and final integration. No child
 * Map scope/layout/budget/protocol failures without relabelling them as divergence or actual host exceptions. Treat host resource exhaustion as an explicit external bound.
 * Compose checked admission with the general native path at the original goal for arbitrary related programs, signatures and callers in the profile.
 **Acceptance gate:** quantified implementation/model execution and readback theorems, plus failure safety for the named inputs. Fixed fixtures remain regressions, not substitutes for the quantified connection. No unconditional normalization or evaluator-totality theorem is required for this partial-correctness milestone.
+
+**M4a progress — failure safety for three of four raise sites.**
+`proof/Core/FailureImpossibility.agda` separates the four failures that would
+be genuine soundness bugs -- mirroring the four `raise` sites in
+`lib/cure/core/eval.ex` (lines 51, 151/172, 182 and 200) -- from the outcomes
+that are not. `FailureSafe`
+excludes `exhausted`, `unsupported` and `neutral-scrutinee`; four `*-unsafe`
+refutations keep it from being trivially true and `done-safe` plus three
+`*-safe` lemmas keep it from being trivially false. Three are PROVED from
+native evidence: `applicable-neutral-done` (a neutral application returns
+`done`, so `eval.ex:200`'s catch-all is unreachable), `covered-branch-exists`
+(`CaseCoverage` yields the branch and its exact declaration arity, so
+`eval.ex:151`/`:172` cannot fire) and `neutral-case-strict` (a neutral
+scrutinee takes the stuck arm, not `eval.ex:182`'s catch-all).
+
+**M4b — investigated, planned, ATTEMPTED and REFUTED.** `unbound`
+impossibility is not derivable from the current worker: `run-config`'s
+variable clause is `with lookup-value env k in found`, and `in found` is
+necessary (it supplies `e-var`'s equation premise) but makes the clause
+irreducible at an abstract de Bruijn index. The migration planned in
+`proof/M4B-PLAN.md` -- drop the equation from `e-var`, fix its two
+consumers, prove fuel monotonicity -- was attempted and does not work; §8 of
+that document records the probes. An equation-free `e-var` inhabits
+`Evaluates env (tm-var k) v` for EVERY `v`, so the relation stops
+determining what a variable evaluates to and both consumers fail; and a
+plain `with` cannot BUILD the equation at all (the hole is unsolvable), so
+`in found` is unavoidable while `e-var` carries it. Fuel adequacy for
+`run-config` needs a different worker shape (a fuel-indexed evaluator
+returning values only, related to `Evaluates` by a separate soundness
+theorem) and is scoped as its own milestone, not folded into M4b.
+`UnboundInversion` states exactly what such a change would have to make
+provable, so the boundary is visible at every use site.
 ## 10. M5 — Certified unfolding, stuck cases and typed positive conversion
 ### M5a — Operational delta and normalization policy
 **Dependencies:** M2/M4 and a precise snapshot/certification visibility contract.
@@ -110,6 +183,17 @@ A lead integrator owns shared theorem interfaces and final integration. No child
 * Account for the actual fuel-spending sites, nested dynamic budget save/restore and exhaustion. This service does not bound all beta/iota work; do not advertise total-work bounds without a different proved resource model.
 * Keep positive operational unfolding separate from M11's semantic termination theorem. A bounded sound unfold need not establish totality of the global or normalizer.
 **Gate/controls:** general native simulation of successful policy steps; opaque/uncertified bodies stay folded; changed-body/cache cases, nested budgets, stuck/exposed equivalence and recursive self-loops preserve their exact classifications.
+
+**M5a progress — DONE (soundness direction only).** `proof/Core/DeltaPolicy.agda`
+formalises the policy and proves that every successful policy unfold is a
+native delta step. `policy-unfold` transcribes the decision procedure in the
+executable's own guard order (mode, allowlist, mode-specific condition,
+visible body), and every success branch returns the table's visible body BY
+CONSTRUCTION, so `policy-sound` needs no equation transport -- a design choice
+made after the M4b finding below. It takes an explicit `Agrees policy sig`
+hypothesis, which is the representation obligation M2 owns. Five refusal
+controls and two positive controls keep it non-vacuous. **Open:** completeness,
+the fuel counter's arithmetic, stuck-case exposure and the builtin-op fold.
 ### M5b — Typed eta and structural conversion
 **Dependencies:** stable context/value relations and an explicit shared expected type for eligible comparisons.
 **Anchors:** `lib/cure/core/conv.ex:98`, `lib/cure/core/conv.ex:232`, `proof/Core/Typing.agda:1`, `proof/Core/TypeHeads.agda:1` and `proof/Proof/ReductionConversion.agda:1`.
@@ -118,6 +202,20 @@ A lead integrator owns shared theorem interfaces and final integration. No child
 * If the current unindexed conversion interface cannot express the needed premises, propose its migration explicitly and review it before changing typing, transport, inversion or soundness consumers.
 * Prove positive actual conversion soundness for related well-typed inputs. Preserve the current strict and residual common-reduct paths as subcases where applicable.
 **Gate/controls:** typed lambda/neutral eta, open dependent functions, motive/branch capture, wrong grades, distinct universes and raw comparisons without a common expected type. No completeness, rejection soundness or universal decidability follows from this positive theorem.
+
+**M5b progress — positive eta relation DONE; record migration open.**
+`proof/Core/TypedEta.agda` defines eta as a SEPARATE relation `_≈η_` layered on
+any `Conversion`, rather than adding a field to the record (which would
+invalidate the common-reduct model and its explicit refutation). It is a
+congruence and `≈-embeds` shows it contains every ordinary conversion. Head
+separation holds BY CONSTRUCTION: `HasTypeHead` classifies type formers only,
+`lam-has-no-head` shows a lambda has none, and the eta rule relates a lambda to
+a NEUTRAL, so it can never be the term whose head is separated. The Pi premise
+on the neutral side is load-bearing (`eta-needs-pi`). **Open:** eta
+completeness, adding eta to the `Conversion` record and migrating its
+consumers, and the rule's renaming/substitution stability (which needs
+commutation laws from `Proof.Substitution`, a module that imports `Core.Typing`
+and cannot be imported back).
 ## 11. M6 — A bounded release-admission theorem, not only replay
 **Priority/dependencies:** M0/M2/M4; include M1/M3/M5 only to the extent advertised by the chosen profile.
 **Anchors:** `lib/cure/core/kernel.ex:654`, `proof/Core/CheckedAdmission.agda:1`, `proof/Core/NativeRecipe.agda:1`, `lib/cure/project/proof.ex:113` and `lib/cure/elab/emit.ex:94`.
