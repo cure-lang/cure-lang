@@ -571,6 +571,8 @@ defmodule Cure.Compiler do
       if previous_index == nil,
         do: Process.delete(:cure_module_index),
         else: Process.put(:cure_module_index, previous_index)
+
+      if previous == nil, do: Cure.Elab.Program.clear_user_source_cache()
     end
   end
 
