@@ -4443,32 +4443,80 @@ defmodule Cure.Elab.Program do
   # Project modules are source imports too. The dependent pipeline searches
   # the configured source roots by declared module name rather than filename,
   # so descriptive filenames such as `zz_lib.cure` remain valid imports.
+  #
+  # A `ModuleIndex` in the process (set by `Cure.Compiler.with_source_roots/3`
+  # from the `:module_index` option) already carries every declared identity
+  # with duplicates rejected at build time, so it answers first. Without one,
+  # the roots are scanned, but each file is lexed and parsed once per content
+  # version per process instead of once per lookup: a `use` closure of N
+  # modules over M files used to cost N*M parses.
   defp user_source_path(source) do
+    case Process.get(:cure_module_index) do
+      %ModuleIndex{} = index ->
+        case ModuleIndex.fetch(index, source) do
+          {:ok, entry} -> {:ok, entry.source_path}
+          {:error, _} -> scan_user_source_path(source)
+        end
+
+      _ ->
+        scan_user_source_path(source)
+    end
+  end
+
+  defp scan_user_source_path(source) do
     matches =
       Process.get(:cure_source_roots, [])
       |> Enum.flat_map(fn root -> Path.wildcard(Path.join(root, "**/*.cure")) end)
       |> Enum.uniq()
-      |> Enum.filter(fn path ->
-        case File.read(path) do
-          {:ok, contents} ->
-            with {:ok, tokens} <- Lexer.tokenize(contents, emit_events: false),
-                 {:ok, ast} <- Parser.parse(tokens, emit_events: false),
-                 ^source <- find_module_name(ast) do
-              true
-            else
-              _ -> false
-            end
-
-          {:error, _} ->
-            false
-        end
-      end)
+      |> Enum.filter(&(declared_user_module(&1) == source))
 
     case matches do
       [] -> :not_found
       [path] -> {:ok, path}
       paths -> {:duplicate, Enum.sort(paths)}
     end
+  end
+
+  # The cached value is keyed by the file's current content digest, so an edit
+  # between two lookups is seen on the next lookup; nothing is ever stale. An
+  # unreadable or unparsable file declares no module, as before.
+  defp declared_user_module(path) do
+    case File.read(path) do
+      {:ok, contents} ->
+        digest = :erlang.md5(contents)
+        key = {:cure_user_module_cache, path}
+
+        case Process.get(key) do
+          {^digest, name} ->
+            name
+
+          _ ->
+            name = parse_declared_module(contents)
+            Process.put(key, {digest, name})
+            name
+        end
+
+      {:error, _} ->
+        nil
+    end
+  end
+
+  defp parse_declared_module(contents) do
+    with {:ok, tokens} <- Lexer.tokenize(contents, emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
+      find_module_name(ast)
+    else
+      _ -> nil
+    end
+  end
+
+  @doc false
+  # Drop the per-file identity cache. `Cure.Compiler.with_source_roots/3` calls
+  # this when the outermost compilation of a process ends, so the cache lives
+  # for one compilation and cannot grow without bound in a long-lived process.
+  def clear_user_source_cache do
+    for {:cure_user_module_cache, _path} = key <- Process.get_keys(), do: Process.delete(key)
+    :ok
   end
 
   # Every `Env` field this function knows how to combine. `merge_env/2` builds a
