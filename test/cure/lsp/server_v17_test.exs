@@ -33,6 +33,54 @@ defmodule Cure.LSP.ServerV17Test do
       assert "y:" in labels
       refute Enum.count(labels, &(&1 == "left:")) > 0
     end
+
+    # Goal-state introspection (Phase 1 of docs/PATH_TO_LEAN4_PLAN.md, gap G1).
+    # A typed hole blocks codegen; the editor must show what fills it.
+    test "a typed hole gets a goal hint carrying the checked goal TYPE" do
+      source = """
+      mod Goals
+        fn later(x: Int) -> Int = ?goal
+      """
+
+      hints = Server.compute_inlay_hints(source)
+      hole = Enum.find(hints, &String.starts_with?(&1["label"], "?"))
+
+      assert hole, "expected a goal hint for `?goal`, got: #{inspect(hints)}"
+      assert hole["position"]["line"] == 1
+      # The hint sits at the `?`, not at the start of the line.
+      assert hole["position"]["character"] == String.length("  fn later(x: Int) -> Int = ")
+
+      # The label must carry the CHECKED goal type, not just "? goal". A hint
+      # that only says "this is a hole" would pass a weaker assertion while
+      # delivering nothing the author could not already see.
+      assert hole["label"] =~ "Int",
+             "the goal hint must render the checked goal type, got: #{hole["label"]}"
+    end
+
+    test "an anonymous `?_` hole is reported too" do
+      source = """
+      mod Anonymous
+        fn later(x: Int) -> Int = ?_
+      """
+
+      labels = Server.compute_inlay_hints(source) |> Enum.map(& &1["label"])
+      assert Enum.any?(labels, &String.starts_with?(&1, "?"))
+    end
+
+    test "a hole-free source gets no goal hint" do
+      labels = Server.compute_inlay_hints(@sample) |> Enum.map(& &1["label"])
+      refute Enum.any?(labels, &String.starts_with?(&1, "?"))
+    end
+
+    test "an obsolete `??` hole is not reported (the compiler rejects it)" do
+      source = """
+      mod Obsolete
+        fn later(x: Int) -> Int = ??
+      """
+
+      labels = Server.compute_inlay_hints(source) |> Enum.map(& &1["label"])
+      refute Enum.any?(labels, &String.starts_with?(&1, "?"))
+    end
   end
 
   describe "compute_signature_help/3" do

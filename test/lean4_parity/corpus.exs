@@ -313,7 +313,7 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g1-open-because-block",
         gap: :g1,
         axis: :l3,
-        title: "an open because block fails with E110 and does NOT list the open goal",
+        title: "an open because block still fails with E110 (the diagnostic now names the goal)",
         expect: :reject,
         reason:
           "a justification block ending open raises PROOF JUSTIFICATION IS UNFINISHED " <>
