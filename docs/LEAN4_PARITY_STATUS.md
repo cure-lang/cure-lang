@@ -61,7 +61,7 @@ Ordered by impact per unit of risk. **Status** is one of
 
 | # | Gap | Axis | `PATH_TO_LEAN4` | Severity | Risk | TCB | Status |
 |---|---|---|---|---|---|---|---|
-| **G1** | No goal-state introspection | L3 | **C7** | Critical | Low | None | **open** |
+| **G1** | No goal-state introspection | L3 | **C7** | Critical | Low | None | **in progress** |
 | **G2** | No user-extensible tactics (`macro` has no `tactic` kind) | L3/L4 | **C1** | Critical | Low | None | **open** |
 | **G3** | δ-reach: `reflexive`/`simplify` won't unfold recursive defs | L2 | **C5**, **C9** | High | **High** | Gated | **open** |
 | **G4** | No global `@[simp]`-style lemma set | L3/L6 | **C4** | High | Low | None | **open** |
@@ -169,7 +169,7 @@ is not evidence that the assertions ran; a deliberate break is.
 | Phase | Scope | TCB | Status |
 |---|---|---|---|
 | **0** | Baseline, guards, corpus, scorecard | None | **in progress** — CI already present; corpus + this file added |
-| **1** | Goal-state introspection (G1) | None | not started |
+| **1** | Goal-state introspection (G1) | None | **in progress** — `E110` now renders the residual goal + local facts; REPL/LSP surfaces outstanding |
 | **2** | `Cure.Elab.Tactic` monad (G2 pt 1) | None | not started |
 | **3** | `tactic` macro rules (G2 pt 2) | None | not started |
 | **4** | `@[simp]` sets + tactic automation (G4, G5, G10) | None | not started |

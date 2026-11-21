@@ -113,8 +113,8 @@ defmodule Cure.Diagnostic.Adapter.Proof do
       case problem.kind do
         :unfinished_justification ->
           {"Proof justification is unfinished",
-           "The justification for step #{displayed} ended while its equality goal was still open. Add a final evidence expression; the structured payload lists the residual goal and available local facts.",
-           "this block ends without proving its goal"}
+           "The justification for step #{displayed} ended while its equality goal was still open. " <>
+             "Add a final evidence expression." <> open_goal_state(problem), "this block ends without proving its goal"}
 
         :adjacent_endpoints ->
           {"Proof chain endpoints have different types",
@@ -471,6 +471,37 @@ defmodule Cure.Diagnostic.Adapter.Proof do
 
   defp surface_type(type) when is_binary(type), do: type
   defp surface_type(type), do: print_core(type)
+
+  # The GOAL STATE of an unfinished justification: what still has to be proved,
+  # and which local facts are available to prove it.
+  #
+  # Before this existed, `E110` said only that the block ended open. The author
+  # had to re-derive the residual goal by hand from the chain's last endpoint.
+  # This renders the goal the elaborator actually holds, so the diagnostic states
+  # the obligation rather than merely reporting its absence.
+  #
+  # The goal goes through the same `print_core/1` path as every other proof
+  # diagnostic, so the surface syntax matches what the author wrote.
+  defp open_goal_state(%ProofChainMismatchProblem{} = problem) do
+    case problem.residual_goal do
+      nil ->
+        ""
+
+      goal ->
+        "\n\nRemaining goal:\n    " <> print_core(goal) <> open_goal_facts(problem.cause)
+    end
+  end
+
+  defp open_goal_facts({:open_goal, []}) do
+    "\n\nNo local facts are in scope; close the goal with evidence."
+  end
+
+  defp open_goal_facts({:open_goal, names}) when is_list(names) do
+    "\n\nLocal facts in scope:\n" <>
+      Enum.map_join(names, "\n", fn name -> "    " <> to_string(name) end)
+  end
+
+  defp open_goal_facts(_other), do: ""
 
   defp print_core(term) do
     term
