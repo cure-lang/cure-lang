@@ -85,6 +85,18 @@ defmodule Cure.Elab.ProofChain do
             {:error, _} = error -> error
           end
 
+        # `because exact e` / `because apply h`: an INLINE proof command, not a
+        # block. It must go through `ProofGoal.run` like every other command --
+        # the catch-all below sends it to `elaborate_expr_checked`, which has no
+        # `proof_application` clause and reports `unsupported_expression`.
+        {:proof_application, command_meta, _args} = command ->
+          block = {:proof_justification, command_meta, [command]}
+
+          case Cure.Elab.ProofGoal.run(block, expected, names, ctx, env, index) do
+            {:ok, proof, _trace} -> {:ok, proof}
+            {:error, _} = error -> error
+          end
+
         _ ->
           Elaborator.elaborate_expr_checked(justification, expected, names, ctx, env)
       end

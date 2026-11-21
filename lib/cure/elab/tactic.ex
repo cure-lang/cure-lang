@@ -145,7 +145,6 @@ defmodule Cure.Elab.Tactic do
     fn goal -> repeat_loop(tactic, [goal], max_steps) end
   end
 
-  defp repeat_loop(_tactic, [], _steps), do: {:ok, []}
   defp repeat_loop(_tactic, goals, 0), do: {:ok, goals}
 
   defp repeat_loop(tactic, goals, steps) do

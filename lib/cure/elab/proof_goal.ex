@@ -99,6 +99,11 @@ defmodule Cure.Elab.ProofGoal do
       :goal -> rewrite_goal(proof_ast, meta, goal, nil)
       {:at, occurrence} -> rewrite_goal(proof_ast, meta, goal, occurrence)
       {:in, name} -> rewrite_hypothesis(proof_ast, meta, goal, name)
+      # `rewrite using e all` -- rewrite EVERY occurrence. Opt-in; the default
+      # stays single-occurrence (an ambiguous match is E111), which is stricter
+      # than Lean's silent rewrite-all. `Rewrite.directed_plan/7` already
+      # accepts `:all`, so this only routes the selector through.
+      :all -> rewrite_goal(proof_ast, meta, goal, :all)
     end
   end
 

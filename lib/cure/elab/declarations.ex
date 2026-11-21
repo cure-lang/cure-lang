@@ -1883,6 +1883,16 @@ defmodule Cure.Elab.Declarations do
     Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
   end
 
+  # A `proof chain` body is checked against the declared return type, exactly as
+  # a `rewrite` body is. Without this clause the chain fell through to the
+  # generic block path and failed `{:unsupported_block, [{:proof_chain, ...}]}`
+  # -- so `fn f(...) -> P = proof chain ...` could not be written at all, even
+  # though `ProofChain.elaborate/4` and `elaborate_expr_checked/5` both handle
+  # the node. The chain adds no Core constructors; it expands to a checked term.
+  defp elaborate_body({:proof_chain, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
+    Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
+  end
+
   defp elaborate_body({:function_call, meta, _args} = expr, return_core, scope, ctx, env, _params) do
     name = Keyword.get(meta, :name)
     atom = if is_binary(name), do: String.to_atom(name)

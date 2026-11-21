@@ -4033,7 +4033,7 @@ defmodule Cure.Compiler.Parser do
         # stays single-occurrence (an ambiguous match is `E111`), which is
         # stricter than Lean's silent rewrite-all.
         %Token{type: :identifier, value: "all"} = selector ->
-          {{:all}, advance(state), selector.span}
+          {:all, advance(state), selector.span}
 
         %Token{type: :identifier, value: "at"} = selector ->
           state = advance(state)
@@ -4542,7 +4542,16 @@ defmodule Cure.Compiler.Parser do
 
       {{:proof_justification, meta, statements}, state}
     else
-      parse_expr(state, 0)
+      # Inline justification: `because exact e`, `because apply h`, or a bare
+      # evidence expression. This is ALSO command position, so the
+      # `proof_context` flag must be set here too -- otherwise `exact`/`apply`
+      # stay ordinary identifiers and the proof expression leaks out of the
+      # chain as a separate block statement (the chain then ends early and the
+      # enclosing block reports `unsupported_block`).
+      previous = state.proof_context
+      state = %{state | proof_context: true}
+      {expression, state} = parse_expr(state, 0)
+      {expression, %{state | proof_context: previous}}
     end
   end
 
