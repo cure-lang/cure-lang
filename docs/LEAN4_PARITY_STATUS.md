@@ -170,7 +170,7 @@ is not evidence that the assertions ran; a deliberate break is.
 |---|---|---|---|
 | **0** | Baseline, guards, corpus, scorecard | None | **in progress** — CI already present; corpus + this file added |
 | **1** | Goal-state introspection (G1) | None | **closed** — `E110` renders the residual goal + local facts; REPL `:holes` already existed; LSP hole-goal inlay hints added |
-| **2** | `Cure.Elab.Tactic` monad (G2 pt 1) | None | not started |
+| **2** | `Cure.Elab.Tactic` monad (G2 pt 1) | None | **in progress** — monad + combinators landed (`lib/cure/elab/tactic.ex`); `ProofGoal` not yet routed through it |
 | **3** | `tactic` macro rules (G2 pt 2) | None | not started |
 | **4** | `@[simp]` sets + tactic automation (G4, G5, G10) | None | not started |
 | **5** | δ-reach widening (G3) | **Gated** | not started — must follow 0–4 |
