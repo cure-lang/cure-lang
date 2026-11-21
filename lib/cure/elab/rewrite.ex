@@ -36,7 +36,37 @@ defmodule Cure.Elab.Rewrite do
     end
   end
 
-  def directed_plan(proof, ty, a, b, expected, direction, selector \\ nil) do
+  @doc """
+  Rewrite EVERY occurrence of the theorem's target side, left to right.
+
+  Opt-in (`rewrite using e all`). The default stays single-occurrence, where
+  an ambiguous match is `E111` — stricter than Lean's silent rewrite-all.
+
+  Each step is an ordinary single-occurrence transport over the term produced
+  by the previous step, so the composed builder is a chain of already-proven
+  transports rather than a new kind of evidence. A step that finds no
+  occurrence stops the fold, which makes `all` idempotent on a fully-rewritten
+  goal instead of failing.
+  """
+  def directed_plan(proof, ty, a, b, expected, direction, selector \\ nil)
+
+  def directed_plan(proof, ty, a, b, expected, direction, :all) do
+    {target, replacement} = if direction == :backwards, do: {b, a}, else: {a, b}
+    occurrences = occurrences(expected, target)
+
+    cond do
+      occurrences != [] ->
+        rewrite_all(proof, ty, a, b, expected, direction, length(occurrences), 0)
+
+      occurrences(expected, replacement) != [] ->
+        {:error, {:reverse_only, direction}}
+
+      true ->
+        {:error, {:no_occurrence, []}}
+    end
+  end
+
+  def directed_plan(proof, ty, a, b, expected, direction, selector) do
     {target, replacement} = if direction == :backwards, do: {b, a}, else: {a, b}
     occurrences = occurrences(expected, target)
 
@@ -59,6 +89,25 @@ defmodule Cure.Elab.Rewrite do
          {:ok, transport_proof, left} <- evidence_transport(direction, proof, ty, a, b) do
       {:ok, fn evidence -> {:app, transport_case(transport_proof, ty, motive, left), evidence} end, rewritten,
        occurrences}
+    end
+  end
+
+  # `all` is bounded by the occurrence count measured on the ORIGINAL term, so
+  # a replacement that reintroduces its own target cannot loop.
+  defp rewrite_all(_proof, _ty, _a, _b, term, _direction, limit, steps) when steps >= limit,
+    do: {:ok, fn evidence -> evidence end, term, []}
+
+  defp rewrite_all(proof, ty, a, b, term, direction, limit, steps) do
+    case directed_plan(proof, ty, a, b, term, direction, nil) do
+      {:ok, build, rewritten, occurrences} ->
+        {:ok, inner_build, final, _} = rewrite_all(proof, ty, a, b, rewritten, direction, limit, steps + 1)
+        {:ok, fn evidence -> inner_build.(build.(evidence)) end, final, occurrences}
+
+      {:error, {:no_occurrence, _}} ->
+        {:ok, fn evidence -> evidence end, term, []}
+
+      {:error, _} = error ->
+        error
     end
   end
 

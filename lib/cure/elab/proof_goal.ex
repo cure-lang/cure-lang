@@ -102,6 +102,13 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
+  defp command({:proof_application, meta, [proof_ast]}, goal) do
+    case Keyword.get(meta, :kind) do
+      :exact -> close_with_expression(proof_ast, goal, :exact, meta)
+      :apply -> apply_proof(proof_ast, meta, goal)
+    end
+  end
+
   defp command({:simplify_command, meta, rules}, goal) do
     if Keyword.get(meta, :using) == :proof do
       adapt_existing_proof(hd(rules), meta, goal)
@@ -114,6 +121,7 @@ defmodule Cure.Elab.ProofGoal do
 
   defp simplify_command_rules(meta, rules, goal) do
     with {:ok, simplified} <- simplify_rules(rules, goal, meta),
+         {:ok, simplified} <- simplify_lemma_set(simplified, meta),
          {:ok, evidence, trace} <-
            Cure.Elab.Simplifier.solve(simplified.expected, simplified.context, surface_span(meta)) do
       transports = Enum.reject(simplified.builders, &match?({:assignment, _, _}, &1))
@@ -126,6 +134,73 @@ defmodule Cure.Elab.ProofGoal do
       {:error, _} = error ->
         error
     end
+  end
+
+  # Apply the global `@lemma` rewrite set, `@[simp]`-style.
+  #
+  # `@lemma`-tagged theorems are already indexed by conclusion head in
+  # `Env.lemmas/2` for proof search. This reuses that same registry for
+  # `simplify`, so a proved equation participates in simplification without the
+  # author naming it at every call site.
+  #
+  # Orientation is enforced by the same policy as explicit rules: the left side
+  # must have strictly more Core nodes than the right side. A non-decreasing
+  # lemma is SKIPPED rather than rejected — the global set is ambient, so a
+  # single badly-oriented library lemma must not break every `simplify` in the
+  # program. Explicit `using [rules]` keeps the stricter reject-on-inadmissible
+  # behaviour, where the author named the rule and can be told it is wrong.
+  defp simplify_lemma_set(goal, meta) do
+    depth = Context.length(goal.context)
+    normalized = Kernel.normalize(goal.context, goal.expected)
+
+    case equality_head(normalized, goal) do
+      nil ->
+        {:ok, goal}
+
+      head ->
+        goal.env
+        |> Env.lemmas(head)
+        |> Enum.reduce({:ok, goal}, fn lemma, {:ok, current} ->
+          case apply_lemma_rule(lemma, current, meta, depth) do
+            {:ok, next} -> {:ok, next}
+            {:error, _} -> {:ok, current}
+          end
+        end)
+    end
+  end
+
+  defp equality_head({:data, family, [_carrier], [_left, _right]}, goal) do
+    if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
+  end
+
+  defp equality_head(_other, _goal), do: nil
+
+  defp apply_lemma_rule(%{name: name, type: type}, goal, meta, depth) do
+    with {:ok, ty_value, a_value, b_value} <- Rewrite.eq_parts(type, Context.signature(goal.context)),
+         a = Kernel.normalize(goal.context, Quote.reify(a_value, depth)),
+         b = Kernel.normalize(goal.context, Quote.reify(b_value, depth)),
+         true <- simplification_measure(a) > simplification_measure(b),
+         {:ok, proof} <- lemma_proof(name, goal) do
+      simplify_rule_fixed_point(
+        proof,
+        Kernel.normalize(goal.context, Quote.reify(ty_value, depth)),
+        a,
+        b,
+        meta,
+        goal,
+        meta,
+        MapSet.new(),
+        0
+      )
+    else
+      _ -> {:error, :not_applicable}
+    end
+  end
+
+  defp lemma_proof(name, goal) do
+    if Env.certified?(goal.env, name),
+      do: {:ok, {:global, name}},
+      else: {:error, :uncertified_lemma}
   end
 
   defp enrich_simplification(problem, names) do
@@ -508,7 +583,7 @@ defmodule Cure.Elab.ProofGoal do
   defp simplification_trace_id(%{id: id}), do: id
   defp simplification_trace_id(other), do: other
 
-  defp close_with_expression(statement, goal) do
+  defp close_with_expression(statement, goal, trace_kind \\ :exact, trace_meta \\ nil) do
     {surface_builders, transports} = Enum.split_with(goal.builders, &match?({:assignment, _, _}, &1))
     block = {:block, [], surface_builders ++ [statement]}
     original_names = Enum.drop(goal.names, length(surface_builders))
@@ -516,11 +591,35 @@ defmodule Cure.Elab.ProofGoal do
     case Elaborator.elaborate_expr_checked(block, goal.expected, original_names, goal.context, goal.env) do
       {:ok, evidence} ->
         evidence = Enum.reduce(Enum.reverse(transports), evidence, &apply_builder/2)
-
-        {:closed, evidence, goal.trace ++ [{:exact, surface_span(statement)}]}
+        {:closed, evidence, goal.trace ++ [{trace_kind, surface_span(trace_meta || statement)}]}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Backward reasoning: close the goal with `proof`, or report why it does not fit.
+  #
+  # `apply` is the backward-reasoning counterpart of writing the evidence term
+  # directly. The proof is elaborated and then checked against the goal's
+  # expected type, so a proof whose conclusion unifies with the goal closes it,
+  # and one that does not is rejected with the goal and the supplied proposition
+  # both surfaced. Nothing is trusted: the kernel re-checks the result.
+  defp apply_proof(proof_ast, meta, goal) do
+    case close_with_expression(proof_ast, goal, :apply, meta) do
+      {:closed, evidence, trace} ->
+        {:closed, evidence, trace}
+
+      {:error, _reason} ->
+        {:error,
+         {:proof_chain_mismatch,
+          %ProofChainMismatchProblem{
+            kind: :unfinished_justification,
+            step_index: 0,
+            justification: surface_span(meta),
+            residual_goal: goal.expected,
+            cause: {:apply_does_not_close, surface_span(proof_ast)}
+          }}}
     end
   end
 
