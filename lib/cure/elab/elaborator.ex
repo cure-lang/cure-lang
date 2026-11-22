@@ -2911,6 +2911,9 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:simplify_command, meta, _rules}, _expected_core, _names, _ctx, _env),
     do: simplify_outside_justification(meta)
 
+  def elaborate_expr_checked({:solver_command, _meta, _args} = command, expected_core, names, ctx, env),
+    do: Cure.Elab.Solver.solve(command, expected_core, names, ctx, env)
+
   # A `match` in nested expression position, in checking mode: the expected type
   # IS the result type its motive needs, so hand it straight to `elaborate_match`
   # (which builds the motive, refines indices per branch, and enforces coverage),

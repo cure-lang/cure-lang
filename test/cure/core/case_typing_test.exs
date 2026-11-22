@@ -77,7 +77,7 @@ defmodule Cure.Core.CaseTypingTest do
          ]}
     end
 
-    {before_reductions, _} = :erlang.statistics(:reductions)
+    {:reductions, before_reductions} = Process.info(self(), :reductions)
 
     assert :ok ==
              Kernel.check_with_branch_details(
@@ -86,7 +86,7 @@ defmodule Cure.Core.CaseTypingTest do
                {:vdata, :Dec, []}
              )
 
-    {after_reductions, _} = :erlang.statistics(:reductions)
+    {:reductions, after_reductions} = Process.info(self(), :reductions)
 
     # Recording a successful branch's already-proven expected type is linear in
     # the nesting depth. Re-inferring every successful body here makes this

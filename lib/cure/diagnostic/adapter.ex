@@ -200,6 +200,18 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:simplification_failed, %SimplificationProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:simplification_failed, problem}, opts)
 
+  def from_error({:invalid_simp_lemma, name, cause}, opts),
+    do:
+      ProofAdapter.from_error(
+        {:simplification_failed,
+         %SimplificationProblem{
+           kind: :inadmissible_rule,
+           rule: Keyword.get(opts, :span),
+           cause: {:simp_declaration, name, cause}
+         }},
+        opts
+      )
+
   def from_error({:induction_failed, %InductionProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:induction_failed, problem}, opts)
 

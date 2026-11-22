@@ -111,6 +111,11 @@ defmodule Cure.Diagnostic.Adapter.Proof do
 
     {title, message, label} =
       case problem.kind do
+        :solver_failed ->
+          {"Proof solver did not close the goal",
+           "The selected solver could not produce checked evidence for the required proposition.",
+           "this solver leaves the goal open"}
+
         :unfinished_justification ->
           {"Proof justification is unfinished",
            "The justification for step #{displayed} ended while its equality goal was still open. " <>
@@ -190,7 +195,7 @@ defmodule Cure.Diagnostic.Adapter.Proof do
     {title, message, label} =
       case problem.kind do
         :inadmissible_rule ->
-          {"Simplification rule is not admissible", "This rule cannot be given a deterministic decreasing orientation.",
+          {"Simplification rule is not admissible", inadmissible_rule_message(problem.cause),
            "this rule cannot be admitted"}
 
         :proof_mismatch ->
@@ -315,6 +320,33 @@ defmodule Cure.Diagnostic.Adapter.Proof do
       payload: problem
     )
   end
+
+  defp inadmissible_rule_message({:simp_declaration, name, cause}) do
+    reason =
+      case cause do
+        :non_decreasing_orientation ->
+          "Its left side must have strictly more Core nodes than its right side; equal-size and expanding rules can loop."
+
+        :variable_duplication ->
+          "Its right side introduces or duplicates a quantified variable, so substitution can invalidate the decrease."
+
+        :not_equality ->
+          "Its conclusion must be an Equivalent equality."
+
+        :unsupported_binder ->
+          "Its endpoints must be first-order terms without binders, cases, or holes."
+
+        :unexpected_arguments ->
+          "Use @simp without arguments, or @lemma(:simp)."
+
+        _ ->
+          "It cannot be given a deterministic decreasing orientation."
+      end
+
+    "The simp declaration `#{name}` is not admissible. " <> reason
+  end
+
+  defp inadmissible_rule_message(_cause), do: "This rule cannot be given a deterministic decreasing orientation."
 
   defp primary(opts, message) do
     case Keyword.get(opts, :span) do

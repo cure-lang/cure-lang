@@ -11,6 +11,40 @@ recommendation** — see §9.
 Scope: make **Cure itself** reach feature parity with Lean 4. No porting. The
 Agda development in `proof/` is untouched by this plan.
 
+## Implementation audit — 2026-11-21
+
+**Phases 1 and 2 below are implemented.** This document's §8 phase numbers are
+authoritative; `PATH_TO_LEAN4_PLAN.md` used a different, historical sequence.
+`LEAN4_PARITY_STATUS.md` records the current evidence and remaining boundaries.
+
+- **C5:** certified recursive unfolding already existed through kernel
+  normalization; nested computational goals now have explicit positive and
+  certificate-removal refusal tests. No second unfolding path or kernel change.
+- **C8:** `rewrite … all` now visits original occurrences deterministically and
+  composes checked transports correctly. The strict single-occurrence default
+  and E111 diagnostics are unchanged.
+- **C4:** explicit `@simp` / `@lemma(:simp)` declarations reject non-decreasing
+  and variable-duplicating orientations with authored E112 diagnostics.
+  Certified quantified lemmas specialize with checked evidence, including
+  imported lemmas; safe legacy `@lemma` behavior is preserved.
+- **C1.1:** `ProofGoal` is the goal representation (not a second `Goal`
+  struct). Construction and inspection preserve the original target/context.
+  Existing justification commands execute through `Tactic.command/1`;
+  `Tactic.Result` retains closure evidence through sequencing, choice, focus,
+  all-goals and bounded repeat-until-failure.
+- **C1.3:** `by search`, `by positivity`, and `by decide [using expression]`
+  are checked solver clients, with positive and refusal corpora.
+
+Corrections to the original analysis: a neutral `plus(n, Z()) = n` requires
+induction in Lean too, so its rejection is not a delta-reach gap. A parser node
+alone was not evidence that rewrite-all or inline proof commands worked.
+`@lemma` simplification existed but its quantified path was broken.
+
+The remaining sections retain the design and estimates for later phases.
+References to `@[simp]` mean the capability, spelled `@simp` or
+`@lemma(:simp)` in Cure. C6 is only partially implemented: current `apply`
+closes with supplied evidence but does not generate premise subgoals.
+
 ---
 
 ## 1. What "parity" means, and what Cure already has
@@ -47,11 +81,11 @@ tactic layer was "structurally absent." It is not. `docs/PROOFS.md` §3 defines
 | **C1** | **No goal-state metaprogramming.** `computed by` expanders see *syntax*, never a *goal*. A user cannot write a tactic that inspects the goal and decides what to do. | `Lean.Meta` / `Lean.Elab.Tactic` | Every custom tactic | 8–12w |
 | **C2** | **Universe polymorphism unspecified-but-unlanded.** `Type(l)` design is complete (U0–U7) but the kernel still has the fixed ceiling. | `Type u` | All generic stdlib | 12–20w |
 | **C3** | **Operator fixity Step 3 unlanded.** `precedencegroup` + `infix`/`prefix`/`postfix` designed, not built; the static `Precedence.ex` table still exists. | `infixl`/`infixr`/`notation` | Operator ergonomics | 3–4w |
-| **C4** | **No `@[simp]` global lemma set.** `simplify using [rules]` is per-call-site; `@lemma` feeds *proof search*, not `simplify`. | `@[simp]` attribute | Proof tedium | 2–3w |
-| **C5** | **`simplify` will not unfold recursive definitions.** Deliberate ("it will not unfold arbitrary recursive definitions"), but Lean's `simp` does, gated on termination. | `simp` + `@[simp]` defs | Every proof | 3–4w |
-| **C6** | **No `apply`/`exact`.** `docs/PROOFS.md` §3.8 argues "there is nothing for `apply` to do" — true for forward reasoning, false for backward. | `apply`/`exact` | Proof style | 2–3w |
+| **C4** | **Closed:** explicit decreasing simp declarations and checked quantified ambient rules. | `@[simp]` attribute | Proof tedium | Landed |
+| **C5** | **Closed:** certified recursive definitions compute; uncertified recursion stays opaque. | `simp` + certified unfolding | Every proof | Verified existing path |
+| **C6** | **Partial:** `exact` and closing `apply` work; premise-generating backward application remains. | `apply`/`exact` | Proof style | Phase 4 |
 | **C7** | **No interactive goal display.** `:hole_goal` exists; no goal view after each command. | InfoView | All proof authoring | 4–6w |
-| **C8** | **`rewrite` single-occurrence only.** `E111` on multiple matches. | `rw` (all by default) | Proof tedium | 1w |
+| **C8** | **Closed:** opt-in `rewrite … all`; default still requires one occurrence. | occurrence selection | Proof tedium | Landed |
 | **C9** | **Guarded-lambda recursion uncertified** (K-bug 2, open). | `%default total` | Reach, not soundness | 2–3w |
 | **C10** | **Elaborator reach gaps** E9, E10, E12, E13, K-bug 1 (open ledger, `kernel/MASTER.md` §9). | — | Reach only | 10–15w |
 
@@ -70,10 +104,11 @@ lets user code manipulate a goal.
 
 ### C1.1 — Extract the goal state (3w)
 
-1. Define `Goal = %{hyps: [{name, type}], target: Core.t, ctx, meta}` in
-   `lib/cure/elab/goal.ex`.
-2. Define the tactic result: `{:ok, [Goal]} | {:error, diagnostic}` — a tactic
-   returns *remaining* goals, so `[]` closes.
+1. Use `Cure.Elab.ProofGoal` as the single goal state, with `new/5` and
+   `inspect_goal/1` for construction and hypothesis/target inspection.
+2. Return remaining goals **and checked solutions** in `Tactic.Result`;
+   closure evidence must survive composition and check at the original goal.
+   Legacy list-only results remain scheduling projections, not proof artifacts.
 3. Expose combinators: `focus`, `all_goals`, `seq`, `or_else`, `repeat_until_fail`.
 4. **Reimplement the six existing proof commands on this API.** This is the
    adequacy proof: if `simplify`/`rewrite`/`induction` can be expressed, the API
@@ -194,6 +229,11 @@ multi-occurrence goal.
 
 **Phase 2 gate:** the six existing commands are reimplemented on the goal API
 with byte-identical diagnostics and passing tests.
+
+Evidence: `test/cure/elab/tactic_integration_test.exs`, `simp_set_test.exs`,
+`solver_test.exs`, `proof_ergonomics_test.exs`, the existing proof-language and
+diagnostic suites, and `test/lean4_parity_test.exs`. The latter also retains
+deliberate negative safety pins; completing a phase does not mean flipping them.
 
 **Phase 4 gate:** a library defines a custom tactic macro; cursor-position goal
 display works in VS Code and the REPL.

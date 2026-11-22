@@ -593,7 +593,8 @@ defmodule Cure.Elab.Declarations do
   defp do_register_signature({:function_def, meta, _body}, env) do
     with :ok <- validate_extern_typed_head(meta),
          :ok <- validate_total_decorator(meta),
-         {:ok, sig} <- function_signature(meta, env) do
+         {:ok, sig} <- function_signature(meta, env),
+         :ok <- Cure.Elab.SimpSet.validate(meta, sig.pi, env) do
       env1 =
         env
         |> Env.add_def(sig.name, sig.pi, {:hole, "__pending__"}, sig.quantities, sig.plicities)
@@ -1890,6 +1891,10 @@ defmodule Cure.Elab.Declarations do
   # though `ProofChain.elaborate/4` and `elaborate_expr_checked/5` both handle
   # the node. The chain adds no Core constructors; it expands to a checked term.
   defp elaborate_body({:proof_chain, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
+    Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
+  end
+
+  defp elaborate_body({:solver_command, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
     Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
   end
 
@@ -4614,13 +4619,16 @@ defmodule Cure.Elab.Declarations do
   # {:global, ...} term matches what ordinary elaboration produces for the same
   # call — see Cure.Elab.ProofSearch.
   defp maybe_register_lemma(env, sig, meta) do
-    with :lemma <- attached_decorator_name(Keyword.get(meta, :decorator)),
+    with true <- Cure.Elab.SimpSet.lemma?(meta),
          head when not is_nil(head) <- conclusion_head(sig.pi) do
-      Env.put_lemma(env, head, %{
+      entry = %{
         name: Env.owned_name(env, sig.name),
         type: sig.pi,
         arity: pi_arity(sig.pi)
-      })
+      }
+
+      entry = if Cure.Elab.SimpSet.explicit?(meta), do: Map.put(entry, :simp, true), else: entry
+      Env.put_lemma(env, head, entry)
     else
       _ -> env
     end

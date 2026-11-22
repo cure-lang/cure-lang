@@ -56,7 +56,14 @@ defmodule Cure.Elab.Rewrite do
 
     cond do
       occurrences != [] ->
-        rewrite_all(proof, ty, a, b, expected, direction, length(occurrences), 0)
+        Enum.reduce(occurrences, {:ok, fn evidence -> evidence end, expected, occurrences}, fn occurrence,
+                                                                                               {:ok, outer, term, all} ->
+          rewritten = replace_at(term, occurrence.traversal_path, replacement)
+          {:ok, motive} = motive_at(term, occurrence.traversal_path, ty)
+          {:ok, transport_proof, left} = transport_for_direction(direction, proof, ty, a, b)
+          build = fn evidence -> {:app, transport_case(transport_proof, ty, motive, left), evidence} end
+          {:ok, fn evidence -> outer.(build.(evidence)) end, rewritten, all}
+        end)
 
       occurrences(expected, replacement) != [] ->
         {:error, {:reverse_only, direction}}
@@ -89,25 +96,6 @@ defmodule Cure.Elab.Rewrite do
          {:ok, transport_proof, left} <- evidence_transport(direction, proof, ty, a, b) do
       {:ok, fn evidence -> {:app, transport_case(transport_proof, ty, motive, left), evidence} end, rewritten,
        occurrences}
-    end
-  end
-
-  # `all` is bounded by the occurrence count measured on the ORIGINAL term, so
-  # a replacement that reintroduces its own target cannot loop.
-  defp rewrite_all(_proof, _ty, _a, _b, term, _direction, limit, steps) when steps >= limit,
-    do: {:ok, fn evidence -> evidence end, term, []}
-
-  defp rewrite_all(proof, ty, a, b, term, direction, limit, steps) do
-    case directed_plan(proof, ty, a, b, term, direction, nil) do
-      {:ok, build, rewritten, occurrences} ->
-        {:ok, inner_build, final, _} = rewrite_all(proof, ty, a, b, rewritten, direction, limit, steps + 1)
-        {:ok, fn evidence -> inner_build.(build.(evidence)) end, final, occurrences}
-
-      {:error, {:no_occurrence, _}} ->
-        {:ok, fn evidence -> evidence end, term, []}
-
-      {:error, _} = error ->
-        error
     end
   end
 
@@ -166,13 +154,19 @@ defmodule Cure.Elab.Rewrite do
       collect_occurrences(body, Subst.shift(target, 1, 0), path ++ [2])
   end
 
+  defp collect_occurrences({:let, _grade, type, value, body}, target, path) do
+    collect_occurrences(type, target, path ++ [1]) ++
+      collect_occurrences(value, target, path ++ [2]) ++
+      collect_occurrences(body, Subst.shift(target, 1, 0), path ++ [3])
+  end
+
   defp collect_occurrences({:case, scrutinee, motive, branches}, target, path) do
     collect_occurrences(scrutinee, target, path ++ [0]) ++
       collect_occurrences(motive, target, path ++ [1]) ++
       (branches
        |> Enum.with_index()
        |> Enum.flat_map(fn {{_constructor, arity, body}, index} ->
-         collect_occurrences(body, Subst.shift(target, arity, 0), path ++ [2, index, 2])
+         collect_occurrences(body, Subst.shift(target, arity, 0), path ++ [2, index, 1])
        end))
   end
 
@@ -183,10 +177,27 @@ defmodule Cure.Elab.Rewrite do
     |> Enum.flat_map(fn {child, index} -> collect_occurrences(child, target, path ++ [index]) end)
   end
 
-  defp replace_at(_term, [], replacement), do: replacement
+  defp replace_at(term, path, replacement), do: replace_at(term, path, replacement, 0)
 
-  defp replace_at(term, [index | rest], replacement) do
-    updated = term |> children() |> List.update_at(index, &replace_at(&1, rest, replacement))
+  defp replace_at(_term, [], replacement, depth), do: Subst.shift(replacement, depth, 0)
+
+  defp replace_at({tag, grade, domain, body}, [2 | rest], replacement, depth) when tag in [:pi, :lam],
+    do: {tag, grade, domain, replace_at(body, rest, replacement, depth + 1)}
+
+  defp replace_at({:let, grade, type, value, body}, [3 | rest], replacement, depth),
+    do: {:let, grade, type, value, replace_at(body, rest, replacement, depth + 1)}
+
+  defp replace_at({:case, scrutinee, motive, branches}, [2, index, 1 | rest], replacement, depth) do
+    branches =
+      List.update_at(branches, index, fn {constructor, arity, body} ->
+        {constructor, arity, replace_at(body, rest, replacement, depth + arity)}
+      end)
+
+    {:case, scrutinee, motive, branches}
+  end
+
+  defp replace_at(term, [index | rest], replacement, depth) do
+    updated = term |> children() |> List.update_at(index, &replace_at(&1, rest, replacement, depth))
     rebuild(term, updated)
   end
 
@@ -243,6 +254,12 @@ defmodule Cure.Elab.Rewrite do
       do_contains_term_scoped?(body, Subst.shift(target, 1, 0))
   end
 
+  defp do_contains_term_scoped?({:let, _grade, type, value, body}, target) do
+    do_contains_term_scoped?(type, target) or
+      do_contains_term_scoped?(value, target) or
+      do_contains_term_scoped?(body, Subst.shift(target, 1, 0))
+  end
+
   defp do_contains_term_scoped?({:case, scrutinee, motive, branches}, target) do
     do_contains_term_scoped?(scrutinee, target) or
       do_contains_term_scoped?(motive, target) or
@@ -286,6 +303,11 @@ defmodule Cure.Elab.Rewrite do
      do_replace_term_scoped(body, Subst.shift(target, 1, 0), Subst.shift(replacement, 1, 0))}
   end
 
+  defp do_replace_term_scoped({:let, grade, type, value, body}, target, replacement) do
+    {:let, grade, do_replace_term_scoped(type, target, replacement), do_replace_term_scoped(value, target, replacement),
+     do_replace_term_scoped(body, Subst.shift(target, 1, 0), Subst.shift(replacement, 1, 0))}
+  end
+
   defp do_replace_term_scoped({:case, scrutinee, motive, branches}, target, replacement) do
     {:case, do_replace_term_scoped(scrutinee, target, replacement), do_replace_term_scoped(motive, target, replacement),
      Enum.map(branches, fn {constructor, arity, body} ->
@@ -314,6 +336,11 @@ defmodule Cure.Elab.Rewrite do
 
   def abstract_term({:lam, grade, domain, body}, target, depth),
     do: {:lam, grade, abstract_term(domain, target, depth), abstract_term(body, Subst.shift(target, 1, 0), depth + 1)}
+
+  def abstract_term({:let, grade, type, value, body}, target, depth),
+    do:
+      {:let, grade, abstract_term(type, target, depth), abstract_term(value, target, depth),
+       abstract_term(body, Subst.shift(target, 1, 0), depth + 1)}
 
   def abstract_term({:case, scrutinee, motive, branches}, target, depth) do
     {:case, abstract_term(scrutinee, target, depth), abstract_term(motive, target, depth),

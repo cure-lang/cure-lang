@@ -1,8 +1,16 @@
 # Path to Lean 4 — Execution Plan
 
-**Status:** execution companion to [`PATH_TO_LEAN4.md`](PATH_TO_LEAN4.md).
+**Status:** historical execution companion to [`PATH_TO_LEAN4.md`](PATH_TO_LEAN4.md).
 **Scorecard:** [`LEAN4_PARITY_STATUS.md`](LEAN4_PARITY_STATUS.md)
 **Corpus:** [`test/lean4_parity/`](../test/lean4_parity/)
+
+**Phase-number correction (2026-11-21):** the sequence below differs from the
+authoritative `PATH_TO_LEAN4.md` §8. Current Phase 1 is C4/C5/C8 and current
+Phase 2 is C1.1/C1.3; both are implemented. Use the scorecard for current
+measurement. In particular, certified unfolding required no TCB change, and
+`plus(n, Z()) = n` is an induction theorem, not a missing reduction.
+Later-phase descriptions and baseline findings below are retained historically,
+not as assertions about today's implementation.
 
 ---
 

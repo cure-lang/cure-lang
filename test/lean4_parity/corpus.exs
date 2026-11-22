@@ -43,7 +43,7 @@ defmodule Cure.Lean4Parity.Corpus do
   """
   @spec all() :: [Case.t()]
   def all do
-    g3() ++ g4() ++ g5() ++ g9() ++ g1() ++ g2() ++ g10()
+    g3() ++ g4() ++ g5() ++ g9() ++ g1() ++ g2() ++ g10() ++ phase_one_two()
   end
 
   @doc """
@@ -88,13 +88,11 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g3-reflexive-recursive-unfolding",
         gap: :g3,
         axis: :l2,
-        title: "reflexive does NOT close a goal needing a recursive definition unfolded",
+        title: "right identity at a neutral argument requires induction, not unfolding",
         expect: :reject,
         reason:
-          "delta-unfolding is gated behind a totality certificate, and `reflexive` " <>
-            "closes only definitionally-equal endpoints; `plus(n, Z())` does not " <>
-            "reduce to `n` without induction. This is the Lean `rfl` reflex that " <>
-            "fails here -- a reach gap, not a soundness gap.",
+          "`plus(n, Z())` cannot reduce with neutral n. This is a deliberate " <>
+            "definitional-equality boundary shared with Lean, not a delta-reach gap.",
         source: """
         mod Parity.G3ReflexiveRecursiveUnfolding
           use Std.Equivalent
@@ -230,8 +228,8 @@ defmodule Cure.Lean4Parity.Corpus do
         reason:
           "`decide_is_true(claim) -> Decision(IsTrue(claim))` has a return type " <>
             "depending on the argument; elaborating it at a concrete claim is a " <>
-            "reach gap, so the decision procedure cannot yet be used as a tactic. " <>
-            "The evidence constructor alone (see g5-confirmed-evidence) works.",
+            "remaining library-call reach limitation for this particular reflector. " <>
+            "Other Decision(P) procedures are usable through `by decide using`.",
         source: """
         mod Parity.G5DecideDependentReturn
           use Std.Proof.IntMath
@@ -299,8 +297,7 @@ defmodule Cure.Lean4Parity.Corpus do
         reason:
           "`cure check` accepts a hole and reports its goal via `:hole_goal`; only " <>
             "compilation refuses it (`unfilled_hole`, E014). This corpus compiles, " <>
-            "so the pin is :reject. What G1 still lacks is a per-step remaining-goal " <>
-            "list inside a `because` block.",
+            "so the pin is :reject. This safety boundary is not a missing goal API.",
         source: """
         mod Parity.G1HoleBlocksCodegen
           use Std.Equivalent
@@ -317,7 +314,7 @@ defmodule Cure.Lean4Parity.Corpus do
         expect: :reject,
         reason:
           "a justification block ending open raises PROOF JUSTIFICATION IS UNFINISHED " <>
-            "[E110]; there is no per-step remaining-goal list. Phase 1 adds it.",
+            "[E110]. Goal inspection does not admit unfinished proofs.",
         source: """
         mod Parity.G1OpenBecauseBlock
           use Std.Equivalent
@@ -328,10 +325,10 @@ defmodule Cure.Lean4Parity.Corpus do
             Z() -> b
             S(k) -> S(plus(k, b))
 
-          fn wrong(n: Nat) -> Equivalent(Nat, plus(Z(), n), n) = proof chain
-            plus(Z(), n) == n
+          fn wrong(n: Nat, m: Nat, equality: Equivalent(Nat, n, m)) -> Equivalent(Nat, n, m) = proof chain
+            n == m
             because
-              rewrite using reflexive(plus(Z(), n))
+              rewrite using equality
         end
         """
       )
@@ -369,11 +366,11 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g2-tactic-rule-kind",
         gap: :g2,
         axis: :l4,
-        title: "a `tactic` macro rule kind is NOT available (Phase 3 adds it)",
+        title: "a `tactic` macro rule kind is NOT available (authoritative Phase 4)",
         expect: :reject,
         reason:
           "the macro container's member table (docs/MACROS.md §2) has no `tactic` " <>
-            "entry, so a library cannot define a proof command. Phase 3 adds the " <>
+            "entry, so a library cannot define a proof command. Phase 4 adds the " <>
             "rule kind, expanding to Cure.Elab.Tactic combinators (never Core terms).",
         source: """
         mod Parity.G2TacticRuleKind
@@ -390,6 +387,96 @@ defmodule Cure.Lean4Parity.Corpus do
   # ---------------------------------------------------------------------------
   # G10 — simp-set debugging (axis L3)
   # ---------------------------------------------------------------------------
+
+  defp phase_one_two do
+    [
+      phase_case("CertifiedSimplify", :g3, :l2, """
+      type Nat = Z | S(Nat)
+      fn plus(left: Nat, right: Nat) -> Nat = match left
+        Z() -> right
+        S(previous) -> S(plus(previous, right))
+      fn checked(n: Nat) -> Equivalent(Nat, plus(Z(), plus(Z(), n)), n) = proof chain
+        plus(Z(), plus(Z(), n)) == n
+        because simplify
+      """),
+      phase_case("QuantifiedSimp", :g4, :l3, """
+      type Nat = Z | S(Nat)
+      fn plus(left: Nat, right: Nat) -> Nat = match left
+        Z() -> right
+        S(previous) -> S(plus(previous, right))
+      @simp
+      fn plus_zero(n: Nat) -> Equivalent(Nat, plus(n, Z()), n) = induction n
+        case Z => reflexive(Z())
+        case S(previous, ih) => rewrite ih in reflexive(S(previous))
+      fn checked(n: Nat) -> Equivalent(Nat, plus(plus(n, Z()), Z()), n) = proof chain
+        plus(plus(n, Z()), Z()) == n
+        because simplify
+      """),
+      phase_case(
+        "LoopingSimp",
+        :g4,
+        :l3,
+        """
+        @simp
+        fn loop(x: Int) -> Equivalent(Int, x, x) = reflexive(x)
+        """,
+        "Explicit simp rules must strictly decrease under substitution."
+      ),
+      phase_case("RewriteAll", :g2, :l3, """
+      type Pair = Pair(Int, Int)
+      fn checked(x: Int, y: Int, h: Equivalent(Int, x, y)) -> Equivalent(Pair, Pair(x, x), Pair(y, y)) = proof chain
+        Pair(x, x) == Pair(y, y)
+        because
+          rewrite using h all
+          simplify
+      """),
+      phase_case("Search", :g5, :l6, """
+      use Std.Proof.Math
+      fn checked(n: Nat, h: IsPositive(n)) -> IsPositive(n) = by search
+      """),
+      phase_case("Positivity", :g5, :l6, """
+      use Std.Proof.Math
+      fn checked(n: Nat, m: Nat, h: IsPositive(n)) -> IsPositive(plus(n, m)) = by positivity
+      """),
+      phase_case(
+        "NotPositive",
+        :g5,
+        :l6,
+        """
+        use Std.Proof.Math
+        fn wrong() -> IsPositive(Z()) = by positivity
+        """,
+        "Zero is not positive; automation must fail closed."
+      ),
+      phase_case("Decide", :g5, :l6, """
+      use Std.Decision
+      fn checked() -> Equivalent(Bool, True(), True()) = by decide
+      """),
+      phase_case(
+        "DecisionNo",
+        :g5,
+        :l6,
+        """
+        use Std.Decision
+        fn wrong() -> Equivalent(Bool, True(), False()) = by decide
+        """,
+        "No is disproof, not evidence of the requested proposition."
+      )
+    ]
+  end
+
+  defp phase_case(name, gap, axis, body, reason \\ nil) do
+    parity_case(
+      id: "#{gap}-phase12-#{Macro.underscore(name)}",
+      gap: gap,
+      axis: axis,
+      title: "Phase 1/2 gate: #{name}",
+      expect: if(reason, do: :reject, else: :accept),
+      reason: reason,
+      module: if(reason, do: nil, else: "Cure.Parity.#{name}"),
+      source: "mod Parity.#{name}\n  " <> String.replace(String.trim(body), "\n", "\n  ") <> "\nend\n"
+    )
+  end
 
   defp g10 do
     [

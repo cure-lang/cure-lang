@@ -3560,6 +3560,15 @@ defmodule Cure.Compiler.Parser do
           "simplify" ->
             parse_simplify(state, token)
 
+          "by" ->
+            case peek_at(state, 1) do
+              %Token{type: :identifier, value: solver} when solver in ["search", "positivity", "decide"] ->
+                parse_solver(state, token, solver)
+
+              _ ->
+                {variable(token), advance(state)}
+            end
+
           # `apply e` / `exact e` are contextual proof commands that claim their
           # keyword ONLY inside a `because` justification block. Everywhere else
           # the word is an ordinary identifier -- which matters because `apply`
@@ -4173,6 +4182,30 @@ defmodule Cure.Compiler.Parser do
     {proof, state} = parse_expr(state, 0)
     meta = put_token_source_info([line: token.line, col: token.col], token)
     {{:proof_application, Keyword.put(meta, :kind, kind), [proof]}, state}
+  end
+
+  defp parse_solver(state, token, solver) do
+    solver_token = peek_at(state, 1)
+    state = state |> advance() |> advance()
+    meta = put_token_source_info([solver: String.to_existing_atom(solver), line: token.line, col: token.col], token)
+
+    {arguments, state, last_span} =
+      case {solver, peek(state)} do
+        {"decide", %Token{type: :identifier, value: "using"}} ->
+          {decision, state} = parse_expr(advance(state), 0)
+          {[decision], state, ast_source_span(decision)}
+
+        _ ->
+          {[], state, solver_token.span}
+      end
+
+    meta =
+      case Range.through(token.span, last_span) do
+        {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, operator: token.span})
+        _ -> meta
+      end
+
+    {{:solver_command, meta, arguments}, state}
   end
 
   defp parse_simplify(state, token) do

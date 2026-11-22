@@ -1,5 +1,14 @@
 # Lean 4-Style Proof Readiness: Audit
 
+**Historical audit, not current status.** Several capability claims below were
+refuted by implementation tests: certified recursive unfolding already worked;
+`plus(n, Z()) = n` needs induction in Lean too; ambient lemma simplification
+existed but its quantified path needed repair. Goal execution, explicit simp
+declarations, rewrite-all and solver tactics have since landed. See
+[`PATH_TO_LEAN4.md`](PATH_TO_LEAN4.md) and
+[`LEAN4_PARITY_STATUS.md`](LEAN4_PARITY_STATUS.md). Historical axiom counts
+alone do not establish comparative soundness.
+
 Status: audit of the repository at the time of writing. Companion to
 [`LEAN4_MIGRATION_PLAN.md`](LEAN4_MIGRATION_PLAN.md).
 Scope: the mechanised proof development in [`proof/`](../proof), the executable

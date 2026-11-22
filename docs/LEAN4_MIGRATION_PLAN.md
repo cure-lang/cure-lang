@@ -1,5 +1,10 @@
 # Lean 4-Style Proofs: Migration Plan
 
+**Historical and superseded.** Use [`PATH_TO_LEAN4.md`](PATH_TO_LEAN4.md) for
+scope and phase numbering, and [`LEAN4_PARITY_STATUS.md`](LEAN4_PARITY_STATUS.md)
+for measured implementation status. This older plan contains withdrawn
+recommendations and inaccurate capability claims; it is not an execution guide.
+
 Companion to [`LEAN4_READINESS_AUDIT.md`](LEAN4_READINESS_AUDIT.md). Every step
 below cites a gap ID from that audit's §8 register.
 
