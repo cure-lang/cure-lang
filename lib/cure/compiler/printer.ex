@@ -1323,7 +1323,7 @@ defmodule Cure.Compiler.Printer do
     "rewrite#{direction} using " <> render(proof, depth, indent) <> target
   end
 
-  defp to_string({:simplify_command, _meta, []}, _depth, _indent), do: "simplify"
+  defp to_string({:simplify_command, meta, []}, _depth, _indent), do: simplify_head(meta)
 
   defp to_string({:proof_application, meta, [proof]}, depth, indent),
     do: "#{Keyword.fetch!(meta, :kind)} " <> render(proof, depth, indent)
@@ -1338,6 +1338,24 @@ defmodule Cure.Compiler.Printer do
     end
   end
 
+  # A goal-inspecting computed tactic use-site. Like `tactic_script`, it reprints
+  # from the captured invocation tokens, so a formatted file keeps the author's
+  # own spelling (arguments, labels, ordering) instead of a reconstruction.
+  defp to_string({:tactic_computed_use, meta, arguments}, depth, indent) do
+    prefix = if Keyword.get(meta, :explicit_by, false), do: "by ", else: ""
+
+    invocation =
+      case Keyword.get(meta, :tactic_use_tokens) do
+        tokens when is_list(tokens) ->
+          tactic_invocation_to_string(tokens, depth, indent)
+
+        nil ->
+          Enum.join([Keyword.get(meta, :keyword) | Enum.map(arguments, &render(&1, depth, indent))], " ")
+      end
+
+    prefix <> invocation
+  end
+
   defp to_string({:solver_command, meta, arguments}, depth, indent) do
     head = "by #{Keyword.fetch!(meta, :solver)}"
 
@@ -1347,8 +1365,8 @@ defmodule Cure.Compiler.Printer do
     end
   end
 
-  defp to_string({:simplify_command, _meta, [rules]}, depth, indent),
-    do: "simplify using " <> render(rules, depth, indent)
+  defp to_string({:simplify_command, meta, [rules]}, depth, indent),
+    do: simplify_head(meta) <> " using " <> render(rules, depth, indent)
 
   defp to_string({:induction, _meta, [subject | cases]}, depth, indent) do
     pad = String.duplicate(indent, depth + 1)
@@ -1563,6 +1581,17 @@ defmodule Cure.Compiler.Printer do
       end)
 
     lines ++ examples
+  end
+
+  defp macro_rule_lines(
+         %{kind: :tactic_computed, keyword: keyword, segments: segments, template: expander} = rule,
+         depth,
+         indent
+       ) do
+    head =
+      "tactic #{keyword} #{macro_segments_to_string(segments)} computed by #{render(expander, depth, indent)}"
+
+    [head | macro_rule_examples(rule, depth, indent)]
   end
 
   defp macro_rule_lines(%{kind: kind, keyword: keyword, segments: segments, template: template} = rule, depth, indent)
@@ -3009,4 +3038,16 @@ defmodule Cure.Compiler.Printer do
 
   defp proof_justification_to_string(justification, depth, indent),
     do: "because #{render(justification, depth + 1, indent)}"
+
+  # `simplify` and its tracing spelling `simp?` share one grammar; only the head
+  # word differs, so the printer derives it from the same `:trace` flag the
+  # parser sets. Printing `simplify` for a `simp?` would silently drop the
+  # request to report which lemmas fired.
+  #
+  # Kept after the whole `to_string/3` group: inserting a non-clause helper
+  # between two `to_string` clauses splits the group, which the compiler reports
+  # as "clauses with the same name and arity should be grouped together".
+  defp simplify_head(meta) do
+    if Keyword.get(meta, :trace, false), do: "simp?", else: "simplify"
+  end
 end

@@ -15,7 +15,7 @@ defmodule Cure.REPL.Completer do
   """
 
   @meta_commands ~w(
-    :t :type :doc :effects :load :reload :use :holes :env :reset :fmt
+    :t :type :doc :effects :load :reload :use :holes :goals :env :reset :fmt
     :help :h :quit :q :exit :history :clear :save :edit :time :bench
     :ast :theme :mode :color :search
   )

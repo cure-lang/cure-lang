@@ -45,7 +45,7 @@ defmodule Cure.Compiler.MacroValidate do
 
   defp check_tactic_capture_kinds({:macro_def, _meta, rules}, env) do
     rules
-    |> Enum.filter(&(&1[:kind] == :tactic))
+    |> Enum.filter(&(&1[:kind] in [:tactic, :tactic_computed]))
     |> Enum.flat_map(&tactic_capture_kinds(&1.segments))
     |> Enum.uniq()
     |> Enum.reduce_while(:ok, fn kind, :ok ->
@@ -135,15 +135,34 @@ defmodule Cure.Compiler.MacroValidate do
     end)
   end
 
+  # The Phase 3 gate: a TEMPLATE `tactic` rule's expansion must be a member of
+  # the closed tactic vocabulary (`Cure.Elab.Tactic.Step`). This is what makes
+  # "a tactic expands to Tactic combinators, never to Core terms" a checked
+  # property of the rule rather than a convention its author is trusted to
+  # follow.
+  #
+  # It runs at DECLARATION-validation time, before any body is elaborated, on
+  # the rule's own template. That ordering matters: a bad tactic would otherwise
+  # fail first at its use site with an unrelated elaboration error, and the rule
+  # that caused it would never be blamed.
+  #
+  # `tactic_computed` rules are NOT checked here: their expansion is a Cure
+  # FUNCTION, not a script. Their safety comes from the operation vocabulary
+  # `Cure.Elab.Tactic.Computed` enforces at execution, which is the same
+  # structural argument applied one level later.
   defp check_tactic_expansions({:macro_def, meta, rules}) do
     rules
-    |> Enum.filter(&(&1[:kind] == :tactic))
+    |> Enum.filter(&(&1[:kind] in [:tactic, :tactic_computed]))
     |> Enum.reduce_while(:ok, fn rule, :ok ->
       result =
         if Cure.Compiler.Lexer.reserved_word?(rule.keyword) or
              rule.keyword in ~w(assert_type check rewrite simplify by apply exact induction have proof macro with lift public precedencegroup infix prefix postfix),
            do: {:error, :reserved_tactic_keyword},
-           else: Cure.Elab.Tactic.Step.classify(Map.get(rule, :template))
+           else:
+             if(rule.kind == :tactic_computed,
+               do: {:ok, :deferred_computed_tactic},
+               else: Cure.Elab.Tactic.Step.classify(Map.get(rule, :template))
+             )
 
       case result do
         {:ok, _step} ->
@@ -183,7 +202,7 @@ defmodule Cure.Compiler.MacroValidate do
          {:macro_def, meta, rules}
        ) do
     rule =
-      Enum.find(rules, &(&1[:kind] == :tactic and &1[:keyword] == keyword))
+      Enum.find(rules, &(&1[:kind] in [:tactic, :tactic_computed] and &1[:keyword] == keyword))
 
     macro_span = macro_source_span(meta)
     rule_span = rule && (rule[:head_span] || rule[:source_span])
@@ -457,7 +476,7 @@ defmodule Cure.Compiler.MacroValidate do
   def check_rules_pinned({:macro_def, _meta, rules}) do
     unpinned =
       rules
-      |> Enum.filter(&(&1[:kind] in [:syntax, :computed, :tactic]))
+      |> Enum.filter(&(&1[:kind] in [:syntax, :computed, :tactic, :tactic_computed]))
       |> Enum.filter(&(Map.get(&1, :examples, []) == []))
       |> Enum.map(& &1.keyword)
 
@@ -568,10 +587,10 @@ defmodule Cure.Compiler.MacroValidate do
   def check_examples({:macro_def, _meta, rules}, env) do
     results =
       rules
-      |> Enum.filter(&(&1[:kind] in [:syntax, :tactic]))
+      |> Enum.filter(&(&1[:kind] in [:syntax, :tactic, :tactic_computed]))
       |> Enum.flat_map(fn rule ->
         Enum.map(Map.get(rule, :examples, []), fn %{use_site: use_site, expected: expected} = example ->
-          actual = Parser.expand_example(rules, use_site, proof_context: rule.kind == :tactic)
+          actual = Parser.expand_example(rules, use_site, proof_context: rule.kind in [:tactic, :tactic_computed])
 
           result =
             case {rule.kind, expected, env} do

@@ -34,7 +34,7 @@ defmodule Cure.Elab.Tactic.Step do
     * `simplify` / `simplify using [rules]` — `:simplify_command`
     * `rewrite using e [all]` / `rewrite backwards using e` — `:rewrite_command`
     * `exact e` / `apply e` — `:proof_application`
-    * `by search` / `by positivity` / `by decide [using e]` — `:solver_command`
+    * `by search` / `by positivity` / `by assumption` / `by decide [using e]` — `:solver_command`
     * `have name: T = e` — a checked local fact (`:assignment` with `:have`)
     * another finite tactic script — `:tactic_script`
 
@@ -142,7 +142,7 @@ defmodule Cure.Elab.Tactic.Step do
 
   defp valid_command?(:solver_command, meta, arguments) do
     case Keyword.get(meta, :solver) do
-      mode when mode in [:search, :positivity] -> arguments == []
+      mode when mode in [:search, :positivity, :assumption, :omega] -> arguments == []
       :decide -> arguments == [] or match?([_], arguments)
       _ -> false
     end

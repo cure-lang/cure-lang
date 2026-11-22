@@ -2272,6 +2272,19 @@ defmodule Cure.Diagnostic.Adapter.Macro do
   defp computed_macro_reason({:author_failure, name, args}) when is_list(args),
     do: "macro rejected expansion: the macro reported `#{name}`"
 
+  defp computed_macro_reason({:unknown_tactic_operation, kind}),
+    do: "unknown computed tactic operation `#{kind}`; return an existing checked proof command"
+
+  defp computed_macro_reason({:invalid_tactic_state, _kind}),
+    do: "the operation did not retain the supplied goal's state handle"
+
+  defp computed_macro_reason({:invalid_tactic_operation_arity, kind, count}),
+    do: "computed tactic operation `#{kind}` does not accept #{count} arguments"
+
+  defp computed_macro_reason({kind, _detail})
+       when kind in [:invalid_tactic_result, :invalid_tactic_operation, :invalid_tactic_operation_argument],
+       do: "return a tactic operation request or a list of requests, not proof evidence or arbitrary syntax"
+
   defp computed_macro_reason(_reason), do: "the generated expansion was rejected by the compiler"
 
   defp computed_macro_suggestions({:invalid_generated_syntax, {:raw_syntax_in_expansion, _path}}),
@@ -2340,6 +2353,7 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     diagnostics
     |> Enum.flat_map(fn
       {:macro_failure, name, _args} -> [name_to_string(name)]
+      {:diagnostic_details, _meta, [primary]} -> author_diagnostic_names([primary])
       _diagnostic -> []
     end)
     |> Enum.uniq()
@@ -2347,6 +2361,9 @@ defmodule Cure.Diagnostic.Adapter.Macro do
 
   defp author_diagnostic_content(diagnostics, key) do
     Enum.find_value(diagnostics, fn
+      {:diagnostic_details, meta, [_primary]} when is_list(meta) ->
+        Keyword.get(meta, key)
+
       {:macro_failure, _name, arguments} when is_list(arguments) ->
         Enum.find_value(arguments, &diagnostic_detail_content(&1, key))
 

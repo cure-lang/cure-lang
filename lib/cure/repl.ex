@@ -53,6 +53,7 @@ defmodule Cure.REPL do
             uses: [],
             defs: [],
             holes: [],
+            proof_states: nil,
             editor: nil,
             history: nil,
             history_path: nil,
@@ -577,8 +578,17 @@ defmodule Cure.REPL do
 
   defp add_definitions(state, entries) do
     {candidate_defs, annotated} = Session.merge(state.defs, entries)
+    {elaborated, snapshots} = Cure.Elab.ProofState.elaborate(Session.build_source(candidate_defs))
 
-    case Session.hole_goals(candidate_defs) do
+    checked =
+      case elaborated do
+        {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env)}
+        {:error, _} = error -> error
+      end
+
+    state = %{state | proof_states: snapshots}
+
+    case checked do
       {:ok, [_ | _] = holes} ->
         Enum.each(annotated, fn
           {:new, entry} -> render_info(state, "defined #{entry.label} (with holes)")
@@ -764,6 +774,7 @@ defmodule Cure.REPL do
         uses: Docs.default_uses(state.stdlib_kind),
         defs: [],
         holes: [],
+        proof_states: nil,
         input_buffer: []
     }
   end
@@ -776,6 +787,40 @@ defmodule Cure.REPL do
       defs ->
         render_info(state, "session definitions (#{length(defs)}):")
         Enum.each(defs, fn entry -> render_info(state, "  #{entry.label}") end)
+    end
+
+    state
+  end
+
+  # Keep the last submitted proof states independently of installed definitions.
+  # In particular, an E110 submission must remain inspectable without installing
+  # the failed definition in the executable session.
+  defp handle_meta(state, ":goals") do
+    result =
+      case state.proof_states do
+        nil -> Session.goals(state.defs)
+        states -> {:ok, Session.render_states(states)}
+      end
+
+    case result do
+      {:ok, []} ->
+        render_info(state, "(no open goals)")
+
+      {:ok, goals} ->
+        render_info(state, "open goals (#{length(goals)}):")
+
+        Enum.each(goals, fn %{function: function, goal: goal, context: context} ->
+          rendered_context =
+            case context do
+              [] -> ""
+              values -> "\n    context: " <> Enum.join(values, ", ")
+            end
+
+          render_info(state, "  #{function} : #{goal}#{rendered_context}")
+        end)
+
+      {:error, reason} ->
+        render_reason_error(state, reason)
     end
 
     state
@@ -868,7 +913,7 @@ defmodule Cure.REPL do
   defp handle_meta(state, other) do
     known_commands = ~w(
       :t :type :printdef :total :browse :apropos :doc :effects :load :use :fmt :let :ast :time :bench
-      :theme :mode :color :history :search :save :edit :holes :john
+      :theme :mode :color :history :search :save :edit :holes :goals :john
       :defs :reset :reload :help :imports :stdlib :quit :exit :snap
     )
 
@@ -1478,6 +1523,8 @@ defmodule Cure.REPL do
     - `:reload` - reload all previously loaded files
     - `:use Mod` - bring a module's exports into scope
     - `:holes` - list holes from the last evaluated expression
+    - `:goals` - show remaining goals from the last definition submission,
+      including refused proofs, with their types and named local context
     - `:env` - list every binding currently in scope
     - `:defs` - list top-level definitions (`fn`, `type`, `rec`, ...) entered this session
     - `:reset` - forget all bindings, fresh session

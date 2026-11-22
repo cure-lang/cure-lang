@@ -2911,10 +2911,24 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:simplify_command, meta, _rules}, _expected_core, _names, _ctx, _env),
     do: simplify_outside_justification(meta)
 
-  def elaborate_expr_checked({:solver_command, _meta, _args} = command, expected_core, names, ctx, env),
-    do: Cure.Elab.Solver.solve(command, expected_core, names, ctx, env)
+  def elaborate_expr_checked({:solver_command, _meta, _args} = command, expected_core, names, ctx, env) do
+    Cure.Elab.ProofState.checked_solver(command, expected_core, names, ctx, env, fn ->
+      Cure.Elab.Solver.solve(command, expected_core, names, ctx, env)
+    end)
+  end
 
   def elaborate_expr_checked({:tactic_script, meta, _args} = command, expected_core, names, ctx, env) do
+    with {:ok, evidence, _trace} <-
+           Cure.Elab.ProofGoal.run({:proof_justification, meta, [command]}, expected_core, names, ctx, env, 0),
+         do: {:ok, evidence}
+  end
+
+  # A goal-inspecting computed tactic in checked expression position (a function
+  # body or an inline justification). It is a proof COMMAND, so it takes the same
+  # `ProofGoal` route as a template tactic: the expander runs at the goal, its
+  # operations run as checked commands, and the evidence is kernel-checked at the
+  # original goal.
+  def elaborate_expr_checked({:tactic_computed_use, meta, _args} = command, expected_core, names, ctx, env) do
     with {:ok, evidence, _trace} <-
            Cure.Elab.ProofGoal.run({:proof_justification, meta, [command]}, expected_core, names, ctx, env, 0),
          do: {:ok, evidence}
@@ -3272,11 +3286,18 @@ defmodule Cure.Elab.Elaborator do
   # becomes an inspectable hole that blocks codegen, exactly like a body-level
   # hole (declarations.ex hole clause), rather than a hard elaboration error.
   # The id is minted by the shared `Declarations.hole_id/2` scheme.
-  def elaborate_expr_checked({:hole, meta, _}, expected_core, _names, ctx, env) do
+  def elaborate_expr_checked({:hole, meta, _}, expected_core, names, ctx, env) do
     case Cure.Elab.ProofSearch.resolve(expected_core, ctx, env) do
-      {:ok, term} -> {:ok, term}
-      :none -> {:ok, {:hole, Cure.Elab.Declarations.hole_id(env, meta)}}
-      {:error, _} = err -> err
+      {:ok, term} ->
+        {:ok, term}
+
+      :none ->
+        id = Cure.Elab.Declarations.hole_id(env, meta)
+        Cure.Elab.ProofState.hole(id, meta, expected_core, names, ctx, env)
+        {:ok, {:hole, id}}
+
+      {:error, _} = err ->
+        err
     end
   end
 

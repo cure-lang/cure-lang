@@ -191,6 +191,29 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:proof_chain_syntax, %ProofChainSyntaxProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:proof_chain_syntax, problem}, opts)
 
+  def from_error(
+        {:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {:computed_macro_error, _, _} = cause}},
+        opts
+      ),
+      do: from_error(cause, opts)
+
+  def from_error({:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {kind, _, meta} = cause}}, opts)
+      when is_list(meta) and
+             kind in [
+               :invalid_tactic_state,
+               :unknown_tactic_operation,
+               :invalid_tactic_result,
+               :invalid_tactic_operation,
+               :invalid_tactic_operation_argument
+             ],
+      do: from_error(cause, opts)
+
+  def from_error(
+        {:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {:invalid_tactic_operation_arity, _, _, _} = cause}},
+        opts
+      ),
+      do: from_error(cause, opts)
+
   def from_error({:proof_chain_mismatch, %ProofChainMismatchProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:proof_chain_mismatch, problem}, opts)
 
@@ -2273,6 +2296,20 @@ defmodule Cure.Diagnostic.Adapter do
 
   def from_error({:computed_macro_error, meta, reason}, opts) when is_list(meta),
     do: MacroAdapter.computed_macro_error(meta, reason, opts)
+
+  def from_error({kind, detail, meta}, opts)
+      when is_list(meta) and
+             kind in [
+               :invalid_tactic_state,
+               :unknown_tactic_operation,
+               :invalid_tactic_result,
+               :invalid_tactic_operation,
+               :invalid_tactic_operation_argument
+             ],
+      do: MacroAdapter.computed_macro_error(meta, {kind, detail}, opts)
+
+  def from_error({:invalid_tactic_operation_arity, kind, actual, meta}, opts) when is_list(meta),
+    do: MacroAdapter.computed_macro_error(meta, {:invalid_tactic_operation_arity, kind, actual}, opts)
 
   def from_error({:invalid_macro_family, details}, opts) when is_map(details),
     do: MacroAdapter.from_error({:invalid_macro_family, details}, opts)

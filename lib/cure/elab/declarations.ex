@@ -1898,6 +1898,12 @@ defmodule Cure.Elab.Declarations do
     Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
   end
 
+  # A goal-inspecting computed tactic as a function body: it is a proof command,
+  # so it is checked against the declared return type like `by search`.
+  defp elaborate_body({:tactic_computed_use, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
+    Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
+  end
+
   defp elaborate_body({:function_call, meta, _args} = expr, return_core, scope, ctx, env, _params) do
     name = Keyword.get(meta, :name)
     atom = if is_binary(name), do: String.to_atom(name)

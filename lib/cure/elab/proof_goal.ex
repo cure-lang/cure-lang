@@ -85,6 +85,7 @@ defmodule Cure.Elab.ProofGoal do
 
   defp execute([], %__MODULE__{status: :open} = goal, step_index) do
     info = Metadata.source_info(goal.source)
+    Cure.Elab.ProofState.observe(:unfinished, goal.source, goal, [goal])
 
     {:error,
      {:proof_chain_mismatch,
@@ -152,15 +153,51 @@ defmodule Cure.Elab.ProofGoal do
   end
 
   def command({:simplify_command, meta, rules}, goal) do
-    if Keyword.get(meta, :using) == :proof do
-      adapt_existing_proof(hd(rules), meta, goal)
-    else
-      simplify_command_rules(meta, rules, goal)
+    result =
+      if Keyword.get(meta, :using) == :proof do
+        adapt_existing_proof(hd(rules), meta, goal)
+      else
+        simplify_command_rules(meta, rules, goal)
+      end
+
+    case result do
+      {:closed, _evidence, trace} ->
+        report_simp_trace(meta, Enum.drop(trace, length(goal.trace)))
+
+      _ ->
+        :ok
     end
+
+    result
   end
 
   def command({:solver_command, meta, _arguments} = command, goal),
     do: close_with_expression(command, goal, :solver, meta)
+
+  # A GOAL-INSPECTING computed tactic (C1.2). The expander runs at compile time
+  # over a goal value and returns checked operations; `Tactic.Computed` validates
+  # and executes them through `Tactic.Script`, so every step is an ordinary proof
+  # command whose evidence is kernel-checked at the ORIGINAL goal. A computed
+  # tactic may leave the goal open for the caller's next command, exactly like a
+  # template tactic; only a complete justification ending open reports E110.
+  def command({:tactic_computed_use, meta, arguments}, goal) do
+    case Cure.Elab.Tactic.Computed.run(meta, arguments, goal) do
+      {:ok, %Result{goals: [], solutions: solutions}} ->
+        case Map.fetch(solutions, goal.id) do
+          {:ok, %{evidence: evidence, trace: trace}} ->
+            {:closed, evidence, trace}
+
+          :error ->
+            tactic_not_closed(meta, goal)
+        end
+
+      {:ok, %Result{goals: [next_goal]}} ->
+        {:open, next_goal}
+
+      {:error, _} = error ->
+        error
+    end
+  end
 
   # A user-defined tactic (Phase 3). The expansion is SURFACE syntax that
   # `Tactic.Step` classified against the closed tactic vocabulary when the rule
@@ -222,7 +259,8 @@ defmodule Cure.Elab.ProofGoal do
            Cure.Elab.Simplifier.solve(simplified.expected, simplified.context, surface_span(meta)) do
       transports = Enum.reject(simplified.builders, &match?({:assignment, _, _}, &1))
       evidence = Enum.reduce(Enum.reverse(transports), evidence, &apply_builder/2)
-      {:closed, evidence, simplified.trace ++ trace}
+      trace = simplified.trace ++ trace
+      {:closed, evidence, trace}
     else
       {:error, {:simplification_failed, problem}} ->
         {:error, {:simplification_failed, enrich_simplification(problem, goal.names)}}
@@ -230,6 +268,42 @@ defmodule Cure.Elab.ProofGoal do
       {:error, _} = error ->
         error
     end
+  end
+
+  # `simp?` (gap G10) is `simplify` with the fired-rule report switched on. The
+  # command runs exactly the same simplification -- there is no second rule set
+  # and no second traversal -- and then names the ambient lemmas that actually
+  # rewrote the goal. Reporting is a side channel (`:simp_trace`), never a change
+  # to the evidence: a proof that closed under `simplify` closes identically
+  # under `simp?`.
+  #
+  # Only lemmas that PROGRESSED are named. `simplify_lemma_set/3` records a trace
+  # entry per applied rule, so an entry present here means the goal's expected
+  # type actually changed. A rule that was tried and did not apply leaves no
+  # entry, which is what makes "which lemmas fired" a truthful answer rather
+  # than a list of everything in the registry.
+  defp report_simp_trace(meta, trace) do
+    if Keyword.get(meta, :trace, false) do
+      fired =
+        trace
+        |> Enum.filter(&match?(%{kind: :lemma}, &1))
+        |> Enum.map(&Map.get(&1, :name))
+        |> Enum.reject(&is_nil/1)
+
+      span = surface_span(meta)
+
+      Cure.Pipeline.Events.emit(
+        :type_checker,
+        :simp_trace,
+        %{lemmas: fired, rules: trace, command: span},
+        %{
+          file: (span && (span.path || span.source_id)) || Keyword.get(meta, :file, "nofile"),
+          line: (span && span.start_line) || Keyword.get(meta, :line, 1)
+        }
+      )
+    end
+
+    :ok
   end
 
   # Explicit simp declarations are validated up front. Legacy @lemma entries
@@ -292,7 +366,22 @@ defmodule Cure.Elab.ProofGoal do
          goal
          | expected: rewritten,
            builders: goal.builders ++ [{:transport, build}],
-           trace: goal.trace ++ [%{id: "lemma-#{length(goal.trace) + 1}", kind: :lemma, rule: surface_span(meta)}]
+           trace:
+             goal.trace ++
+               [
+                 %{
+                   id: "lemma-#{length(goal.trace) + 1}",
+                   kind: :lemma,
+                   # The lemma's own resolved name, not just the command span. `simp?`
+                   # (gap G10) reports WHICH lemmas fired, so the trace has to carry
+                   # the identity of the rule and not only where the command was
+                   # written. `name` is the registry key, so it is stable across
+                   # imports and unambiguous when two modules export the same
+                   # short name.
+                   name: name,
+                   rule: surface_span(meta)
+                 }
+               ]
        }}
     else
       _ -> {:error, :not_applicable}

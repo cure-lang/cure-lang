@@ -3,7 +3,8 @@ defmodule Cure.Elab.Solver do
 
   alias Cure.Core.{Context, Env, Eval, Inductive, Kernel, Normalise}
   alias Cure.Diagnostic.ProofChainMismatchProblem
-  alias Cure.Elab.{Elaborator, ProofSearch}
+  alias Cure.Elab.{Elaborator, Omega, ProofSearch}
+  alias Cure.Elab.Omega.{Certificate, Linear, Proof}
   alias Cure.MetaAST.Metadata
 
   @decision :"Std.Decision#Decision"
@@ -11,16 +12,21 @@ defmodule Cure.Elab.Solver do
   @no :"Std.Decision#No"
   @bool_decider :"Std.Decision#equivalent?"
 
+  @check_lia :"Std.Proof.LinearArithmetic#check_lia_candidate"
+
   def solve({:solver_command, meta, arguments}, expected, names, ctx, env) do
     mode = Keyword.fetch!(meta, :solver)
 
     result =
       case {mode, arguments} do
-        {strategy, []} when strategy in [:search, :positivity] ->
+        {strategy, []} when strategy in [:search, :positivity, :assumption] ->
           ProofSearch.resolve_strategy(expected, ctx, env, strategy)
 
         {:decide, arguments} ->
           decide(arguments, expected, names, ctx, env)
+
+        {:omega, []} ->
+          omega(expected, names, ctx, env)
 
         _ ->
           {:error, :invalid_solver_arguments}
@@ -34,6 +40,82 @@ defmodule Cure.Elab.Solver do
       {:error, cause} -> failure(meta, expected, mode, cause)
     end
   end
+
+  # -- omega -----------------------------------------------------------------
+
+  # A candidate Boolean check is necessary for this producer's output, but it
+  # does not supply premise evidence or imply the source goal. Admission also
+  # requires a separately reconstructed, kernel-checked IntOrder proof.
+  defp omega(expected, names, ctx, env) do
+    with :ok <- checker_available(ctx),
+         hypotheses = Linear.reify_hypotheses(ctx, names),
+         {:ok, problems} <- Linear.obligations(hypotheses, expected, ctx, env),
+         :ok <- validate_candidates(problems, ctx),
+         {:ok, evidence} <- Proof.solve(expected, ctx, env) do
+      {:ok, evidence}
+    else
+      :outside_fragment -> {:error, {:omega_outside_fragment, expected}}
+      :unknown -> {:error, :omega_no_checked_reconstruction}
+      {:error, _} = error -> error
+    end
+  end
+
+  # Use the signature of the actual judgment. Do not silently rehydrate or
+  # certify another environment and then check evidence against the old one.
+  defp checker_available(ctx) do
+    signature = Context.signature(ctx)
+
+    cond do
+      not Map.has_key?(signature.defs, @check_lia) ->
+        {:error, :omega_not_in_scope}
+
+      not Env.certified?(signature, @check_lia) ->
+        {:error, :omega_checker_uncertified}
+
+      true ->
+        case Kernel.check_def(signature, @check_lia) do
+          :ok -> :ok
+          {:error, reason} -> {:error, {:omega_checker_rejected, reason}}
+        end
+    end
+  end
+
+  defp validate_candidates(problems, ctx) do
+    Enum.reduce_while(problems, :ok, fn {atoms, goal}, :ok ->
+      {hypotheses, [_negated_goal]} = Enum.split(atoms, -1)
+
+      result =
+        with {:ok, multipliers} <- find_witness(atoms),
+             {:ok, candidate} <- Certificate.term(hypotheses, goal, multipliers),
+             :ok <- Kernel.check(ctx, candidate, Kernel.bool_type_value(Context.signature(ctx))) do
+          case Normalise.whnf(ctx, candidate, delta: :certified, fuel: 16_384) do
+            {:ctor, :"Std.Bool#True", []} -> :ok
+            {:ctor, :"Std.Bool#False", []} -> {:error, :omega_invalid_candidate}
+            :fuel_exhausted -> {:error, :omega_checker_resource_guard}
+            _ -> {:error, :omega_checker_stuck}
+          end
+        end
+
+      case result do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp find_witness(atoms) do
+    case Omega.solve(atoms) do
+      {:prf, multipliers} ->
+        if Omega.valid_witness?(atoms, multipliers),
+          do: {:ok, multipliers},
+          else: {:error, :omega_producer_invalid_witness}
+
+      :unknown ->
+        {:error, :omega_no_witness}
+    end
+  end
+
+  # -- decide ----------------------------------------------------------------
 
   defp decide(arguments, expected, names, ctx, env) do
     decision_type = {:data, @decision, [expected], []}

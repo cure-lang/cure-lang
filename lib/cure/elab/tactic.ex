@@ -80,22 +80,41 @@ defmodule Cure.Elab.Tactic do
   @spec command(term()) :: t()
   def command(statement) do
     fn goal ->
-      case ProofGoal.command(statement, goal) do
-        {:open, next} ->
-          {:ok, %Result{goals: [next]}}
+      Cure.Elab.ProofState.observe(:before, statement, goal, [goal])
 
-        {:closed, evidence, trace} ->
-          context = goal.root_context || goal.context
-          expected = goal.root_expected || goal.expected
+      result =
+        Cure.Elab.ProofState.within_command(fn ->
+          case ProofGoal.command(statement, goal) do
+            {:open, next} ->
+              {:ok, %Result{goals: [next]}}
 
-          case Cure.Core.Kernel.check(context, evidence, Cure.Core.Eval.eval(expected, Cure.Core.Context.env(context))) do
-            :ok -> {:ok, %Result{solutions: %{goal.id => %{evidence: evidence, trace: trace}}}}
-            {:error, _} = error -> error
+            {:closed, evidence, trace} ->
+              context = goal.root_context || goal.context
+              expected = goal.root_expected || goal.expected
+
+              case Cure.Core.Kernel.check(
+                     context,
+                     evidence,
+                     Cure.Core.Eval.eval(expected, Cure.Core.Context.env(context))
+                   ) do
+                :ok -> {:ok, %Result{solutions: %{goal.id => %{evidence: evidence, trace: trace}}}}
+                {:error, _} = error -> error
+              end
+
+            {:error, _} = error ->
+              error
           end
+        end)
 
-        {:error, _} = error ->
-          error
+      case result do
+        {:ok, %Result{goals: goals}} ->
+          Cure.Elab.ProofState.observe(:after, statement, goal, goals)
+
+        {:error, _} ->
+          Cure.Elab.ProofState.observe(:failed, statement, goal, [goal])
       end
+
+      result
     end
   end
 

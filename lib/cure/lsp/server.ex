@@ -135,6 +135,9 @@ defmodule Cure.LSP.Server do
           "triggerCharacters" => ["(", ","]
         },
         "inlayHintProvider" => %{"resolveProvider" => false},
+        # The cursor-position goal view (C7). Advertised as a custom request so a
+        # client can render a goal panel for the document under the cursor.
+        "experimental" => %{"cure/proofState" => %{"enabled" => true}},
         "semanticTokensProvider" => %{
           "legend" => %{
             "tokenTypes" => [
@@ -325,6 +328,28 @@ defmodule Cure.LSP.Server do
     text = Map.get(docs, uri, "")
     hints = compute_inlay_hints(text)
     Transport.send_response(id, hints)
+    {state, []}
+  end
+
+  # `cure/proofState` — the editor's cursor-position goal view (C7 of
+  # docs/PATH_TO_LEAN4.md).
+  #
+  # Returns the open proof goals of the document as structured data:
+  #
+  #     %{"goals" => [%{"function" => "later", "goal" => "Equivalent(Int, x, x)",
+  #                    "context" => ["x : Int"]}]}
+  #
+  # Observations survive a refused proof; a successfully closed command has no
+  # remaining goals. A client must explicitly request and render this custom
+  # response; advertising it does not itself install an editor goal panel.
+  defp do_handle("cure/proofState", id, params, state) do
+    td = Map.get(params, "textDocument", %{})
+    uri = Map.get(td, "uri", "")
+    docs = Map.get(state, :documents, %{})
+    text = Map.get(docs, uri, "")
+
+    goals = proof_state(text, Map.get(params, "position"), Map.get(state, :position_encoding, :utf16))
+    Transport.send_response(id, %{"goals" => goals})
     {state, []}
   end
 
@@ -1622,6 +1647,25 @@ defmodule Cure.LSP.Server do
   # type to `cure check`. Returning a partial hint is deliberate -- a hint that
   # says "this is a hole" is still useful, and claiming a goal type we have not
   # checked would be worse than saying nothing.
+  # Capture at the actual command/hole checking boundary, not by splitting the
+  # enclosing function's return type. The optional position is an LSP position
+  # in the negotiated encoding. Without one, return the remaining document goals.
+  @doc false
+  def proof_state(text, position \\ nil, encoding \\ :utf16) when is_binary(text) do
+    {_result, states} = Cure.Elab.ProofState.elaborate(text)
+
+    goals =
+      if is_map(position),
+        do: Cure.Elab.ProofState.at(states, text, position, encoding),
+        else: Cure.Elab.ProofState.remaining(states)
+
+    Enum.map(goals, fn %{function: function, goal: goal, context: context} ->
+      %{"function" => to_string(function), "goal" => goal, "context" => context}
+    end)
+  rescue
+    _ -> []
+  end
+
   defp hole_goal_inlay_hints(text) do
     case hole_positions(text) do
       [] ->

@@ -65,8 +65,8 @@ unification proves that no value can reach them.
 ## 3. The proof vocabulary
 
 These are the canonical spellings. Cure does not add Lean aliases such as
-`calc`, `simp`, `simpa`, or `congr`. `by` introduces only the three explicit
-solvers below; it is not a general tactic-block introducer.
+`calc`, `simp`, `simpa`, or `congr`. `by` introduces an explicit solver or a
+declared computed tactic; it is not a general tactic-block introducer.
 
 | Form | Role | §
 |---|---|---|
@@ -76,6 +76,7 @@ solvers below; it is not a general tactic-block introducer.
 | `simplify` | close the goal by approved reduction | [3.4](#34-simplify) |
 | `simplify using [<rules>]` | …with extra rules | [3.4](#34-simplify) |
 | `simplify using <proof>` | reuse a near-matching proof | [3.4](#34-simplify) |
+| `simp?` | `simplify` + report which ambient lemmas fired | [3.4](#34-simplify) |
 | `rewrite using <eq>` | directed rewrite, forwards | [3.5](#35-rewrite) |
 | `rewrite backwards using <eq>` | directed rewrite, reversed | [3.5](#35-rewrite) |
 | `rewrite using <eq> at <n>` | pick an occurrence | [3.5](#35-rewrite) |
@@ -85,7 +86,9 @@ solvers below; it is not a general tactic-block introducer.
 | `?name`, `?_` | typed hole | [3.7](#37-holes) |
 | `f(label: value)` | named theorem arguments | [3.8](#38-named-arguments) |
 | `exact <proof>`, `apply <proof>` | close a justification with checked evidence | [3.9](#39-explicit-evidence-and-solvers) |
-| `by search`, `by positivity`, `by decide [using <decision>]` | checked solver commands | [3.9](#39-explicit-evidence-and-solvers) |
+| `by search`, `by positivity`, `by assumption`, `by decide [using <decision>]`, `by omega` | checked solver commands | [3.9](#39-explicit-evidence-and-solvers) |
+| `tactic <rule> computed by <callback>` | declare a goal-inspecting checked-request callback | [3.10](#310-goal-inspecting-computed-tactics) |
+| `:goals` / `cure/proofState` | REPL / custom LSP goal inspection | [3.11](#311-goal-views) |
 
 All of these are **contextual**: outside their distinctive shape, `have`,
 `rewrite`, `simplify`, `induction`, `proof`, and `because` remain ordinary
@@ -280,6 +283,28 @@ proof simplified to.
 These two forms are deliberately distinguished by syntax, not by guessing
 whether an identifier names a proof or a rule.
 
+#### `simp?` — which lemmas fired
+
+`simp?` is `simplify` with the fired-rule report switched on. It runs **exactly
+the same simplification** — same rule set, same traversal, same evidence — and
+then names the ambient lemmas that actually rewrote the goal. It is a debugging
+command, not a second prover: a goal that closes under `simplify` closes
+identically under `simp?`, and one that fails under `simplify` fails under
+`simp?` too.
+
+The report is emitted two ways: as `%{kind: :lemma, name: ...}` entries in the
+proof trace, and as a `:simp_trace` pipeline event carrying
+`%{lemmas: [...], rules: [...], command: span}`. Subscribe to it with
+`Cure.Pipeline.Events.subscribe(:type_checker, :simp_trace)`.
+
+The event reports only this successful invocation's progress, not earlier
+entries already on the goal's trace. Ambient lemmas that were tried but did not
+apply leave no named entry; a lemma used twice may appear twice. `rules` also
+carries the current explicit-rule, reduction or proof-adaptation trace entries,
+including for `simp? using [rules]` and `simp? using proof`. Event metadata uses
+the command's actual source file and line. Failed simplification remains a
+diagnostic, not a fabricated successful trace report.
+
 ### 3.5 `rewrite`
 
 Forward rewriting consumes an equality left-to-right; `backwards` consumes it
@@ -414,8 +439,14 @@ end
 (That fence is tagged `E014` because it is *meant* to fail compilation — the
 doc checker requires exactly that code.)
 
-A hole reports its goal type and local context to editors via a `:hole_goal`
-pipeline event, and it blocks code generation.
+A surviving hole blocks code generation. The custom `cure/proofState` request
+and REPL goal view observe its actual expected type and named local context
+where the hole is checked (§3.11). For example, a hole used as an `Int` argument
+to a function returning `Float` requires `Int`, not `Float`.
+
+The legacy `Program.hole_goals/1` API and existing hole inlay hints remain
+definition-level return/context summaries. They must not be interpreted as
+precise nested-hole states or as a completed cursor-position goal panel.
 
 Two practical points:
 
@@ -472,6 +503,7 @@ mod ExplicitSolvers
   use Std.Decision
 
   fn reuse(n: Nat, h: IsPositive(n)) -> IsPositive(n) = by search
+  fn assumed(n: Nat, h: IsPositive(n)) -> IsPositive(n) = by assumption
   fn positive_sum(n: Nat, m: Nat, h: IsPositive(n)) -> IsPositive(plus(n, m)) = by positivity
   fn decided() -> Equivalent(Bool, True(), True()) = by decide
   fn explicit_decision() -> IsPositive(S(Z())) = by decide using decide_is_positive(S(Z()))
@@ -480,6 +512,12 @@ end
 
 - `by search` uses local evidence, checked projections, and tagged lemmas.
   Missing or ambiguous evidence fails with E110.
+- `by assumption` is the deliberately narrow sibling of `by search`: it closes
+  the goal with a **local hypothesis** whose type is the goal, and consults no
+  lemmas, projections or decision procedures. Its outcome is therefore
+  predictable from the goal state alone. Like `search`, it only uses a bare
+  local binder when the goal is a proposition — a proof-relevant value type
+  such as `Nat` is never silently inhabited by a local value.
 - `by positivity` uses the `Std.Proof.Math.IsPositive` fragment: successors,
   addition, multiplication, and available sign evidence. It is not generic
   lemma search, and refuses zero or an unknown sign.
@@ -488,6 +526,28 @@ end
   `P`. Certified reduction must expose `Yes(evidence)`, and that evidence is
   checked against the original goal. `No`, stuck decisions, unsupported
   fragments, and resource exhaustion fail closed. A host Boolean is not proof.
+- `by omega` reconstructs a bounded non-strict integer-order fragment. Supported
+  targets are `Std.Proof.IntOrder.IsLessThanOrEqual` propositions, using actual
+  local order evidence, reflexivity, transitive paths, addition of the same
+  term to both sides, addition of two inequalities, and scaling by a literal
+  natural. Reconstruction uses at most 128 original local slots, depth 12,
+  512 steps, and scalar literals at most 1024. Each intermediate candidate and
+  the final evidence are checked at their actual propositions.
+
+  The untrusted producer/reifier searches for Farkas candidates, and the
+  certified `Std.Proof.LinearArithmetic.check_lia_candidate` computes a Boolean
+  verdict. That successful verdict is **not** evidence of the original goal:
+  admission also requires ordinary Core evidence reconstructed with checked
+  `Std.Proof.IntOrder` lemmas. The reflection module's
+  `goal_evaluates_true` preserves supplied evidence of
+  `IsTrue(evaluate_atom(goal, valuation))`; it is not a theorem turning a
+  candidate-checker result into arbitrary goal evidence.
+
+  Strict inequalities, equality goals, nonlinear expressions, algebraic
+  rearrangements or other unreconstructed goals, and exhausted bounds refuse.
+  Closed non-reflexive literal comparisons are not discharged by this
+  reconstruction slice either. This is not complete Presburger automation or
+  a general Farkas checker-to-goal soundness theorem.
 
 Internally, `ProofGoal.new/5` preserves the original obligation and
 `ProofGoal.inspect_goal/1` exposes its target and hypotheses.
@@ -496,7 +556,110 @@ retain checked solutions in `Tactic.Result`; an empty goal list alone is not
 enough to reconstruct a proof. Named template tactics are described in
 [`MACROS.md`](MACROS.md#21-tactic-rules--a-new-proof-command). They compose these
 checked commands and may return an open goal for a later command.
-Goal-inspecting computed tactics and per-command editor views remain later work.
+
+### 3.10 Goal-inspecting computed tactics
+
+A `tactic <rule> computed by <callback>` declaration names an ordinary Cure
+function evaluated through the checked `MacroExpand.expand_typed` executor.
+The callback receives one `Syntax` argument per declared capture, in order,
+followed by a typed `Std.Tactic.Goal`. It can choose operations by inspecting
+the actual target and local hypotheses rather than merely expanding captures
+into a fixed template.
+
+```cure
+mod GoalAwareTactics
+  use Std.Tactic
+  use Std.Syntax
+  use Std.Bool
+  use Std.Equivalent
+
+  macro Tactics
+    tactic close computed by close_goal
+
+  fn close_goal(g: Goal) -> MacroResult = match is_equality(g)
+    True() -> expand(Std.Tactic.simplify(g))
+    False() -> reject_goal("this tactic requires an equality")
+
+  fn theorem(x: Int) -> Equivalent(Int, x, x) = by close
+end
+```
+
+Qualify `Std.Tactic.simplify(g)` as above: it is an ordinary helper function,
+distinct from the contextual `simplify` proof command. A computed rule can be
+invoked in a `because` justification or as an explicit `by close` checked body.
+Source-backed imports are supported; interface-only macro grammar publication
+remains a separate inherited limitation.
+An imported bare callback name requires a provider file with one module
+identity. If the provider file contains several modules, qualify the callback
+explicitly; an ambiguous home is refused rather than resolved from caller scope.
+
+**Inspection values.** `Goal` carries `target: Syntax`,
+`hypotheses: List(Hypothesis)` and an opaque `state: Syntax` handle. Each
+`Hypothesis` has an authored `name: String` and `type: Syntax`.
+`goal_target`, `goal_hypotheses`, `has_hypothesis`, `hypothesis_type_of` and
+`hypothesis_is` expose this data.
+
+The inspection schema is structural, not parser AST or a quotation of evaluator
+values. A family application is `Node(short_name, attrs, children)`, with
+`KV(:name, SAtom(qualified_name))` and a `:parameters` count in `attrs`;
+children are parameters followed by indices. Thus `Equivalent(Int, x, y)` has
+tag `:Equivalent` and three children. A local is
+`Leaf(:variable, [KV(:index, SInt(index))], SStr(authored_name))`.
+Constructor applications also carry qualified identity. Other forms retain
+structural children; binder bodies use the synthetic inspection name
+`$binder`. This data is for inspection, not proof evidence; matching a short
+head name cannot establish the goal.
+
+**Result protocol.** Return `expand(operation)` or
+`expand(Node(:list, [], operations))`, or use `reject_goal` / `reject_with`
+for authored refusal diagnostics. Every operation retains the supplied goal's
+fresh invocation handle. Missing, duplicated, stale or forged protocol fields
+are refused. A callback cannot replace the actual target by editing reflected
+data or reuse another invocation's handle.
+
+At most 256 operations may be returned. The closed vocabulary includes
+simplification, explicit-rule simplification, forward/backward/all rewrites,
+`exact`, closing `apply`, and the explicit solver clients. Arity and arguments
+are validated, and operation arguments cannot introduce another deferred
+computed use. Generated binders use explicit `Std.Syntax.fresh(...)` markers;
+ordinary authored identifiers are not silently renamed.
+
+The callback runs once; operations run in order through existing checked
+commands. They may leave a transformed goal for a later command, but an
+unfinished whole proof still refuses. Returned syntax is a set of requests,
+not evidence or a trusted Core-construction API. Closure evidence is
+kernel-checked at the original obligation. Premise-generating `apply` and a
+reusable induction command remain open features.
+
+### 3.11 Goal views
+
+`Cure.Elab.ProofState` provides scoped presentation-only observations of
+commands and checked holes. It publishes `:proof_state` pipeline events with a
+phase (`:before`, `:after`, `:failed`, `:unfinished`, or `:hole`), source spans
+and the ordered remaining goals. A successfully closed command has no remaining
+goals. Each goal includes the target and named hypotheses; rendering deferred
+`have` facts preserves the physical kernel-context names rather than shifting
+the target onto the new fact's name.
+
+The custom LSP request `cure/proofState` accepts `textDocument.uri` and
+`position`, using the negotiated UTF-8/16/32 encoding. Inside a command it
+returns that command's input state; at the command's end or between commands it
+returns its output. A refused/unfinished command retains the available residual
+state instead of requiring a successfully elaborated document. A cursor outside
+an observed proof region returns no goals. Responses carry
+`{"goals": [{"function": "...", "goal": "...", "context": ["x : Int"]}]}`.
+
+REPL `:goals` shows the last definition submission's remaining states, including
+a refused proof, without installing failed definitions. `:reset` clears that
+retained view. `Cure.REPL.Session.goals/1` uses the same capture API for session
+definitions. These observations do not resolve holes, certify definitions or
+weaken the code-generation firewall.
+
+**Scope boundary:** the server capability and REPL path are implemented, not
+a VS Code goal-panel consumer. Legacy `Program.hole_goals/1` and existing hole
+inlay hints still summarize enclosing definitions; they are not interchangeable
+with this precise command/hole view. C7 and authoritative Phase 4 therefore
+remain partial.
 
 ## 4. Generated defining equations
 
@@ -596,8 +759,13 @@ no unchecked Core nodes and do not survive erasure.
 - `Std.Proof.Math` — positive-natural and ordering evidence.
 - `Std.Decision` — decidable propositions carrying either evidence or a
   refutation.
-- `Std.Proof.LinearArithmetic` — checked linear-arithmetic reflection and its
-  semantics.
+- `Std.Proof.LinearArithmetic` — linear-arithmetic data, candidate checking and
+  semantics; Boolean certificate acceptance is not a general goal-soundness
+  theorem.
+- `Std.Proof.IntOrder` — integer-order propositions and checked reconstruction
+  lemmas used by the bounded `omega` client.
+- `Std.Tactic` — typed goal inspection and authenticated checked-command
+  requests for computed tactics.
 
 ## See also
 
