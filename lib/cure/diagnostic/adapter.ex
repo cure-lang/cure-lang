@@ -2289,6 +2289,12 @@ defmodule Cure.Diagnostic.Adapter do
       when is_map(details),
       do: MacroAdapter.from_error(error, opts)
 
+  # A `tactic` rule whose expansion is not a member of the closed tactic
+  # vocabulary (Phase 3). Delegated like every other macro obligation; the
+  # generic `{:source_context, reason, context}` clause carries the span.
+  def from_error({:invalid_tactic_expansion, _keyword, _cause} = error, opts),
+    do: MacroAdapter.from_error(error, opts)
+
   def from_error({:beam_lint_error, errors, warnings}, opts) do
     Codegen.from_error({:beam_lint_error, errors, warnings}, opts)
   end
@@ -3494,7 +3500,7 @@ defmodule Cure.Diagnostic.Adapter do
 
   defp syntax_problem_context(%SyntaxProblem{kind: :macro_definition_entry_invalid, observed: observed}),
     do:
-      "#{authored_syntax(observed)} cannot start an entry in a macro declaration. Use a syntax rule, family contract, expander, literal rule, explanation, failure, or opened category."
+      "#{authored_syntax(observed)} cannot start an entry in a macro declaration. Use a syntax rule, tactic rule, family contract, expander, literal rule, explanation, failure, or opened category."
 
   defp syntax_problem_context(%SyntaxProblem{kind: :macro_example_entry_invalid, observed: observed}),
     do:

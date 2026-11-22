@@ -359,7 +359,8 @@ defmodule Cure.Elab.Program do
          :ok <- check_no_duplicate_ctors(ast),
          :ok <- check_no_fn_ctor_collision(ast),
          :ok <- check_no_precedence_cycle(ast),
-         :ok <- check_proof_shapes(ast) do
+         :ok <- check_proof_shapes(ast),
+         :ok <- MacroValidate.check_tactic_expansions_in(ast) do
       check_no_sibling_collision(ast)
     end
   end

@@ -64,6 +64,11 @@ defmodule Cure.Compiler.Parser do
     builtin_computed_macros: %{},
     active_macros: %{},
     computed_macros: %{},
+    # `tactic` macro rules, keyed by dispatch keyword. Kept separate from
+    # `active_macros` because a tactic rule is CONTEXTUAL: it is claimed only in
+    # command position (`tactic_application_ahead?/2`), never as a free-standing
+    # expression head. See `parse_tactic_rule/1`.
+    tactic_macros: %{},
     fresh_counter: 0,
     literal_macros: %{},
     expansion_context: nil,
@@ -259,6 +264,7 @@ defmodule Cure.Compiler.Parser do
 
     active = harvest_active_macros(harvest_exprs)
     computed = harvest_computed_macros(harvest_exprs)
+    tactic = harvest_tactic_macros(harvest_exprs)
     literal = harvest_literal_macros(harvest_exprs)
 
     case module_fixity do
@@ -289,6 +295,7 @@ defmodule Cure.Compiler.Parser do
         imported = Keyword.get(opts, :imported_macros, %{})
         active = merge_imported_rules(active, syntax_macro_rules(imported))
         computed = merge_imported_rules(computed, computed_macro_rules(imported))
+        tactic = merge_imported_rules(tactic, tactic_macro_rules(imported))
 
         state = %__MODULE__{
           file: file,
@@ -298,6 +305,7 @@ defmodule Cure.Compiler.Parser do
           builtin_computed_macros: computed_macro_rules(builtin_rules),
           active_macros: active,
           computed_macros: computed,
+          tactic_macros: tactic,
           # Local `literal` rules always apply. In the normal (non-self-harvest)
           # case, standard-library `literal` rules join them so a suffix like `ms`
           # expands in ANY file, exactly as `:syntax` macros are globally active via
@@ -453,6 +461,9 @@ defmodule Cure.Compiler.Parser do
         %{kind: :computed, keyword: keyword} = rule, acc2 when is_binary(keyword) ->
           Map.update(acc2, keyword, [rule], &(&1 ++ [rule]))
 
+        %{kind: :tactic, keyword: keyword} = rule, acc2 when is_binary(keyword) ->
+          Map.update(acc2, keyword, [rule], &(&1 ++ [rule]))
+
         _, acc2 ->
           acc2
       end)
@@ -478,6 +489,9 @@ defmodule Cure.Compiler.Parser do
   defp computed_macro_rules(rules) when is_map(rules), do: filter_macro_rules(rules, :computed)
   defp computed_macro_rules(_rules), do: %{}
 
+  defp tactic_macro_rules(rules) when is_map(rules), do: filter_macro_rules(rules, :tactic)
+  defp tactic_macro_rules(_rules), do: %{}
+
   defp filter_macro_rules(rules, kind) do
     for {keyword, candidates} <- rules,
         selected = Enum.filter(List.wrap(candidates), &(&1[:kind] == kind)),
@@ -498,6 +512,7 @@ defmodule Cure.Compiler.Parser do
     synthetic = [{:macro_def, [], rules}]
     active = harvest_active_macros(synthetic)
     computed = harvest_computed_macros(synthetic)
+    tactic = harvest_tactic_macros(synthetic)
     literal = harvest_literal_macros(synthetic)
 
     eof = %Token{type: :eof, value: nil, line: 0, col: 0}
@@ -511,7 +526,13 @@ defmodule Cure.Compiler.Parser do
           builtin_computed_macros: %{},
           active_macros: active,
           computed_macros: computed,
-          literal_macros: literal
+          tactic_macros: tactic,
+          literal_macros: literal,
+          # An `example` pin captures a use-site as it would be WRITTEN, and a
+          # tactic use-site only exists in command position. Without this the
+          # tactic keyword would stay an ordinary identifier and every tactic
+          # pin would compare against a bare variable, failing spuriously.
+          proof_context: tactic != %{}
         },
         use_site_tokens ++ [eof]
       )
@@ -530,13 +551,20 @@ defmodule Cure.Compiler.Parser do
     # MacroValidate.check_examples reports example_mismatch instead of
     # silently accepting a garbage-suffixed example.
     case peek(state) do
-      %Token{type: :eof} -> ast
+      %Token{type: :eof} -> unwrap_tactic_example(ast)
       # Generated raw-hole proofs preserve the structural delimiter for the
       # enclosing parser, so no ordinary example continuation remains.
-      %Token{type: :dedent} -> ast
+      %Token{type: :dedent} -> unwrap_tactic_example(ast)
       _leftover -> {:example_use_site_not_fully_consumed, [], [ast]}
     end
   end
+
+  # A tactic use-site parses to a `tactic_script` wrapper around the rule's
+  # expanded body. An `example close expands simplify` pin describes the BODY,
+  # not the wrapper — the wrapper is the parser's own bookkeeping. Unwrap it so
+  # a pin compares the expansion the author actually wrote.
+  defp unwrap_tactic_example({:tactic_script, _meta, [body]}), do: body
+  defp unwrap_tactic_example(other), do: other
 
   # Collect every local macro rule, indexed by the rule's leading keyword, from
   # a parsed top-level expr list. Descends into containers (a `macro` inside a
@@ -574,6 +602,24 @@ defmodule Cure.Compiler.Parser do
 
   defp harvestable_macro_rules(meta, rules) do
     MacroFamily.lowered_rules(meta, rules)
+  end
+
+  # Sibling of harvest_active_macros for `tactic` rules. They are kept in their
+  # own registry because their use-sites are CONTEXTUAL: the keyword is claimed
+  # only in command position, so it must not join `active_macros`, whose entries
+  # are tried at every expression head.
+  defp harvest_tactic_macros(exprs) do
+    exprs
+    |> collect_macro_defs_with_scope()
+    |> Enum.reduce(%{}, fn {:macro_def, _meta, rules}, acc ->
+      Enum.reduce(rules, acc, fn
+        %{kind: :tactic, keyword: kw} = rule, acc2 when is_binary(kw) ->
+          Map.update(acc2, kw, [rule], &(&1 ++ [rule]))
+
+        _rule, acc2 ->
+          acc2
+      end)
+    end)
   end
 
   # Sibling of harvest_active_macros for Tier-1 `literal` rules, keyed by their
@@ -2656,6 +2702,7 @@ defmodule Cure.Compiler.Parser do
           builtin_computed_macros: parser_state.builtin_computed_macros,
           active_macros: parser_state.active_macros,
           computed_macros: parser_state.computed_macros,
+          tactic_macros: parser_state.tactic_macros,
           literal_macros: parser_state.literal_macros,
           expansion_context: context
         },
@@ -3588,6 +3635,19 @@ defmodule Cure.Compiler.Parser do
           "induction" ->
             if induction_block_ahead?(state), do: parse_induction(state, token), else: {variable(token), advance(state)}
 
+          # A `tactic` macro rule's keyword is CONTEXTUAL in exactly the same
+          # sense as `apply`/`exact`: it names a proof command only in command
+          # position (a `because` block or an `induction` case body), and stays
+          # an ordinary identifier everywhere else. That is not a convenience —
+          # it is the same regression class the Phase 0 findings recorded, where
+          # a soft keyword claimed a position in which the word was a NAME and
+          # broke a real stdlib module. A library is free to name a function
+          # `close`; only inside a proof does `close` mean its tactic.
+          name when is_map_key(state.tactic_macros, name) ->
+            if tactic_application_ahead?(state, name),
+              do: parse_tactic_use(state, name),
+              else: {variable(token), advance(state)}
+
           # `have name [: Type] = value` is a checked local fact only at its
           # distinctive binding-shaped head. Elsewhere `have` remains an
           # ordinary identifier, just like the contextual `proof` vocabulary.
@@ -4184,10 +4244,106 @@ defmodule Cure.Compiler.Parser do
     {{:proof_application, Keyword.put(meta, :kind, kind), [proof]}, state}
   end
 
+  # A `tactic` rule's use-site. Same two-condition test as `apply`/`exact`:
+  # the word must be in COMMAND position (`proof_context`), and the token after
+  # it must be able to begin the rule's matched form. The second condition is
+  # what keeps a nullary tactic (`syntax close becomes simplify`) from claiming
+  # `close` at the head of an unrelated statement — a nullary rule matches only
+  # when the next token ENDS the statement (newline/dedent/eof), which is
+  # precisely when a bare command can stand alone.
+  defp tactic_application_ahead?(%{proof_context: false}, _name), do: false
+
+  defp tactic_application_ahead?(state, name) do
+    rules = Map.fetch!(state.tactic_macros, name)
+
+    Enum.any?(rules, fn rule ->
+      case rule.segments do
+        [] ->
+          # Nullary tactic: the command is the whole statement.
+          match?(%Token{type: type} when type in [:newline, :dedent, :eof], peek_at(state, 1))
+
+        [{:lit, _word} | _] ->
+          # A literal-led rule (`close with <e>`) needs that literal next.
+          tactic_literal_ahead?(state, rule.segments)
+
+        _ ->
+          match?(%Token{type: type} when type in @proof_expression_start_types, peek_at(state, 1))
+      end
+    end)
+  end
+
+  defp tactic_literal_ahead?(state, [{:lit, word} | _]) do
+    case peek_at(state, 1) do
+      %Token{value: value} -> to_string(value) == to_string(word)
+      _ -> false
+    end
+  end
+
+  defp tactic_literal_ahead?(_state, _segments), do: false
+
+  # Expand a tactic use-site into a `tactic_script` node: the classified step
+  # plus the invocation's own source span. The steps are captured as SURFACE
+  # AST (holes substituted), never as Core terms; `ProofGoal` interprets them
+  # through `Tactic.Script`, and every piece of evidence they produce is
+  # re-checked by the kernel at the original goal.
+  defp parse_tactic_use(state, name) do
+    rules = Map.fetch!(state.tactic_macros, name)
+    keyword_token = peek(state)
+    state = advance(state)
+
+    case match_macro_rule(rules, state) do
+      {:ok, rule, bindings, state} ->
+        {expanded, state} = expand_rule(rule, bindings, state)
+
+        meta =
+          [keyword: name, line: keyword_token.line, col: keyword_token.col]
+          |> put_token_source_info(keyword_token)
+          |> Keyword.put(:tactic_rule_span, Map.get(rule, :head_span))
+
+        meta =
+          case Range.through(keyword_token.span, macro_match_span(bindings) || keyword_token.span) do
+            {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, name: keyword_token.span})
+            _ -> meta
+          end
+
+        {{:tactic_script, meta, [expanded]}, state}
+
+      {:error, rule, progress, state} ->
+        t = peek(state)
+
+        state =
+          add_error(
+            state,
+            {:macro_use_mismatch,
+             %{
+               keyword: name,
+               expected: macro_expected_at(rule, progress),
+               got: macro_got_desc(t),
+               token_type: t.type,
+               span: t.span,
+               invocation_span: keyword_token.span,
+               definition_span: Map.get(rule, :source_span),
+               line: t.line,
+               column: t.col
+             }}
+          )
+
+        {variable(%Cure.Compiler.Token{type: :identifier, value: name, line: t.line, col: t.col}), state}
+    end
+  end
+
+  # The solver vocabulary is a fixed, closed set (`by search|positivity|decide`),
+  # so map it explicitly rather than through `String.to_existing_atom/1`: the
+  # atom may not exist yet in a fresh VM, which made parsing a `by decide`
+  # template crash with ArgumentError instead of producing a node.
+  defp solver_name("search"), do: :search
+  defp solver_name("positivity"), do: :positivity
+  defp solver_name("decide"), do: :decide
+
   defp parse_solver(state, token, solver) do
     solver_token = peek_at(state, 1)
     state = state |> advance() |> advance()
-    meta = put_token_source_info([solver: String.to_existing_atom(solver), line: token.line, col: token.col], token)
+    meta = put_token_source_info([solver: solver_name(solver), line: token.line, col: token.col], token)
 
     {arguments, state, last_span} =
       case {solver, peek(state)} do
@@ -12175,6 +12331,10 @@ defmodule Cure.Compiler.Parser do
         {entry, state} = parse_fail_declaration(state)
         parse_macro_rules(state, [entry | acc], macro_token)
 
+      %Token{type: :identifier, value: "tactic"} ->
+        {rule, state} = parse_tactic_rule(state)
+        parse_macro_rules(state, [rule | acc], macro_token)
+
       %Token{type: :identifier, value: "open"} ->
         {entry, state} = parse_open_category(state)
         parse_macro_rules(state, [entry | acc], macro_token)
@@ -12187,7 +12347,7 @@ defmodule Cure.Compiler.Parser do
              %{
                kind: :macro_definition_entry_invalid,
                expected: :syntax,
-               alternatives: [:accepts, :expands, :literal, :explain, :fail, :open],
+               alternatives: [:tactic, :accepts, :expands, :literal, :explain, :fail, :open],
                observed: macro_separator_observed(observed),
                token_type: observed.type,
                span: observed.span,
@@ -12201,6 +12361,76 @@ defmodule Cure.Compiler.Parser do
         # Recover: skip a token so one bad line does not eat the block.
         parse_macro_rules(advance(state), acc, macro_token)
     end
+  end
+
+  # `tactic <keyword> <segments…> becomes <body>` — a proof command a LIBRARY
+  # defines (Phase 3 of docs/PATH_TO_LEAN4_PLAN.md, gap G2 / C1 part 2).
+  #
+  # This is the one rule kind whose expansion is NOT free-form: the body must
+  # classify as a member of the closed tactic vocabulary
+  # (`Cure.Elab.Tactic.Step`), which is what makes "a tactic expands to Tactic
+  # combinators, never to Core terms" a structural check rather than a promise.
+  # The classification happens at parse time so a rule that emits a Core node
+  # fails where the author can see it, not at some later use site.
+  #
+  # The rule carries the same `example`/`explain`/`fail` obligations as a
+  # `syntax` rule (docs/MACROS.md §2, §9): it is a rule, so it is pinned and
+  # explained like one. `kind: :tactic` is deliberately NOT harvested into
+  # `active_macros` — a tactic keyword is contextual (see `proof_context`), so
+  # it is claimed only in command position by `tactic_application_ahead?/1`.
+  defp parse_tactic_rule(state) do
+    kw_token = peek(state)
+    state = advance(state)
+
+    keyword_token = peek(state)
+    keyword = to_string(keyword_token.value)
+    state = advance(state)
+
+    segment_start = state.pos
+    {segments, _segment_span, state} = parse_rule_segments(state, [])
+    field_spans = macro_rule_field_spans(state, segment_start, state.pos)
+
+    state = expect_macro_rule_keyword(state, :becomes, :tactic_rule_becomes_missing, kw_token)
+
+    # A tactic body is either ONE command (`becomes simplify`) or an indented
+    # SEQUENCE of them. `parse_expr_or_block/1` is what makes the sequence form
+    # legal: `becomes` in every other rule kind takes a single expression
+    # (docs/MACROS.md §13), but a tactic's whole point is composing steps, so
+    # here the indented block IS the expansion.
+    #
+    # The body is parsed in COMMAND position (`proof_context: true`), because
+    # that is the only position a tactic body is ever written in. Without it a
+    # contextual command such as `exact evidence` would parse as a bare
+    # variable followed by a stray identifier, and the rule would never match.
+    previous = state.proof_context
+    state = %{state | proof_context: true}
+    state = skip_newlines(state)
+    {body, state} = parse_expr_or_block(state)
+    state = %{state | proof_context: previous}
+    {examples, state} = parse_rule_examples(state, kw_token)
+
+    body_span = ast_source_span(body)
+    terminal_span = examples |> List.last() |> then(&(&1 && &1.source_span)) || body_span
+
+    rule = %{
+      kind: :tactic,
+      keyword: keyword,
+      segments: segments,
+      field_spans: field_spans,
+      template: body,
+      body_span: body_span,
+      examples: examples,
+      category: nil,
+      contextual: true,
+      obligations: [],
+      module_rule: false,
+      progress: nil,
+      line: kw_token.line,
+      head_span: macro_rule_source_span(kw_token, body_span),
+      source_span: macro_rule_source_span(kw_token, terminal_span)
+    }
+
+    {rule, state}
   end
 
   defp parse_macro_accepts(state) do

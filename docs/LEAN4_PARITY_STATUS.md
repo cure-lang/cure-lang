@@ -16,9 +16,13 @@ Updated 2026-11-21 against the implementation and executable proof suites.
   and decision commands have positive and negative corpora.
 - **Phase 3 — C3:** not audited for completion in this change. Parser support
   alone does not establish declaration-driven transitive fixity completion.
-- **Phase 4 — C1.2, C6, C7:** incomplete. User-defined goal tactic macros,
-  premise-generating backward `apply`, and per-command editor/REPL goal views
-  remain. `exact` and closing `apply` already work.
+- **Phase 3 — C1.2: implemented.** A `tactic` macro rule kind lets a LIBRARY
+  (not the stdlib) define a new proof command. The expansion is checked against
+  a closed tactic vocabulary, so a tactic can only produce goals and apply
+  existing steps — never a Core term. See "C1.2 — user tactic macros" below.
+- **Phase 4 — C1.2, C6, C7:** incomplete. Premise-generating backward `apply`
+  and per-command editor/REPL goal views remain. `exact` and closing `apply`
+  already work, and user-defined goal tactic macros now exist (Phase 3).
 - **Phase 5 — C2:** not changed; execute the existing universe design.
 - **Phase 6 — C9, C10:** not changed; follow the kernel reach ledger.
 
@@ -99,6 +103,32 @@ Commands work in inline/block justifications and checked non-equality function
 bodies. Evidence: `test/cure/compiler/solver_test.exs` and
 `test/cure/elab/solver_test.exs`.
 
+### C1.2 — user tactic macros
+
+A `tactic` member of the `macro` container lets a LIBRARY define a new proof
+command. The gate is a test library, not the stdlib: `test/cure/elab/tactic_macro_test.exs`
+defines tactics in its fixtures and closes real goals with them.
+
+The safety argument is structural, not disciplinary. A rule's expansion is
+classified against a closed vocabulary (`Cure.Elab.Tactic.Step`) — `simplify`,
+`rewrite`, `exact`/`apply`, `by decide`/`search`/`positivity`, `induction`, and
+`have` — before it can be used. A Core term, a bare proof expression, a lambda,
+a `match`, or an empty body is `E092` at the rule, so a tactic can only produce
+goals and apply existing steps. Composition is `seq` only: `or_else`/`try_`
+would swallow failures, `repeat` would make step counts depend on a progress
+heuristic, and `focus`/`all_goals` are vacuous while every command is
+single-goal.
+
+A tactic keyword is CONTEXTUAL, exactly like `apply`/`exact`: it names a command
+only in command position (a `because` block or an `induction` case body) and is
+an ordinary identifier everywhere else, so a library may still define and call
+`fn close(x)`. A tactic that leaves the goal open is an unfinished justification
+naming the residual goal, never a silent success. `tactic` rules carry the §9
+self-proving obligations unchanged (`example` pins, `explain` exhaustiveness).
+
+No new Core constructor, kernel rule, postulate, or bypass. Every step is
+`Tactic.command/1`, which re-checks its evidence at the ORIGINAL goal.
+
 ## Corpus and historical G-register
 
 The corpus uses historical G1–G11 identifiers, not the C-register or the gap
@@ -108,7 +138,11 @@ silently reassign their meaning.
 - **G1 / C7:** diagnostic and hole introspection exist; complete cursor-position
   goal tooling is still open. Unfinished proofs and holes must still refuse
   compilation.
-- **G2 / C1:** goal execution/composition landed; user tactic macros remain open.
+- **G2 / C1:** goal execution/composition and user tactic macros landed. A
+  `tactic` macro rule may only compose EXISTING commands; it cannot emit a Core
+  term or a bare expression, and its keyword stays an ordinary identifier
+  outside command position. What remains open is not the rule kind but the
+  vocabulary it composes over (C6's premise-generating `apply`).
 - **G3 / C5,C9:** certified computation verified; guarded-recursion ledger not
   changed. The neutral right-identity rejection is not itself a parity gap.
 - **G4 / C4:** explicit simp admission and quantified ambient rules implemented.
@@ -122,9 +156,10 @@ silently reassign their meaning.
 - **G6, G7, G8, G11:** proof/runtime correspondence obligations, not source
   capability pins. They remain outside this phase and have no corpus entries.
 
-The corpus includes the adoption baseline plus explicit Phase 1/2 gates for
+The corpus includes the adoption baseline plus explicit Phase 1/2/3 gates for
 certified recursive computation, quantified simp, looping-rule refusal,
-multi-occurrence transport, and solver acceptance/refusal: **23 cases, 15
+multi-occurrence transport, solver acceptance/refusal, and a library-defined
+tactic that closes a real goal (with its Core-term refusal): **24 cases, 16
 accept and 8 reject**, measured from `Corpus.all/0`. Rejection counts include
 deliberate safety boundaries, not just unfinished features.
 

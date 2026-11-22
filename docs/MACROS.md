@@ -50,6 +50,7 @@ alternatives:
 | `syntax family <Name>` | a structured, indented body shape | §7 |
 | `accepts <Family>` | the family this macro's body parses as | §7 |
 | `expands with <fn>` | the function that turns that family into syntax | §7 |
+| `tactic <rule> becomes <body>` | a new proof command (contextual) | §2.1 |
 | `literal <rule>` | a suffixed-literal rule (`5 tick`) | §4 |
 | `explain` | per-failure-point error messages | §9 |
 | `fail Name(p: T, …)` | an author-declared semantic failure point | §9 |
@@ -66,6 +67,60 @@ macro fsm <name: ModuleName> with <data: Type>   # several
 
 Doc comments (`##`) and blank lines inside the block are trivia and may appear
 between entries.
+
+### 2.1 `tactic` rules — a new proof command
+
+A `tactic` rule defines a **proof command**. This is the one member whose
+purpose is not to generate code but to name a composition of steps that already
+exist:
+
+```cure
+mod Tactics
+  macro Tactics
+    tactic close becomes simplify
+
+  fn id(n: Int) -> Int = n
+
+  fn theorem(x: Int) -> Equivalent(Int, id(x), x) = proof chain
+    id(x) == x
+    because close
+end
+```
+
+The expansion is **not free-form**. It must be a member of a closed tactic
+vocabulary — the same commands `because` blocks already accept:
+
+| Step | Written as |
+|---|---|
+| simplification | `simplify` / `simplify using [rules]` |
+| rewriting | `rewrite using e` / `rewrite using e all` / `rewrite backwards using e` |
+| backward reasoning | `exact e` / `apply e` |
+| automation | `by search` / `by positivity` / `by decide [using e]` |
+| induction | `induction n` with its `case` block |
+| local facts | `have name: T = e` |
+
+An indented body is a **sequence**: the steps run in order and the tactic fails
+where the first one fails. `tactic rewrite_then_close <proof: Code> becomes`
+followed by an indented `rewrite using proof all` / `simplify` is the standard
+shape.
+
+Anything else is rejected where the rule is written, as
+`MACRO EXPANSION FAILED [E092]` — a Core term, a bare expression, a lambda, a
+`match`, or an empty body. The reason is structural: a tactic may only *produce
+goals and apply existing steps*, so it can never hand the kernel a term the
+elaborator did not build. That is what makes `tactic` safe to hand to a library
+author, and it is why the check is a whitelist rather than a blacklist.
+
+**The keyword is contextual.** Like `apply`/`exact`, a tactic keyword names a
+command only in command position — inside a `because` block or an `induction`
+case body. Everywhere else the word is an ordinary identifier, so a library may
+still define `fn close(x)` and call it. A tactic that leaves the goal open is
+reported as an unfinished justification naming the residual goal; it is never
+silently accepted.
+
+`tactic` rules carry the same self-proving obligations as `syntax` rules (§9):
+under an `explain` block they must be pinned by an `example` and their keyword
+must be explained.
 
 ## 3. Syntax rules
 
@@ -640,6 +695,8 @@ Each of these was reproduced against the current tree.
 | `lib/cure/compiler/macro_syntax.ex` | reflection: parser AST ⟷ `Std.Syntax` |
 | `lib/cure/compiler/lift_module.ex` | minting compiled units |
 | `lib/cure/elab/macro_expand.ex` | expansion during elaboration |
+| `lib/cure/elab/tactic/step.ex` | the closed tactic vocabulary of §2.1 |
+| `lib/cure/elab/tactic/script.ex` | running a tactic script through `Tactic` combinators |
 | `lib/cure/diagnostic/adapter/macro.ex` | every macro diagnostic's prose |
 
 **Design specs** live in `docs/superpowers/specs/macros/`. The architecture is

@@ -550,8 +550,53 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     )
   end
 
+  def from_error({:invalid_tactic_expansion, keyword, cause}, opts) do
+    tactic_expansion_failure(keyword, cause, opts)
+  end
+
+  def from_error({:source_context, {:invalid_tactic_expansion, keyword, cause}, context}, opts)
+      when is_map(context) do
+    tactic_expansion_failure(keyword, cause, Keyword.put(opts, :span, Map.get(context, :span)))
+  end
+
   def from_error(error, _opts),
     do: raise(Cure.Diagnostic.UnhandledError, error: error)
+
+  # A `tactic` rule whose expansion is not a member of the closed tactic
+  # vocabulary (docs/MACROS.md §2, `Cure.Elab.Tactic.Step`). E092 because it is
+  # a self-proving-macro obligation: the rule itself is wrong, not the use site.
+  defp tactic_expansion_failure(keyword, cause, opts) do
+    {detail, hint} = tactic_cause_prose(cause)
+
+    Diagnostic.new(
+      code: "E092",
+      key: :invalid_tactic_expansion,
+      severity: :error,
+      title: "Tactic expansion is not a proof command",
+      body: Doc.paragraph("The `#{keyword}` tactic rule expands to #{detail}."),
+      primary: label(Keyword.get(opts, :span), :primary, "this tactic rule expands to something that is not a step"),
+      notes: [hint],
+      provenance: Keyword.get(opts, :provenance, []),
+      payload: %{keyword: keyword, cause: cause}
+    )
+  end
+
+  defp tactic_cause_prose(:core_term_is_not_a_tactic) do
+    {"a Core term",
+     "A tactic may only produce goals and apply existing proof commands. Write `simplify`, `rewrite using h`, " <>
+       "`exact e`, `apply e`, `by decide`, or `induction n` instead of a term."}
+  end
+
+  defp tactic_cause_prose(:empty_tactic_body) do
+    {"an empty block",
+     "An empty tactic body would succeed without changing the goal. Give it at least one proof command."}
+  end
+
+  defp tactic_cause_prose(_cause) do
+    {"something that is not a proof command",
+     "A tactic body must be one of: simplify, rewrite, exact, apply, by decide/search/positivity, induction, " <>
+       "or have — optionally as an indented sequence of them."}
+  end
 
   @doc false
   def packet_failure(kind, details, opts) do

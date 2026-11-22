@@ -12,6 +12,11 @@ measurement. In particular, certified unfolding required no TCB change, and
 Later-phase descriptions and baseline findings below are retained historically,
 not as assertions about today's implementation.
 
+**Phase 3 (2026-11-22):** `tactic` macro rules are implemented — a library can
+define a new proof command, expanding only to a closed vocabulary of existing
+steps. See §4 Phase 3 for the findings, including two pre-existing defects the
+work exposed.
+
 ---
 
 ## 0. Relationship to the other documents
@@ -268,22 +273,54 @@ remains hard-coded in the elaborator.
 **Scope.** A library can define a new proof command. This converts L3 from
 closed to open.
 
-**Work.**
-1. Add a `tactic` rule kind to the `macro` container (`docs/MACROS.md` §2's
-   exhaustive member table).
-2. **Critical:** a `tactic` rule expands to `Cure.Elab.Tactic` combinators —
-   **never** to Core terms. A user tactic may only produce goals and apply
-   existing steps.
-3. Reuse `example`/`explain`/`fail` obligations unchanged (`E092`).
+**Status: complete.** Findings:
 
-**Gate.** A **test library** (not the stdlib) defines a tactic macro and closes
-a real goal. Negative controls: a tactic emitting a raw Core node is rejected; an
-unexplained `fail` point is `E092`.
+- The gate is met by a TEST library, not the stdlib:
+  `test/cure/elab/tactic_macro_test.exs` defines tactics in its fixtures and
+  closes real goals with them, including in an `induction` case body.
+- **The "expands to `Tactic` combinators, never to Core terms" requirement is
+  structural, not disciplinary.** A template is Cure source and cannot name an
+  Elixir function, so the rule produces a `tactic_script` node whose body is
+  classified against a closed vocabulary (`Cure.Elab.Tactic.Step`). The
+  whitelist fails closed: an unknown node is rejected, so a Core term, a bare
+  proof expression, a lambda, or a `match` is refused by construction rather
+  than by enumeration.
+- **Composition is `seq` only.** `or_else`/`try_` would swallow failures;
+  `repeat` would make step counts depend on a progress heuristic;
+  `focus`/`all_goals` are vacuous while every command is single-goal.
+- **Validation must run before body elaboration.** The first implementation
+  checked tactic expansions inside `MacroValidate.check_program/2`, which runs
+  *after* `elaborate_declarations/3` — so a bad tactic failed first at its use
+  site with an unrelated `wrong_justification`, and the offending rule was never
+  blamed. The check now runs in `check_declarations/1` (pure structure, no
+  environment needed).
+- **A tactic keyword is contextual**, exactly like `apply`/`exact`: claimed only
+  in command position, an ordinary identifier elsewhere. A library may still
+  define and call `fn close(x)`. Pinned in both directions in
+  `test/cure/compiler/dependent_proof_surface_test.exs`.
+- **Two pre-existing defects were exposed and fixed:** `parse_solver/3` used
+  `String.to_existing_atom/1` on `"decide"`, which crashes in a fresh VM where
+  the atom does not yet exist; and a tactic `example` pin compared the
+  `tactic_script` wrapper rather than the expanded body.
+- A tactic body may be a single command or an indented SEQUENCE. `becomes`
+  takes one expression in every other rule kind (`docs/MACROS.md` §13); a tactic
+  is the deliberate exception, because composing steps is its entire purpose.
 
-**TCB.** None by construction.
+**Gate.** Met. A test library defines a tactic macro and closes a real goal.
+Negative controls: a tactic emitting a Core node is rejected (`E092`
+`invalid_tactic_expansion`); an unexplained `fail`/keyword point is `E092`
+`missing_diagnosis`; an unpinned tactic under `explain` is `E092`
+`rule_unpinned`; a tactic that leaves the goal open is an unfinished
+justification naming the residual goal.
 
-**Files.** `lib/cure/compiler/parser.ex`, `lib/cure/compiler/macro_validate.ex`,
-`lib/cure/elab/macro_expand.ex`, `docs/MACROS.md` §2/§9.
+**TCB.** None by construction — every step is `Tactic.command/1`, which
+re-checks its evidence at the original goal.
+
+**Files.** `lib/cure/compiler/parser.ex`,
+`lib/cure/compiler/macro_validate.ex`, `lib/cure/elab/tactic/step.ex` (new),
+`lib/cure/elab/tactic/script.ex` (new), `lib/cure/elab/proof_goal.ex`,
+`lib/cure/elab/proof_chain.ex`, `lib/cure/diagnostic/adapter/macro.ex`,
+`test/cure/elab/tactic_macro_test.exs` (new), `docs/MACROS.md` §2.1.
 
 ---
 

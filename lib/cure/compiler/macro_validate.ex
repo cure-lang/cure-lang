@@ -70,6 +70,42 @@ defmodule Cure.Compiler.MacroValidate do
     end
   end
 
+  # The Phase 3 gate: a `tactic` rule's expansion must be a member of the closed
+  # tactic vocabulary (`Cure.Elab.Tactic.Step`). This is what makes "a tactic
+  # expands to Tactic combinators, never to Core terms" a checked property of
+  # the rule rather than a convention its author is trusted to follow.
+  #
+  # It runs at DECLARATION-validation time, before any body is elaborated, on
+  # the rule's own template. That ordering matters: a bad tactic would otherwise
+  # fail first at its use site with an unrelated elaboration error, and the rule
+  # that caused it would never be blamed.
+  @doc """
+  Check every `tactic` rule in `ast` expands to a member of the closed tactic
+  vocabulary. Pure structure — needs no environment.
+  """
+  @spec check_tactic_expansions_in(tuple() | list()) :: :ok | {:error, term()}
+  def check_tactic_expansions_in(ast) do
+    ast
+    |> collect_macro_defs()
+    |> Enum.reduce_while(:ok, fn macro_def, :ok ->
+      case check_tactic_expansions(macro_def) do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, contextualize_validation(error, macro_def)}
+      end
+    end)
+  end
+
+  defp check_tactic_expansions({:macro_def, _meta, rules}) do
+    rules
+    |> Enum.filter(&(&1[:kind] == :tactic))
+    |> Enum.reduce_while(:ok, fn rule, :ok ->
+      case Cure.Elab.Tactic.Step.classify(Map.get(rule, :template)) do
+        {:ok, _step} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {:invalid_tactic_expansion, rule.keyword, reason}}}
+      end
+    end)
+  end
+
   defp contextualize_validation(:ok, _macro_def), do: :ok
 
   defp contextualize_validation({:error, {:source_context, _reason, _context}} = error, _macro_def), do: error
@@ -90,6 +126,31 @@ defmodule Cure.Compiler.MacroValidate do
               :invalid_repeated_hole_filler
             ] do
     {:error, {:source_context, reason, validation_source_context(reason, meta, rules)}}
+  end
+
+  defp contextualize_validation(
+         {:error, {:invalid_tactic_expansion, keyword, cause} = reason},
+         {:macro_def, meta, rules}
+       ) do
+    rule =
+      Enum.find(rules, &(&1[:kind] == :tactic and &1[:keyword] == keyword))
+
+    macro_span = macro_source_span(meta)
+    rule_span = rule && (rule[:head_span] || rule[:source_span])
+    body_span = rule && rule[:body_span]
+
+    context = %{
+      span: body_span || rule_span || macro_span,
+      macro_span: macro_span,
+      rule_span: rule_span,
+      related_spans: Enum.reject([rule_span], &is_nil/1),
+      macro: Keyword.get(meta, :name),
+      keyword: keyword,
+      cause: cause,
+      expression_category: :tactic_expansion
+    }
+
+    {:error, {:source_context, reason, context}}
   end
 
   defp contextualize_validation(
@@ -346,7 +407,7 @@ defmodule Cure.Compiler.MacroValidate do
   def check_rules_pinned({:macro_def, _meta, rules}) do
     unpinned =
       rules
-      |> Enum.filter(&(&1[:kind] in [:syntax, :computed]))
+      |> Enum.filter(&(&1[:kind] in [:syntax, :computed, :tactic]))
       |> Enum.filter(&(Map.get(&1, :examples, []) == []))
       |> Enum.map(& &1.keyword)
 
@@ -367,7 +428,7 @@ defmodule Cure.Compiler.MacroValidate do
   # example (`syntax every <t: Duration> becomes …`) has NO literal `segments`.
   defp derive_points(rules) do
     rules
-    |> Enum.filter(&(&1[:kind] in [:syntax, :literal, :fail]))
+    |> Enum.filter(&(&1[:kind] in [:syntax, :literal, :fail, :tactic]))
     |> Enum.flat_map(fn rule ->
       failure_points =
         case rule do
@@ -377,7 +438,7 @@ defmodule Cure.Compiler.MacroValidate do
 
       keyword_points =
         case rule do
-          %{kind: :syntax, keyword: kw} when is_binary(kw) -> [{:keyword, kw}]
+          %{kind: kind, keyword: kw} when kind in [:syntax, :tactic] and is_binary(kw) -> [{:keyword, kw}]
           _ -> []
         end
 
@@ -396,7 +457,7 @@ defmodule Cure.Compiler.MacroValidate do
 
     keyword_points =
       case rule do
-        %{kind: :syntax, keyword: keyword} when is_binary(keyword) -> [{:keyword, keyword}]
+        %{kind: kind, keyword: keyword} when kind in [:syntax, :tactic] and is_binary(keyword) -> [{:keyword, keyword}]
         _ -> []
       end
 
@@ -457,7 +518,7 @@ defmodule Cure.Compiler.MacroValidate do
   def check_examples({:macro_def, _meta, rules}, env) do
     results =
       rules
-      |> Enum.filter(&(&1[:kind] == :syntax))
+      |> Enum.filter(&(&1[:kind] in [:syntax, :tactic]))
       |> Enum.flat_map(fn rule ->
         Enum.map(Map.get(rule, :examples, []), fn %{use_site: use_site, expected: expected} = example ->
           actual = Parser.expand_example(rules, use_site)
