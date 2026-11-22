@@ -27,6 +27,45 @@ defmodule Cure.Compiler.MacroValidate do
     end
   end
 
+  defp check_tactic_goal_pin(keyword, actual, expected, env) do
+    context = Cure.Core.Context.empty(env)
+    command = {:tactic_script, [keyword: keyword], [actual]}
+
+    result =
+      with {:ok, goal} <- Cure.Elab.Declarations.lower_type(expected, [], env),
+           {:ok, _evidence, _trace} <-
+             Cure.Elab.ProofGoal.run({:proof_justification, [], [command]}, goal, [], context, env, 0),
+           do: :ok
+
+    case result do
+      :ok -> :ok
+      {:error, reason} -> {:type_failure, %{keyword: keyword, expected: expected, actual: actual, reason: reason}}
+    end
+  end
+
+  defp check_tactic_capture_kinds({:macro_def, _meta, rules}, env) do
+    rules
+    |> Enum.filter(&(&1[:kind] == :tactic))
+    |> Enum.flat_map(&tactic_capture_kinds(&1.segments))
+    |> Enum.uniq()
+    |> Enum.reduce_while(:ok, fn kind, :ok ->
+      if kind in ~w(Code Name ModuleName Type Parameters Int Float Atom Bool Expression Identifier Number Duration Kind) do
+        {:cont, :ok}
+      else
+        case Cure.Compiler.MacroFuzz.hole_generator(kind, env) do
+          {:ok, _generator} -> {:cont, :ok}
+          {:error, _} = error -> {:halt, error}
+        end
+      end
+    end)
+  end
+
+  defp tactic_capture_kinds(segments) when is_list(segments), do: Enum.flat_map(segments, &tactic_capture_kinds/1)
+  defp tactic_capture_kinds({:hole, %{kind: kind}}), do: [kind]
+  defp tactic_capture_kinds({:repeat, segment}), do: tactic_capture_kinds(segment)
+  defp tactic_capture_kinds({:optional, segments}), do: tactic_capture_kinds(segments)
+  defp tactic_capture_kinds(_segment), do: []
+
   @doc """
   Enforce all self-proving obligations for the macro definitions in a parsed
   program. The environment is supplied after declaration elaboration so
@@ -38,6 +77,7 @@ defmodule Cure.Compiler.MacroValidate do
     |> collect_macro_defs()
     |> Enum.reduce_while(:ok, fn macro_def, :ok ->
       with :ok <- check_reserved_fields(macro_def),
+           :ok <- check_tactic_capture_kinds(macro_def, env),
            :ok <- check_explain_if_declared(macro_def),
            :ok <- check_pins_if_explainable(macro_def),
            :ok <- check_examples(macro_def, env),
@@ -95,13 +135,23 @@ defmodule Cure.Compiler.MacroValidate do
     end)
   end
 
-  defp check_tactic_expansions({:macro_def, _meta, rules}) do
+  defp check_tactic_expansions({:macro_def, meta, rules}) do
     rules
     |> Enum.filter(&(&1[:kind] == :tactic))
     |> Enum.reduce_while(:ok, fn rule, :ok ->
-      case Cure.Elab.Tactic.Step.classify(Map.get(rule, :template)) do
-        {:ok, _step} -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, {:invalid_tactic_expansion, rule.keyword, reason}}}
+      result =
+        if Cure.Compiler.Lexer.reserved_word?(rule.keyword) or
+             rule.keyword in ~w(assert_type check rewrite simplify by apply exact induction have proof macro with lift public precedencegroup infix prefix postfix),
+           do: {:error, :reserved_tactic_keyword},
+           else: Cure.Elab.Tactic.Step.classify(Map.get(rule, :template))
+
+      case result do
+        {:ok, _step} ->
+          {:cont, :ok}
+
+        {:error, reason} ->
+          error = {:error, {:invalid_tactic_expansion, rule.keyword, reason}}
+          {:halt, contextualize_validation(error, {:macro_def, meta, [rule]})}
       end
     end)
   end
@@ -191,7 +241,7 @@ defmodule Cure.Compiler.MacroValidate do
   defp validation_source_context({:rule_unpinned, keywords}, meta, rules) do
     rule_spans =
       rules
-      |> Enum.filter(&(&1[:kind] in [:syntax, :computed] and &1.keyword in keywords))
+      |> Enum.filter(&(&1[:kind] in [:syntax, :computed, :tactic] and &1.keyword in keywords))
       |> Enum.map(&Map.get(&1, :source_span))
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
@@ -251,7 +301,7 @@ defmodule Cure.Compiler.MacroValidate do
 
   defp validation_source_context({:expansion_ill_typed, details}, meta, rules) do
     keyword = Map.get(details, :keyword)
-    rule = Enum.find(rules, &(&1[:kind] in [:syntax, :computed] and &1[:keyword] == keyword))
+    rule = Enum.find(rules, &(&1[:kind] in [:syntax, :computed, :tactic] and &1[:keyword] == keyword))
     macro_span = macro_source_span(meta)
     rule_span = rule && (rule[:head_span] || rule[:source_span])
     authored_span = rule && (rule[:body_span] || rule_span)
@@ -271,7 +321,7 @@ defmodule Cure.Compiler.MacroValidate do
   defp validation_source_context({:unsupported_hole_type, category}, meta, rules) do
     offenders =
       for rule <- rules,
-          rule[:kind] in [:syntax, :computed],
+          rule[:kind] in [:syntax, :computed, :tactic],
           field <- fields_with_category(rule[:segments] || [], category),
           span <- List.wrap(get_in(rule, [:field_spans, field])) do
         %{field: field, keyword: rule[:keyword], span: span}
@@ -298,7 +348,7 @@ defmodule Cure.Compiler.MacroValidate do
 
     spans =
       for rule <- rules,
-          rule[:kind] in [:syntax, :computed],
+          rule[:kind] in [:syntax, :computed, :tactic],
           field <- fields_with_category(rule[:segments] || [], category),
           is_nil(hole) or field == hole,
           span <- List.wrap(get_in(rule, [:field_spans, field])) do
@@ -330,7 +380,7 @@ defmodule Cure.Compiler.MacroValidate do
     rule_span =
       rules
       |> Enum.find_value(fn rule ->
-        if rule[:kind] in [:syntax, :computed], do: Map.get(rule, :source_span)
+        if rule[:kind] in [:syntax, :computed, :tactic], do: Map.get(rule, :source_span)
       end)
 
     %{
@@ -521,11 +571,18 @@ defmodule Cure.Compiler.MacroValidate do
       |> Enum.filter(&(&1[:kind] in [:syntax, :tactic]))
       |> Enum.flat_map(fn rule ->
         Enum.map(Map.get(rule, :examples, []), fn %{use_site: use_site, expected: expected} = example ->
-          actual = Parser.expand_example(rules, use_site)
+          actual = Parser.expand_example(rules, use_site, proof_context: rule.kind == :tactic)
 
-          rule.keyword
-          |> check_example_pin(actual, expected, env)
-          |> attach_example_source(example, rule)
+          result =
+            case {rule.kind, expected, env} do
+              {:tactic, {:type, goal}, env} when not is_nil(env) ->
+                check_tactic_goal_pin(rule.keyword, actual, goal, env)
+
+              _ ->
+                check_example_pin(rule.keyword, actual, expected, env)
+            end
+
+          attach_example_source(result, example, rule)
         end)
       end)
 
@@ -639,7 +696,14 @@ defmodule Cure.Compiler.MacroValidate do
   # `<fresh>`-as-binder example spuriously mismatch; the only content that
   # participates in α-equivalence for a variable reference is its (degensym'd)
   # name.
-  defp normalize_for_comparison(ast), do: ast |> Metadata.semantic_key() |> normalize()
+  defp normalize_for_comparison(ast), do: ast |> strip_tactic_wrappers() |> Metadata.semantic_key() |> normalize()
+
+  defp strip_tactic_wrappers({:tactic_script, _meta, [body]}), do: strip_tactic_wrappers(body)
+
+  defp strip_tactic_wrappers({tag, meta, children}) when is_list(meta) and is_list(children),
+    do: {tag, meta, Enum.map(children, &strip_tactic_wrappers/1)}
+
+  defp strip_tactic_wrappers(other), do: other
 
   defp normalize({:variable, _meta, name}) when is_binary(name) do
     {:variable, [], degensym(name)}

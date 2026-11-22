@@ -581,10 +581,24 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     )
   end
 
+  defp tactic_cause_prose(:recursive_tactic_expansion) do
+    {"a recursive or over-deep tactic alias chain", "Break the alias cycle or keep the expansion depth below 64."}
+  end
+
+  defp tactic_cause_prose(:unsupported_induction_tactic) do
+    {"an induction command whose recursive lowering is not supported inside tactic templates",
+     "Use ordinary `induction` and invoke the tactic in its case bodies instead."}
+  end
+
+  defp tactic_cause_prose(:reserved_tactic_keyword) do
+    {"a rule with a keyword owned by the language or an existing proof command",
+     "Choose a distinct tactic keyword so dispatch cannot silently bypass the rule."}
+  end
+
   defp tactic_cause_prose(:core_term_is_not_a_tactic) do
     {"a Core term",
      "A tactic may only produce goals and apply existing proof commands. Write `simplify`, `rewrite using h`, " <>
-       "`exact e`, `apply e`, `by decide`, or `induction n` instead of a term."}
+       "`exact e`, `apply e`, or `by decide` instead of a bare term."}
   end
 
   defp tactic_cause_prose(:empty_tactic_body) do
@@ -594,8 +608,8 @@ defmodule Cure.Diagnostic.Adapter.Macro do
 
   defp tactic_cause_prose(_cause) do
     {"something that is not a proof command",
-     "A tactic body must be one of: simplify, rewrite, exact, apply, by decide/search/positivity, induction, " <>
-       "or have — optionally as an indented sequence of them."}
+     "A tactic body must compose simplify, rewrite, exact, apply, by decide/search/positivity, " <>
+       "have, or another finite tactic — optionally as an indented sequence."}
   end
 
   @doc false

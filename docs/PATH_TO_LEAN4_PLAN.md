@@ -12,10 +12,11 @@ measurement. In particular, certified unfolding required no TCB change, and
 Later-phase descriptions and baseline findings below are retained historically,
 not as assertions about today's implementation.
 
-**Phase 3 (2026-11-22):** `tactic` macro rules are implemented — a library can
-define a new proof command, expanding only to a closed vocabulary of existing
-steps. See §4 Phase 3 for the findings, including two pre-existing defects the
-work exposed.
+**Historical Phase 3 (audited 2026-11-22):** contextual `tactic ... becomes`
+templates are implemented. This is a useful command-composition slice of C1.2,
+not the full goal-inspecting `computed by` / `Std.Tactic` design. Authoritative
+Phase 3 remains C3 operator fixity; authoritative Phase 4 includes full C1.2.
+See the scorecard and §4 below for the precise boundary and audit corrections.
 
 ---
 
@@ -268,59 +269,47 @@ remains hard-coded in the elaborator.
 
 ---
 
-### Phase 3 — `tactic` macro rules (G2 / C1, part 2)
+### Phase 3 — template tactic macros (historical numbering)
 
-**Scope.** A library can define a new proof command. This converts L3 from
-closed to open.
+**Implemented boundary:** a library defines a contextual `tactic ... becomes`
+rule composing existing proof commands. It does not receive a goal value;
+goal-aware `computed by` and `Std.Tactic` remain C1.2 work under authoritative
+Phase 4. Induction templates are rejected until their recursive lowering is
+wired to this API; invoking tactics in ordinary induction arms is supported.
 
-**Status: complete.** Findings:
+**Audit corrections (2026-11-22):**
+- Scripts now return transformed open goals to caller commands and report the
+  true residual goal if the entire justification ends open. Extra commands
+  after closure produce the normal unreachable-statement diagnostic.
+- Closed solutions and traces are retained exactly once. The earlier claim
+  that `Tactic.run_all(Result)` discarded evidence was incorrect.
+- Finite aliases, forward references and distinct overloads compose; recursive
+  alias chains are refused. Imported templates keep provider helper grammar.
+- Contextual dispatch applies only to command heads, not nested evidence
+  operands. Structured literal mismatches report errors rather than crashing.
+- Printer round-trips retain declarations, invocations, optional/repeated
+  syntax, rewrite-all, and explicit proof applications.
+- Exact example pins work for single, nested and sequence tactics. Type-only
+  pins execute at the stated goal and refuse false goals. Explain obligations,
+  capture-category checks and authored diagnostics remain enforced.
 
-- The gate is met by a TEST library, not the stdlib:
-  `test/cure/elab/tactic_macro_test.exs` defines tactics in its fixtures and
-  closes real goals with them, including in an `induction` case body.
-- **The "expands to `Tactic` combinators, never to Core terms" requirement is
-  structural, not disciplinary.** A template is Cure source and cannot name an
-  Elixir function, so the rule produces a `tactic_script` node whose body is
-  classified against a closed vocabulary (`Cure.Elab.Tactic.Step`). The
-  whitelist fails closed: an unknown node is rejected, so a Core term, a bare
-  proof expression, a lambda, or a `match` is refused by construction rather
-  than by enumeration.
-- **Composition is `seq` only.** `or_else`/`try_` would swallow failures;
-  `repeat` would make step counts depend on a progress heuristic;
-  `focus`/`all_goals` are vacuous while every command is single-goal.
-- **Validation must run before body elaboration.** The first implementation
-  checked tactic expansions inside `MacroValidate.check_program/2`, which runs
-  *after* `elaborate_declarations/3` — so a bad tactic failed first at its use
-  site with an unrelated `wrong_justification`, and the offending rule was never
-  blamed. The check now runs in `check_declarations/1` (pure structure, no
-  environment needed).
-- **A tactic keyword is contextual**, exactly like `apply`/`exact`: claimed only
-  in command position, an ordinary identifier elsewhere. A library may still
-  define and call `fn close(x)`. Pinned in both directions in
-  `test/cure/compiler/dependent_proof_surface_test.exs`.
-- **Two pre-existing defects were exposed and fixed:** `parse_solver/3` used
-  `String.to_existing_atom/1` on `"decide"`, which crashes in a fresh VM where
-  the atom does not yet exist; and a tactic `example` pin compared the
-  `tactic_script` wrapper rather than the expanded body.
-- A tactic body may be a single command or an indented SEQUENCE. `becomes`
-  takes one expression in every other rule kind (`docs/MACROS.md` §13); a tactic
-  is the deliberate exception, because composing steps is its entire purpose.
+**Measured gates:** a test library actually invokes its tactics; resulting
+proof definitions kernel-check. Audit tests compare Core bytes to handwritten
+expansions and refuse altered-original-goal closure, actual Core-shaped ASTs,
+malformed commands and empty blocks. The old induction acceptance fixture was
+vacuous for tactic invocation and has been repaired.
 
-**Gate.** Met. A test library defines a tactic macro and closes a real goal.
-Negative controls: a tactic emitting a Core node is rejected (`E092`
-`invalid_tactic_expansion`); an unexplained `fail`/keyword point is `E092`
-`missing_diagnosis`; an unpinned tactic under `explain` is `E092`
-`rule_unpinned`; a tactic that leaves the goal open is an unfinished
-justification naming the residual goal.
+The `g2-tactic-rule-kind` corpus pin compiles a theorem containing a tactic
+invocation through elaboration and the kernel. It measures reach, not an
+independent soundness theorem. Unit-level kernel and negative controls measure
+specific safety properties; neither suite proves universal soundness.
 
-**TCB.** None by construction — every step is `Tactic.command/1`, which
-re-checks its evidence at the original goal.
+**Inherited limit:** interface-only macro grammar loading fails for ordinary
+syntax macros too. Source-backed tactic imports are tested; artifact grammar
+publication is not redesigned in this slice.
 
-**Files.** `lib/cure/compiler/parser.ex`,
-`lib/cure/compiler/macro_validate.ex`, `lib/cure/elab/tactic/step.ex` (new),
-`lib/cure/elab/tactic/script.ex` (new), `lib/cure/elab/proof_goal.ex`,
-`lib/cure/elab/proof_chain.ex`, `lib/cure/diagnostic/adapter/macro.ex`,
-`test/cure/elab/tactic_macro_test.exs` (new), `docs/MACROS.md` §2.1.
+**TCB:** unchanged. Existing proof commands produce evidence checked against
+the original goal; no new kernel constructors or proof postulates.
 
 ---
 

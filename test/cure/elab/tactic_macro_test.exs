@@ -122,6 +122,7 @@ defmodule Cure.Elab.TacticMacroTest do
         mod TacticInInduction
           macro Tactics
             tactic close becomes simplify
+            tactic close_using <e: Code> becomes simplify using [e]
 
           type Nat = Z | S(Nat)
 
@@ -134,7 +135,7 @@ defmodule Cure.Elab.TacticMacroTest do
             case S(k, ih) => proof chain
               plus(S(k), Z()) == S(k)
               because
-                simplify using [ih]
+                close_using ih
         end
         """)
 
@@ -200,7 +201,7 @@ defmodule Cure.Elab.TacticMacroTest do
       )
     end
 
-    test "an empty tactic body is rejected rather than silently succeeding" do
+    test "a plain let is not admitted as a tactic command" do
       assert_rejected!(
         """
         mod TacticEmpty
@@ -306,8 +307,6 @@ defmodule Cure.Elab.TacticMacroTest do
       assert_certified!(env, :use_it)
     end
   end
-
-  # ── A tactic that does not close the goal is reported, not accepted ──────
 
   # ── A tactic that does not close the goal is reported, not accepted ──────
 

@@ -96,31 +96,73 @@ vocabulary — the same commands `because` blocks already accept:
 | rewriting | `rewrite using e` / `rewrite using e all` / `rewrite backwards using e` |
 | backward reasoning | `exact e` / `apply e` |
 | automation | `by search` / `by positivity` / `by decide [using e]` |
-| induction | `induction n` with its `case` block |
 | local facts | `have name: T = e` |
+| composition | another finite template tactic invocation |
 
 An indented body is a **sequence**: the steps run in order and the tactic fails
 where the first one fails. `tactic rewrite_then_close <proof: Code> becomes`
 followed by an indented `rewrite using proof all` / `simplify` is the standard
 shape.
 
-Anything else is rejected where the rule is written, as
-`MACRO EXPANSION FAILED [E092]` — a Core term, a bare expression, a lambda, a
-`match`, or an empty body. The reason is structural: a tactic may only *produce
-goals and apply existing steps*, so it can never hand the kernel a term the
-elaborator did not build. That is what makes `tactic` safe to hand to a library
-author, and it is why the check is a whitelist rather than a blacklist.
+Unsupported expansion shapes are rejected at declaration with E092, and
+instantiated command shapes are checked again at execution. Actual Core-shaped
+nodes, bare proof expressions, lambdas, matches and empty script blocks are not
+commands. `exact expression` is the explicit route for checked evidence.
+The whitelist restricts the frontend vocabulary; **kernel checking against the
+original goal remains the trust boundary**, not the whitelist by itself.
 
 **The keyword is contextual.** Like `apply`/`exact`, a tactic keyword names a
 command only in command position — inside a `because` block or an `induction`
 case body. Everywhere else the word is an ordinary identifier, so a library may
-still define `fn close(x)` and call it. A tactic that leaves the goal open is
-reported as an unfinished justification naming the residual goal; it is never
-silently accepted.
+still define `fn close(x)` and call it, including in an evidence argument.
+A rewrite-only tactic may return an open transformed goal for the caller's next
+command. Only a complete justification ending open reports E110, using its
+actual residual goal. Statements after closure are unreachable-proof-statement
+errors, not silently skipped commands.
 
 `tactic` rules carry the same self-proving obligations as `syntax` rules (§9):
 under an `explain` block they must be pinned by an `example` and their keyword
 must be explained.
+
+Pins work for command sequences as well as single commands:
+
+```cure
+mod PinnedTactic
+  macro Tactics
+    tactic move <e: Code> becomes
+      rewrite using e all
+      simplify
+      example move h expands
+        rewrite using h all
+        simplify
+    explain
+      keyword "move" => "rewrite all original occurrences and simplify"
+      Code => "an equality proof"
+
+  type Pair = Pair(Int, Int)
+  fn theorem(x: Int, y: Int, h: Equivalent(Int, x, y)) -> Equivalent(Pair, Pair(x, x), Pair(y, y)) = proof chain
+    Pair(x, x) == Pair(y, y)
+    because move h
+end
+```
+
+An expansion pin compares the commands, ignoring internal script wrappers.
+A type-only pin such as `example close expands : Equivalent(Int, 0, 0)`
+executes the tactic at that closed goal and checks the result. It is not a
+universal proof about every possible invocation.
+
+Aliases can compose forward references and distinct overloads; cycles and
+chains deeper than the expansion guard are refused. Imported source-backed
+tactics retain their provider's helper grammar rather than reinterpreting it
+under caller shadowing. Optional and repeated invocation syntax survives
+printing.
+
+**Current limits:** this is parser-time template composition, not goal-inspecting
+`computed by` tactics or `Std.Tactic`. Tactics may be invoked in ordinary
+induction arms, but a template that itself expands to `induction` is currently
+refused with E092 because recursive command lowering is not wired into this
+API. Source-backed imports work; loading macro grammar from interfaces alone
+remains an inherited limitation shared with ordinary syntax macros.
 
 ## 3. Syntax rules
 

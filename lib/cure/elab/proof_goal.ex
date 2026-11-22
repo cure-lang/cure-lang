@@ -108,18 +108,7 @@ defmodule Cure.Elab.ProofGoal do
 
       {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} ->
         %{trace: trace} = Map.fetch!(solutions, goal.id)
-        first_unreachable = hd(rest)
-        closed_at = trace |> List.last() |> trace_span()
-
-        {:error,
-         {:proof_chain_syntax,
-          %ProofChainSyntaxProblem{
-            kind: :unreachable_proof_statement,
-            construct: closed_at || surface_span(goal.source),
-            step: surface_span(first_unreachable),
-            observed: expression_kind(first_unreachable),
-            expected: :end_of_justification
-          }}}
+        unreachable_statement(hd(rest), goal.source, trace)
 
       {:error, _} = error ->
         error
@@ -180,16 +169,15 @@ defmodule Cure.Elab.ProofGoal do
   # Core terms the kernel has not checked: every step is `Tactic.command/1`,
   # which re-checks its evidence at the ORIGINAL goal.
   #
-  # A script that leaves the goal open is reported as an unfinished
-  # justification with the residual goal, exactly like a `because` block that
-  # ran out of commands — a tactic is a command, not a licence to skip the proof.
+  # A script may transform a goal and leave it for the caller. Only a complete
+  # justification that ends open reports E110, using the actual residual goal.
   def command({:tactic_script, meta, [expansion]}, goal) do
     with {:ok, step} <- Step.classify(expansion) do
       case Script.run(step, goal) do
         {:ok, %Result{goals: [], solutions: solutions}} ->
           case Map.fetch(solutions, goal.id) do
             {:ok, %{evidence: evidence, trace: trace}} ->
-              {:closed, evidence, goal.trace ++ trace}
+              {:closed, evidence, trace}
 
             # Closed but with no solution recorded for THIS goal. That means a
             # step closed something other than the goal it was handed, which a
@@ -199,8 +187,8 @@ defmodule Cure.Elab.ProofGoal do
               tactic_not_closed(meta, goal)
           end
 
-        {:ok, %Result{goals: [_ | _]}} ->
-          tactic_not_closed(meta, goal)
+        {:ok, %Result{goals: [next_goal]}} ->
+          {:open, next_goal}
 
         {:error, _} = error ->
           error
@@ -211,6 +199,21 @@ defmodule Cure.Elab.ProofGoal do
   end
 
   def command(statement, goal), do: close_with_expression(statement, goal)
+
+  @doc false
+  def unreachable_statement(statement, source, trace) do
+    closed_at = trace |> List.last() |> trace_span()
+
+    {:error,
+     {:proof_chain_syntax,
+      %ProofChainSyntaxProblem{
+        kind: :unreachable_proof_statement,
+        construct: closed_at || surface_span(source),
+        step: surface_span(statement),
+        observed: expression_kind(statement),
+        expected: :end_of_justification
+      }}}
+  end
 
   defp simplify_command_rules(meta, rules, goal) do
     with {:ok, simplified} <- simplify_rules(rules, goal, meta),

@@ -22,13 +22,14 @@ defmodule Cure.Elab.Tactic.Script do
       one goal. Today every Cure command is single-goal, so they would be
       vacuous vocabulary.
 
-  So a script runs its steps in order with `seq`, and the first failure is the
-  tactic's failure. That is the smallest composition that is useful and the
-  only one whose semantics are already pinned by the Phase 2 tests.
+  A script sequences checked commands using `Tactic.run_all/2`. A failed step
+  fails the script. Unlike goal-list sequencing, a source statement after
+  closure is an unreachable-statement error, just as in a justification block.
+  Open goals are returned for the caller's next command to finish.
 
   ## Evidence
 
-  Each step is `Tactic.command/1`, which retains the checked solution keyed by
+  Each primitive step is `Tactic.command/1`, which retains the checked solution keyed by
   the ORIGINAL goal identity and re-checks it against the original goal. A
   script therefore inherits Phase 2's guarantee without adding a rule: the
   tactic cannot produce evidence the kernel has not verified.
@@ -47,18 +48,22 @@ defmodule Cure.Elab.Tactic.Script do
   def run({:command, node}, goal), do: Tactic.command(node).(goal)
 
   def run({:sequence, steps}, goal) do
-    Enum.reduce_while(steps, {:ok, %Tactic.Result{goals: [goal]}}, fn step, {:ok, result} ->
-      case run_all(step, result) do
-        # `Tactic.run_all/2` collapses to `{:ok, []}` when the goal list empties,
-        # dropping the solutions it accumulated. A script must KEEP them: the
-        # evidence is what closes the proof. Re-wrap the empty case so the
-        # caller always sees a `Result` carrying the checked solutions.
-        {:ok, []} -> {:halt, {:ok, %{result | goals: []}}}
-        {:ok, next} -> {:cont, {:ok, next}}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
+    run_steps(steps, %Tactic.Result{goals: [goal]}, goal)
   end
+
+  defp run_steps([], result, _goal), do: {:ok, result}
+
+  defp run_steps([step | _rest], %Tactic.Result{goals: [], solutions: solutions}, goal) do
+    trace = solutions |> Map.fetch!(goal.id) |> Map.fetch!(:trace)
+    Cure.Elab.ProofGoal.unreachable_statement(first_command(step), goal.source, trace)
+  end
+
+  defp run_steps([step | rest], result, goal) do
+    with {:ok, next} <- run_all(step, result), do: run_steps(rest, next, goal)
+  end
+
+  defp first_command({:command, node}), do: node
+  defp first_command({:sequence, [step | _]}), do: first_command(step)
 
   @doc """
   Run a step over a whole result, threading remaining goals.

@@ -383,6 +383,23 @@ defmodule Cure.Lean4Parity.Corpus do
         """
       ),
       parity_case(
+        id: "g2-tactic-rule-refuses-false-goal",
+        gap: :g2,
+        axis: :l4,
+        title: "a library tactic cannot close a false equality",
+        expect: :reject,
+        reason: "Template expansion must produce evidence checked at the original goal; 0 is not 1.",
+        source: """
+        mod Parity.G2TacticRuleFalseGoal
+          macro Tactics
+            tactic close becomes simplify
+          fn wrong() -> Equivalent(Int, 0, 1) = proof chain
+            0 == 1
+            because close
+        end
+        """
+      ),
+      parity_case(
         id: "g2-tactic-rule-rejects-core-term",
         gap: :g2,
         axis: :l4,
