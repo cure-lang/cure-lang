@@ -5,12 +5,18 @@ runtime equality token and no separate legacy checker: a declaration proving a
 proposition elaborates to checked Core, and proof-only values are erased before
 BEAM emission.
 
+Kernel typing alone does not establish termination. A hole-free declaration
+executing proof syntax or successful implicit proof search requires ordinary totality
+certification before admission; partial recursive evidence cannot become a
+logical proof merely by type-checking. See §6 for the E013 admission boundary.
+
 The proof *language* — `proof chain`, `because`, `have`, `rewrite`, `simplify`,
 `induction`, and explicit solver commands — is elaboration syntax on top of that. It adds no Core
 constructors and no kernel rules; everything below expands to terms you could
 have written by hand.
 
-Every `cure` fence in this document compiles against the tree as-is.
+Every `cure` fence is checked against the tree; error-tagged examples must
+produce their stated diagnostic.
 
 ## 1. Propositional equality
 
@@ -85,7 +91,7 @@ declared computed tactic; it is not a general tactic-block introducer.
 | `induction <value>` + `case <Ctor>(…) =>` | structural induction | [3.6](#36-induction) |
 | `?name`, `?_` | typed hole | [3.7](#37-holes) |
 | `f(label: value)` | named theorem arguments | [3.8](#38-named-arguments) |
-| `exact <proof>`, `apply <proof>` | close a justification with checked evidence | [3.9](#39-explicit-evidence-and-solvers) |
+| `exact <proof>`, `apply <proof>` | check evidence; `apply` may open ordered premise goals | [3.9](#39-explicit-evidence-and-solvers) |
 | `by search`, `by positivity`, `by assumption`, `by decide [using <decision>]`, `by omega` | checked solver commands | [3.9](#39-explicit-evidence-and-solvers) |
 | `tactic <rule> computed by <callback>` | declare a goal-inspecting checked-request callback | [3.10](#310-goal-inspecting-computed-tactics) |
 | `:goals` / `cure/proofState` | REPL / custom LSP goal inspection | [3.11](#311-goal-views) |
@@ -197,8 +203,11 @@ mod Justified
 end
 ```
 
-Commands run in source order and the block succeeds as soon as the goal is
-closed. This is the single most important thing to understand about
+Commands run in source order. After `apply` opens premises, each following
+statement acts on the first open premise, retaining its siblings; dependent
+domains become available only after earlier witnesses close. The block succeeds
+only when its original obligation is reconstructed and checked, with no
+pending parents. This is the single most important thing to understand about
 justification blocks:
 
 > **Some commands close the goal; some only transform it.** `simplify` closes.
@@ -416,12 +425,41 @@ Here `S` has one field, so `case S(previous, induction_hypothesis)` binds the
 predecessor and then the hypothesis for it. Every binding may be renamed. The
 generated hypotheses are specialised to the current branch.
 
-`induction` expands to the datatype's ordinary eliminator — it adds no kernel
-induction rule, and the totality checker validates the result through the same
-path as handwritten recursion. For non-inductive case analysis, keep using
+`induction` executes as a genuine goal command, then lowers to ordinary checked
+recursive match terms; each authored branch also runs goal commands. It adds no
+kernel induction rule, and ordinary totality certification validates the result
+through the same path as handwritten recursion. For non-inductive case analysis, keep using
 `match`; there is no separate `cases` command.
 
 Note the arrow: `case <Pattern> =>` uses `=>`, not the `->` of `match` arms.
+
+Templates can invoke induction and use actual recursive hypotheses:
+
+```cure
+mod InductionTemplate
+  macro Tactics
+    tactic prove_zero <n: Code> becomes induction n
+      case Z => simplify
+      case S(previous, induction_hypothesis) =>
+        simplify using [induction_hypothesis]
+
+  type Nat = Z | S(Nat)
+  fn plus(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(previous) -> S(plus(previous, right))
+
+  fn theorem(value: Nat) -> Equivalent(Nat, plus(value, Z), value) = proof chain
+    plus(value, Z) == value
+    because prove_zero value
+end
+```
+
+Constructor-field and IH binders are hygienic. The command uses the enclosing
+declaration's canonical frame and motive; standalone host API callers must
+supply that frame explicitly. Missing/foreign frames or unsupported changed
+motives refuse instead of reusing the wrong theorem. Existing non-parameter
+pre-lifting still produces ordinary checked private helpers; this is not an
+arbitrary new-motive helper generator.
 
 ### 3.7 Holes
 
@@ -444,9 +482,11 @@ and REPL goal view observe its actual expected type and named local context
 where the hole is checked (§3.11). For example, a hole used as an `Int` argument
 to a function returning `Float` requires `Int`, not `Float`.
 
-The legacy `Program.hole_goals/1` API and existing hole inlay hints remain
-definition-level return/context summaries. They must not be interpreted as
-precise nested-hole states or as a completed cursor-position goal panel.
+CLI/REPL reports and LSP hole hints use the explicit source context and actual
+hole occurrences, not question marks in strings/comments. The Env-only
+`Program.hole_goals/1` remains a coarse/deprecated compatibility API; precise
+callers retain `SourceContext` and use `Program.hole_goals(env, context)`.
+An environment alone cannot recover erased source names or occurrence spans.
 
 Two practical points:
 
@@ -482,17 +522,45 @@ Core. Unknown, duplicate, missing, misplaced, and ambiguous labels are all
 `UNKNOWN NAMED ARGUMENT [E115]` names the offending label and the value it was
 given.
 
-Ordinary calls cover forward reasoning; they do not replace backward reasoning.
-The currently supported `apply` closes a goal with supplied evidence, like
-`exact`; generating new premise goals from an under-applied theorem is later
-goal-API work, not an implemented feature.
+Ordinary calls cover forward reasoning. Backward `apply` can instead plan an
+under-applied theorem and open its remaining typed premises (§3.9).
 
 ### 3.9 Explicit evidence and solvers
 
 Inside a `because` justification, `exact expression` checks the expression
-against the goal. `apply expression` currently requires that application to
-close the goal too. Both inline and block forms are supported; neither creates
-unchecked evidence.
+against the focused goal. `apply expression` closes with fully supplied
+evidence or opens ordered premise goals for a partial global/local theorem or
+constructor. Arguments inferred from the conclusion are filled; dependent
+domains stage after earlier witnesses close. An unresolved implicit witness
+becomes an explicit typed obligation, not automatic search.
+
+For example, the conclusion of `trans` does not determine its middle value.
+Supply that witness first, then the two equality proofs:
+
+```cure
+mod BackwardApplication
+  use Std.Equivalent
+
+  fn theorem(
+    x: Int, y: Int, z: Int,
+    left: Equivalent(Int, x, y), right: Equivalent(Int, y, z)
+  ) -> Equivalent(Int, x, z) = proof chain
+    x == z
+    because
+      apply trans
+      exact y
+      exact left
+      exact right
+end
+```
+
+This constructs the same checked application as `exact trans(left, right)`.
+Each statement focuses one premise rather than broadcasting to every sibling.
+Nested applications preserve both pending parents and siblings. Child evidence
+is checked before instantiating later domains; the completed application is
+checked at the original parent, restoring its saved facts/transports once.
+Unfinished/wrong premises, meta-bearing goals and holes masquerading as child
+solutions refuse. No frame or metavariable is serialized as proof evidence.
 
 The explicit solvers also work as function bodies and in checked expression
 positions, including non-equality propositions:
@@ -619,7 +687,7 @@ data or reuse another invocation's handle.
 
 At most 256 operations may be returned. The closed vocabulary includes
 simplification, explicit-rule simplification, forward/backward/all rewrites,
-`exact`, closing `apply`, and the explicit solver clients. Arity and arguments
+`exact`, premise-producing `apply`, and the explicit solver clients. Arity and arguments
 are validated, and operation arguments cannot introduce another deferred
 computed use. Generated binders use explicit `Std.Syntax.fresh(...)` markers;
 ordinary authored identifiers are not silently renamed.
@@ -628,12 +696,17 @@ The callback runs once; operations run in order through existing checked
 commands. They may leave a transformed goal for a later command, but an
 unfinished whole proof still refuses. Returned syntax is a set of requests,
 not evidence or a trusted Core-construction API. Closure evidence is
-kernel-checked at the original obligation. Premise-generating `apply` and a
-reusable induction command remain open features.
+kernel-checked at the original obligation. Computed operation sequences use
+the same focused multi-premise session reducer as source commands/templates.
+Canonical-frame induction remains subject to §3.6's motive/frame limits; the
+protocol is not unrestricted recursive helper synthesis.
 
 ### 3.11 Goal views
 
-`Cure.Elab.ProofState` provides scoped presentation-only observations of
+`Cure.Elab.SourceContext.analyze/2` wraps the canonical
+`Compiler.check_source` path and retains explicit immutable text/file/hash/
+version observations, including partial observations from refused checks.
+`Cure.Elab.ProofState` supplies scoped presentation-only observations of
 commands and checked holes. It publishes `:proof_state` pipeline events with a
 phase (`:before`, `:after`, `:failed`, `:unfinished`, or `:hole`), source spans
 and the ordered remaining goals. A successfully closed command has no remaining
@@ -641,13 +714,26 @@ goals. Each goal includes the target and named hypotheses; rendering deferred
 `have` facts preserves the physical kernel-context names rather than shifting
 the target onto the new fact's name.
 
-The custom LSP request `cure/proofState` accepts `textDocument.uri` and
-`position`, using the negotiated UTF-8/16/32 encoding. Inside a command it
+Single-buffer checking, compilation and imported-provider parsing share the
+canonical provider-before-consumer grammar path. An active consumer can differ
+from its saved file without writing that file. Dependencies use saved source
+providers; saving a provider invalidates dependent analyses and refreshes the
+active view even when the consumer's version is unchanged. Unsaved sibling
+provider overlays are not merged. This is distinct from the inherited
+interface-only macro-grammar publication limitation.
+
+The custom LSP request `cure/proofState` accepts `textDocument.uri`,
+`position` and an optional top-level `version` (also accepted within
+`textDocument`), using the negotiated UTF-8/16/32 encoding. A mismatched version
+or closed document returns `-32801` (ContentModified). Analysis is cached only
+for the current URI/version and invalidates on edit/close. Inside a command it
 returns that command's input state; at the command's end or between commands it
 returns its output. A refused/unfinished command retains the available residual
 state instead of requiring a successfully elaborated document. A cursor outside
 an observed proof region returns no goals. Responses carry
-`{"goals": [{"function": "...", "goal": "...", "context": ["x : Int"]}]}`.
+`{"goals": [{"function": "...", "goal": "...", "context": ["x : Int"]}], "version": 1}`.
+An empty response means no observed state at that position, not a claim that
+the document is a complete proof.
 
 REPL `:goals` shows the last definition submission's remaining states, including
 a refused proof, without installing failed definitions. `:reset` clears that
@@ -655,11 +741,19 @@ retained view. `Cure.REPL.Session.goals/1` uses the same capture API for session
 definitions. These observations do not resolve holes, certify definitions or
 weaken the code-generation firewall.
 
-**Scope boundary:** the server capability and REPL path are implemented, not
-a VS Code goal-panel consumer. Legacy `Program.hole_goals/1` and existing hole
-inlay hints still summarize enclosing definitions; they are not interchangeable
-with this precise command/hole view. C7 and authoritative Phase 4 therefore
-remain partial.
+The native VS Code **Cure Goals** tree in Explorer and **Cure: Show Proof Goals**
+command (`cure.showGoals`) display targets and named hypotheses as plain text.
+Loading/error/unavailable/no-state are distinct. Active-editor, primary-cursor,
+text-change and close events refresh or clear the view; debounced requests
+coalesce to one live request per transport generation plus the newest desired
+query. Cancellation and generation/epoch/URI/version/position checks discard
+late answers, including across serialized server restarts.
+
+Hole occurrence indexing remains separate from logical-goal deduplication.
+Source metadata is presentation-only, never Core/interface evidence; Env-only
+compatibility summaries remain coarse. Final merged full-suite and real
+Extension Host measurements are pending in the scorecard, so implemented views
+are not yet a final Phase 4 completion claim.
 
 ## 4. Generated defining equations
 
@@ -720,6 +814,7 @@ type error; erased indices cannot be smuggled into relevant runtime code.
 
 | Code | Title | Raised when |
 |---|---|---|
+| `E013` | Compile-time totality unproven | a hole-free logical-proof declaration cannot receive ordinary totality certification, or a distinct authored/type-level totality requirement fails (§6) |
 | `E014` | Unfilled hole | a hole survives to `cure compile` (§3.7) |
 | `E091` | Unknown value | a proof helper is not imported or an ordinary value name cannot resolve |
 | `E109` | Proof chain syntax error | an empty/malformed chain, missing relation/right side/`because`, or a statement after closure |
@@ -750,6 +845,30 @@ evidence.
 
 Nothing in §3 is a trust root. Proof commands are elaboration syntax: they add
 no unchecked Core nodes and do not survive erasure.
+
+### Automatic logical-proof admission
+
+Hole-free declarations executing proof syntax or successful implicit search require ordinary totality
+certification after bodies and evidence dependencies are checked. The
+requirement includes `proof chain`, proof applications, solvers,
+templates/computed tactics, induction and legacy `rewrite proof in body`;
+quoted syntax is data and does not count as execution.
+
+Anonymous `?` search and automatic refinement discharge use the same admission
+requirement. Successful-search tracking is scoped to the checked declaration
+and only commits a selected overload candidate; discarded speculative
+candidates do not turn unrelated partial runtime code into proof declarations.
+
+Uncertified self/mutual/imported recursive evidence cannot be admitted merely
+because an application has the desired type. E013's logical-proof diagnostic
+distinguishes this automatic requirement from an authored `@total true`.
+`@total false` does not waive it. Pending certification deferrals are not
+certificates; no trusted termination rule or kernel constructor is changed.
+
+Ordinary partial runtime functions remain legal. Development buffers containing
+surviving holes remain checkable and observable, but release/code generation
+still refuses E014. This is the proof-syntax admission boundary, not a claim
+that all ordinary partial programs form a consistent logical proof language.
 
 ## 7. Standard proof modules
 

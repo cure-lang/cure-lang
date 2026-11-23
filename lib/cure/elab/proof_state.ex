@@ -7,20 +7,23 @@ defmodule Cure.Elab.ProofState do
   elaborations retain observations made before the failure.
 
   The custom LSP proof-state request and REPL goal view use this source-indexed
-  API. Legacy `Program.hole_goals/1` and the existing hole inlay hints still use
-  definition-return summaries, not precise nested-hole obligations. An editor
-  goal-panel client is separate from this server-side observation API.
+  API through an explicit `SourceContext`. Legacy `Program.hole_goals/1` is a
+  coarse definition-return compatibility summary, not a nested-hole obligation.
   """
 
   alias Cure.Core.{Env, Printer}
   alias Cure.Diagnostic.Span
-  alias Cure.Elab.{Name, Program, ProofGoal}
+  alias Cure.Elab.{Name, ProofGoal}
   alias Cure.MetaAST.Metadata
   alias Cure.Pipeline.Events
 
   @capture_key {__MODULE__, :capture}
   @rendering_key {__MODULE__, :rendering}
   @command_key {__MODULE__, :command}
+  @session_key {__MODULE__, :session}
+  @session_scope_key {__MODULE__, :session_scope}
+  @statement_key {__MODULE__, :statement}
+  @speculating_key {__MODULE__, :speculating}
 
   @doc "Capture observations made by a callback, without changing its return value."
   def capture(fun) when is_function(fun, 0) do
@@ -32,6 +35,57 @@ defmodule Cure.Elab.ProofState do
       {result, @capture_key |> Process.get() |> Enum.reverse()}
     after
       restore(@capture_key, previous)
+    end
+  end
+
+  @doc false
+  def speculate(fun) do
+    if active?() do
+      previous = Process.put(@speculating_key, true)
+
+      try do
+        capture(fun)
+      after
+        restore(@speculating_key, previous)
+      end
+    else
+      {fun.(), []}
+    end
+  end
+
+  @doc false
+  def commit_observations(states) do
+    Enum.each(states, &record/1)
+  end
+
+  @doc false
+  def with_session(fun, source \\ nil) do
+    previous = Process.put(@session_key, true)
+    previous_scope = Process.get(@session_scope_key)
+
+    if source do
+      scope = authored_span(span(source), Process.get(@statement_key) || previous_scope)
+      Process.put(@session_scope_key, scope)
+    end
+
+    try do
+      fun.()
+    after
+      restore(@session_key, previous)
+      restore(@session_scope_key, previous_scope)
+    end
+  end
+
+  @doc false
+  def within_statement(statement, fun) do
+    previous = Process.get(@statement_key)
+    current = authored_span(span(statement), previous || Process.get(@session_scope_key))
+    Process.put(@statement_key, current || previous)
+
+    try do
+      fun.()
+    after
+      restore(@statement_key, previous)
     end
   end
 
@@ -66,20 +120,21 @@ defmodule Cure.Elab.ProofState do
 
   @doc "Elaborate a buffer and retain partial proof states even if it is refused."
   def elaborate(source, opts \\ []) do
-    {result, snapshots} = capture(fn -> Program.elaborate(source, opts) end)
-    file = Keyword.get(opts, :file, "nofile")
-    {result, Enum.filter(snapshots, &(from_file?(&1.span, file) or from_file?(&1.scope, file)))}
+    {result, context} = Cure.Elab.SourceContext.analyze(source, opts)
+    {result, context.observations}
   end
 
   @doc false
   def observe(phase, statement, original, goals) do
-    if active?() do
+    if active?() and not Process.get(@session_key, false) do
+      scope = span(original.source)
+
       record(%{
         id: original.id,
         phase: phase,
         kind: :command,
-        span: span(statement),
-        scope: span(original.source),
+        span: authored_span(span(statement), scope),
+        scope: scope,
         goals: Enum.map(goals, &view/1)
       })
     end
@@ -105,13 +160,43 @@ defmodule Cure.Elab.ProofState do
     :ok
   end
 
-  @doc "Return the last observed remaining goals, in observation order."
+  @doc "Observe the entire source-session frontier without retaining proof evidence."
+  def observe_session(phase, statement, root, frontier) do
+    if active?() do
+      root_span = span(root.source)
+      authored = Process.get(@statement_key) || Process.get(@session_scope_key) || root_span
+      statement_span = authored_span(span(statement), authored)
+      scope = authored_span(Process.get(@session_scope_key) || hull(root_span, statement_span), authored)
+
+      record(%{
+        id: {:session, root.id},
+        phase: phase,
+        kind: :session,
+        span: statement_span,
+        scope: scope,
+        goals: Enum.map(frontier, &view/1)
+      })
+    end
+
+    :ok
+  end
+
+  @doc "Return the latest authoritative frontiers and standalone hole goals."
   def remaining(snapshots) do
-    snapshots
-    |> Enum.reverse()
+    latest = snapshots |> Enum.reverse() |> Enum.uniq_by(& &1.id) |> Enum.reverse()
+    indexed = Enum.with_index(latest)
+    sessions = Enum.filter(indexed, fn {state, _index} -> state.kind == :session end)
+
+    indexed
+    |> Enum.reject(fn {state, index} ->
+      Enum.any?(sessions, fn {session, session_index} ->
+        session.id != state.id and state.kind != :hole and
+          contains_span?(session.scope, state.scope || state.span) and
+          (state.kind != :session or span_size(session.scope) > span_size(state.scope) or session_index > index)
+      end)
+    end)
+    |> Enum.flat_map(fn {state, _index} -> state.goals end)
     |> Enum.uniq_by(& &1.id)
-    |> Enum.reverse()
-    |> Enum.flat_map(& &1.goals)
   end
 
   @doc "Select the proof state at an LSP position using the negotiated encoding."
@@ -123,9 +208,19 @@ defmodule Cure.Elab.ProofState do
         inside?(state.scope || state.span, source, encoding, cursor)
       end)
 
+    relevant =
+      case Enum.min_by(relevant, &span_size(&1.scope || &1.span), fn -> nil end) do
+        nil ->
+          []
+
+        inner ->
+          size = span_size(inner.scope || inner.span)
+          Enum.filter(relevant, &(span_size(&1.scope || &1.span) == size))
+      end
+
     # Inside a command, show its input. At its end (or between commands), show
     # its output. This gives precise before/after semantics on a single line.
-    case Enum.find(relevant, fn state ->
+    case Enum.find(Enum.sort_by(relevant, &span_size(&1.span)), fn state ->
            state.phase == :before and inside_command?(state.span, source, encoding, cursor)
          end) do
       nil ->
@@ -135,10 +230,11 @@ defmodule Cure.Elab.ProofState do
           (state.kind == :hole and inside?(state.span, source, encoding, cursor)) or
             range_end(state.span, source, encoding) <= cursor
         end)
+        |> Enum.sort_by(fn state -> -span_size(state.scope || state.span) end)
         |> List.last()
         |> case do
           nil ->
-            case List.first(relevant) do
+            case relevant |> Enum.sort_by(&span_size(&1.scope || &1.span)) |> List.first() do
               %{phase: :before, goals: goals} -> goals
               _ -> []
             end
@@ -215,26 +311,58 @@ defmodule Cure.Elab.ProofState do
       nil -> :ok
     end
 
-    location = state.span || state.scope
-    file = if location, do: location.path || location.source_id, else: "nofile"
-    line = if location, do: location.start_line, else: 1
-    Events.emit(:type_checker, :proof_state, state, %{file: file, line: line})
+    unless Process.get(@speculating_key, false) do
+      location = state.span || state.scope
+      file = if location, do: location.path || location.source_id, else: "nofile"
+      line = if location, do: location.start_line, else: 1
+      Events.emit(:type_checker, :proof_state, state, %{file: file, line: line})
+    end
   end
 
-  defp span({_tag, meta, _children}), do: span(meta)
+  defp span({_tag, meta, children}), do: hull(span(meta), span(children))
 
   defp span(meta) when is_list(meta) do
-    case Metadata.source_info(meta) do
-      %{whole: %Span{} = whole} -> whole
-      _ -> nil
+    if Keyword.keyword?(meta) do
+      case Metadata.source_info(meta) do
+        %{whole: %Span{} = whole} -> whole
+        _ -> nil
+      end
+    else
+      Enum.reduce(meta, nil, &hull(span(&1), &2))
     end
   end
 
   defp span(_other), do: nil
 
-  defp from_file?(%Span{source_id: file}, file), do: true
-  defp from_file?(%Span{path: file}, file), do: true
-  defp from_file?(_span, _file), do: false
+  defp hull(nil, span), do: span
+  defp hull(span, nil), do: span
+
+  defp hull(%Span{} = left, %Span{} = right) do
+    if same_source?(left, right) do
+      first = if left.start_byte <= right.start_byte, do: left, else: right
+      last = if left.end_byte >= right.end_byte, do: left, else: right
+      %{first | end_byte: last.end_byte, end_line: last.end_line, end_column: last.end_column}
+    else
+      left
+    end
+  end
+
+  defp authored_span(nil, _anchor), do: nil
+  defp authored_span(span, nil), do: span
+  defp authored_span(span, anchor), do: if(same_source?(span, anchor), do: span, else: anchor)
+
+  defp same_source?(%Span{} = left, %Span{} = right) do
+    identity = left.path || left.source_id
+    not is_nil(identity) and identity == (right.path || right.source_id)
+  end
+
+  defp contains_span?(%Span{} = outer, %Span{} = inner),
+    do: same_source?(outer, inner) and outer.start_byte <= inner.start_byte and inner.end_byte <= outer.end_byte
+
+  defp contains_span?(_outer, _inner), do: false
+
+  defp span_size(%Span{start_byte: first, end_byte: last}), do: last - first
+  defp span_size(nil), do: 1_000_000_000
 
   defp inside?(nil, _source, _encoding, _cursor), do: false
 

@@ -766,20 +766,20 @@ defmodule Cure.CLI do
     # same stdlib surface `cure compile` already guarantees.
     preload_runtime_dependencies!(project)
 
-    case Cure.Compiler.check_source(source, file: path, source_roots: source_roots) do
-      {:ok, env} ->
+    case Cure.Elab.SourceContext.analyze(source, file: path, source_roots: source_roots) do
+      {{:ok, env}, context} ->
         # A hole typechecks but blocks codegen (Emit.reject_holes/2). Reporting
         # `OK` for a file that `cure compile` will later refuse is a false green:
         # the user is told the file is fine and only discovers otherwise at the
         # next step. Surface the hole goals here so `check` and `compile` agree.
         # The warning is non-fatal by default (a hole is a development state, not
         # an error); `--strict` promotes it to a failure for CI. See §4.2.
-        holes = Cure.Elab.Program.hole_goals(env)
+        holes = Cure.Elab.Program.hole_goals(env, context)
 
         if holes == [] do
           info("#{path}: OK")
         else
-          Enum.each(holes, &emit_hole_warning(&1, path))
+          Enum.each(holes, &emit_hole_warning(&1, path, source))
 
           if Keyword.get(opts, :strict, false) do
             exit({:shutdown, 1})
@@ -788,7 +788,7 @@ defmodule Cure.CLI do
           end
         end
 
-      {:error, reason} ->
+      {{:error, reason}, _context} ->
         # The dependent checker returns a tagged `{:error, term}`; funnel it
         # through the shared structured sink.
         emit_host_diagnostic(reason, path, source)
@@ -796,10 +796,10 @@ defmodule Cure.CLI do
     end
   end
 
-  # A hole goal (`Program.hole_goals/1`) rendered as the public E014 diagnostic.
+  # A checking-site hole goal rendered as the public E014 diagnostic.
   # The goal/context are the payload the REPL already displays; here they are
   # reported as a non-fatal warning so `cure check` stops returning a false green.
-  defp emit_hole_warning(%{function: name, goal: goal, context: context}, path) do
+  defp emit_hole_warning(%{function: name, goal: goal, context: context, span: span}, path, source) do
     definition = Cure.Elab.Name.base(name) || Atom.to_string(name)
 
     reason =
@@ -808,10 +808,19 @@ defmodule Cure.CLI do
          definition: definition,
          goal: goal,
          context: context,
+         span: span,
          severity: :warning
        }}
 
-    emit_host_diagnostic(reason, path)
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, path, source)
+    notes = [Cure.Diagnostic.Doc.paragraph("Goal: " <> goal)]
+
+    notes =
+      if context == [],
+        do: notes,
+        else: notes ++ [Cure.Diagnostic.Doc.paragraph("Context: " <> Enum.join(context, ", "))]
+
+    emit_diagnostic(%{diagnostic | notes: diagnostic.notes ++ notes}, registry)
   end
 
   # -- lsp ---------------------------------------------------------------------

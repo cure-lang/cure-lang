@@ -6,8 +6,9 @@
 
 **Phase-number correction (2026-11-21):** the sequence below differs from the
 authoritative `PATH_TO_LEAN4.md` §8. Current Phase 1 is C4/C5/C8, implemented
-within its stated gates. Current Phase 2 delivers C1.1 infrastructure and
-C1.3 solver clients but not the reusable-induction-command adequacy gate.
+within its stated gates. Current Phase 2 implements C1.1 infrastructure,
+C1.3 solver clients and canonical-frame induction-command lowering; merged
+adequacy, reconstruction and diagnostic validation pass.
 Use the scorecard for current measurement. Certified unfolding required no TCB
 change, and `plus(n, Z()) = n` is an induction theorem, not a missing reduction.
 Later-phase descriptions and baseline findings below are retained historically,
@@ -17,9 +18,18 @@ not as assertions about today's implementation.
 templates are implemented. This was a command-composition prerequisite, not
 the full goal-inspecting interface. The later continuation adds typed
 `computed by` / `Std.Tactic` callbacks and per-command server/REPL views.
-Authoritative Phase 3 remains C3 operator fixity; authoritative Phase 4 remains
-partial because premise-generating `apply` and the VS Code goal panel are open.
+Authoritative Phase 3 remains C3 operator fixity; authoritative Phase 4 now
+passes its documented premise-generating `apply`, computed-tactic and
+source-aware native-editor gates. Canonical-frame induction adequacy also passes.
 See the scorecard and §4 below for the precise boundary and audit corrections.
+
+**Final closure validation (2026-11-22):** 7,310 tests, zero failures, eight
+excluded; 363 documentation snippets; 44 compiled parity pins; 71 stdlib
+checks and 40 examples. Formatting, Credo, Dialyzer, grammar, nine Node tests
+and the real rebuilt-server Extension Host pass. The scorecard records exact
+scope and counts. Proof admission also requires ordinary totality for
+hole-free declarations executing proof syntax or successful implicit search.
+Historical counts below remain historical.
 
 ---
 
@@ -48,9 +58,9 @@ These were wrong in the first draft of this plan and are corrected here:
 1. **`apply`/`exact` are not missing.** An earlier C6 description obscured that
    the parser already carries `proof_application` nodes for both (see
    `lib/cure/compiler/parser.ex`, `parse_proof_application/3`). The real
-   remaining work is specifically generating premise goals and reconstructing
-   checked evidence for an under-applied theorem. Closing `apply` alone does
-   not implement that capability.
+   closure work was specifically generating premise goals and reconstructing
+   checked evidence for an under-applied theorem. Application sessions now
+   implement that capability; closing `apply` alone was not sufficient.
 2. **`rewrite`'s single-occurrence default is a real gap (C8), not a feature.**
    The first draft treated `E111`-on-multiple-matches as correct strictness. It
    is a deliberate choice, but it is *tedium*, and `PATH_TO_LEAN4.md` §11
@@ -246,9 +256,13 @@ definition submissions without installing them as executable definitions.
 
 Actual nested-hole obligations are observed where the expected type and named
 context are available, not reconstructed from a function's return type.
-Legacy `Program.hole_goals/1` and existing hole inlay hints still use that older
-summary and are not claimed equivalent to the new views. A VS Code goal-panel
-consumer remains open.
+An explicit ephemeral `SourceContext` now connects the canonical compiler check
+to CLI/REPL/LSP observations and inlay hints, including actual surviving hole
+occurrences. Env-only `Program.hole_goals/1` remains a coarse, deprecated
+compatibility path; precise callers use an explicit source context. The native
+VS Code tree consumes cursor states with version and lifecycle freshness checks.
+Its real merged-server Extension Host gate passes, including imported tactics,
+unsaved consumer text, provider saves and lifecycle/cursor controls.
 
 **Gate discipline.** An unfinished `because` proof remains an elaboration
 refusal even when its residual goal is successfully displayed. Do not flip a
@@ -274,11 +288,14 @@ refusal pin to acceptance merely because the diagnostic is now useful.
 3. Re-point `simplify`, `rewrite`, `induction`, `have`, `because`,
    `apply`/`exact` as clients. **Byte-identical diagnostics** is the gate.
 
-**Remaining adequacy gate.** Preserve the existing `E109`–`E115` compatibility
-tests and demonstrate all six original forms as genuine goal-API clients.
-Ordinary induction still has declaration-level recursive lowering; accepting
-an induction AST or invoking another tactic in an induction arm does not
-demonstrate a reusable induction command.
+**Adequacy gate met.** The existing `E109`–`E115` compatibility tests and
+non-vacuous execution tests validate all six original forms as goal-API clients.
+Ordinary induction and each authored branch now execute goal commands with a
+canonical declaration frame. Templates validate case structure and hygienic
+constructor-field/IH binders. Standalone callers supply the canonical frame;
+foreign frames and unsupported changed motives refuse. Existing checked
+recursive lowering and non-parameter pre-lifted helpers remain in use; arbitrary
+new helper motives are outside scope. Accepting an AST alone is not evidence.
 
 **TCB.** None.
 
@@ -292,9 +309,9 @@ demonstrate a reusable induction command.
 **Implemented boundary:** a library defines a contextual `tactic ... becomes`
 rule composing existing proof commands. That template form does not receive a
 goal value; the subsequent authoritative Phase 4 continuation implements the
-separate typed `computed by` / `Std.Tactic` protocol. Induction templates remain
-rejected until their recursive lowering is wired to this API; invoking tactics
-in ordinary induction arms is supported.
+separate typed `computed by` / `Std.Tactic` protocol. Induction templates now
+invoke genuine canonical-frame goal commands rather than merely allowing an
+induction tag. Final merged execution and compatibility validation pass.
 
 **Audit corrections (2026-11-22):**
 - Scripts now return transformed open goals to caller commands and report the
@@ -362,8 +379,38 @@ complete Presburger automation are not delivered.
 authenticated operations run through existing checked commands. Explicit fresh
 markers preserve generated-binder hygiene. Source-backed imports and
 original-goal controls accompany the per-command server/REPL views described
-above. Premise-generating `apply`, reusable induction-command adequacy, and the
-VS Code goal panel remain open.
+above. Application sessions now support focused, ordered premises and staged
+value/proof dependencies from partial global/local heads and constructors.
+Unresolved implicit witnesses become visible typed obligations: `apply trans`
+requires its unconstrained middle witness before the two equality proofs.
+Nested sessions preserve siblings and pending parents until reconstructed
+evidence checks at the original goal. Ordinary source sequencing focuses the
+first premise; explicit host all-goals combinators retain broadcast semantics.
+Canonical-frame induction and the native VS Code consumer are implemented;
+the final merged gates pass within the documented contracts.
+
+**Admission blocker addressed without a TCB change.** Kernel typing alone can
+type a nonterminating evidence application. Hole-free declarations executing
+actual proof syntax, including legacy expression rewrite and expanded tactics,
+therefore automatically require ordinary totality certification after bodies
+are checked. E013 reports an unproven proof-admission requirement distinctly
+from an authored `@total true`. Quoted syntax does not trigger execution;
+ordinary partial runtime functions remain legal. Development holes remain
+checkable, but E014 still blocks release. Pending deferrals are not certificates.
+Four private structural Nat helpers repair integer commutativity/associativity
+certification and its dependent proof cone, without changing public theorem
+types, trusted rules, or the bounded `omega` fragment.
+Successful anonymous-hole/refinement proof search is covered even without an
+explicit command; scoped effects commit only the selected overload. The
+single-buffer and imported-provider parser now share canonical grammar
+expansion, including an unsaved active consumer and saved providers without
+source writes. Unsaved sibling provider overlays remain outside that contract.
+
+**Final gate met:** focused application/induction/admission/source suites, the
+actual compiler parity corpus, full ExUnit/docs, quality/Dialyzer,
+stdlib/examples, grammar/unit checks and the real merged-server Extension Host
+pass. Authoritative Phase 4 is complete within its documented contracts, not
+unrestricted Lean metaprogramming or general arithmetic reflection.
 
 **TCB.** None — all automation is untrusted-**and**-checked.
 

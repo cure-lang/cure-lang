@@ -149,6 +149,12 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
   def from_error({:total_required_by_decorator, name}, opts),
     do: total_decorator_failure(name, %{}, opts)
 
+  def from_error({:proof_totality_required, name}, opts),
+    do: proof_totality_failure(name, %{}, opts)
+
+  def from_error({:source_context, {:proof_totality_required, name}, context}, opts) when is_map(context),
+    do: proof_totality_failure(name, context, opts)
+
   def from_error({:total_bad_argument, name, shape}, opts),
     do: total_bad_argument_failure(name, shape, opts)
 
@@ -595,6 +601,38 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
         name: name,
         checking: Map.get(context, :checking, Keyword.get(opts, :checking)),
         reason: Map.get(context, :totality_reason)
+      }
+    )
+  end
+
+  defp proof_totality_failure(name, context, opts) do
+    calls = Map.get(context, :recursive_call_spans, [])
+    definition = Map.get(context, :definition_span)
+    {primary, secondary} = totality_labels(calls, definition, opts)
+
+    Diagnostic.new(
+      code: "E013",
+      key: :proof_totality_unproven,
+      severity: :error,
+      title: "Proof requires total evidence",
+      body:
+        Doc.paragraph(
+          "`#{name_to_string(name)}` uses proof commands or automatic proof search, but the compiler cannot certify its completed evidence and dependencies as total. A nonterminating computation is not a logical proof."
+        ),
+      primary: primary,
+      secondary: secondary,
+      suggestions: [
+        %Suggestion{
+          message: "Use certified evidence and make recursive proof calls structurally decrease",
+          applicability: :manual
+        }
+      ],
+      notes: ["Ordinary runtime functions may remain partial; a completed proof script may not rely on divergence."],
+      payload: %{
+        name: name,
+        checking: Map.get(context, :checking, Keyword.get(opts, :checking)),
+        reason: Map.get(context, :totality_reason),
+        requirement_origin: :proof_commands
       }
     )
   end

@@ -1,7 +1,9 @@
 # Cure → Lean Feature Parity: Audited Roadmap
 
-**Status includes the 2026-11-22 Phase 4 continuation; integrated validation is
-recorded separately in the scorecard.**
+**Phase 4 is complete within its stated C1.2/C6/C7 gates (2026-11-22).**
+Final integrated tests, compiled parity and the real rebuilt-server Extension
+Host pass. The inherited induction-command adequacy gate is also met.
+The scope limits below remain explicit; overall Lean parity is not claimed.
 This document is authoritative for the C1–C10 register, phase numbering and
 completion gates. It supersedes
 [`LEAN4_MIGRATION_PLAN.md`](LEAN4_MIGRATION_PLAN.md);
@@ -15,13 +17,12 @@ or a substitute for Cure-facing proof tooling.
 
 ## Audited implementation status
 
-**Phase 1 is complete within its stated gates. Phase 2's goal infrastructure
-and solver clients are delivered, but its original six-command adequacy gate
-is not fully met.** Ordinary induction still uses declaration-level recursive
-lowering rather than a reusable induction command on the goal API.
-Earlier Phase 2 completion reports describe the delivered infrastructure, not
-evidence that this remaining gate passed. Section 8 makes that distinction
-explicit rather than silently weakening the gate.
+**Phase 1 is complete within its stated gates. Phase 2's goal infrastructure,
+solver clients and genuine induction command are implemented.** Ordinary
+induction and its branches now execute through the goal API using the canonical
+declaration frame and existing checked recursive lowering. Merged six-command
+compatibility and evidence validation pass, including actual IH use and
+refusal controls; a command tag alone was not counted as completion.
 
 - **C5:** certified recursive unfolding already existed through kernel
   normalization; nested computational goals now have explicit positive and
@@ -48,9 +49,18 @@ explicit rather than silently weakening the gate.
   Returned operations are bounded, authenticated requests to existing checked
   commands, not proof objects.
 - **C7:** per-command observations, cursor-filtered `cure/proofState` requests
-  and REPL `:goals` are delivered, including residual states from refused
-  proofs. A VS Code goal-panel client is not delivered. Legacy hole summaries
-  and inlay hints still do not describe precise nested-hole obligations.
+  and REPL `:goals` now share an explicit ephemeral `SourceContext` with actual
+  checking-site hole reports, CLI output and inlay hints. A native VS Code
+  goal tree consumes these states; real integrated host validation passes.
+  Env-only `Program.hole_goals/1` remains a coarse compatibility API.
+- **C6:** backward application produces ordered focused premises, stages
+  dependent domains, and reconstructs checked evidence at the original parent.
+  An unresolved implicit witness is a visible typed obligation, not hidden
+  search. Pending parents are not solved goals.
+- **Proof admission:** a hole-free declaration executing proof syntax or successful implicit search
+  must receive ordinary totality certification, including its evidence
+  dependencies. Uncertified recursive evidence is refused with E013; kernel
+  typing alone does not prove termination. No kernel rule or bypass is added.
 
 Corrections to the original analysis: a neutral `plus(n, Z()) = n` requires
 induction in Lean too, so its rejection is not a delta-reach gap. A parser node
@@ -59,8 +69,8 @@ alone was not evidence that rewrite-all or inline proof commands worked.
 
 The remaining sections distinguish implemented mechanisms from future work.
 References to `@[simp]` mean the capability, spelled `@simp` or
-`@lemma(:simp)` in Cure. C6 is only partially implemented: current `apply`
-closes with supplied evidence but does not generate premise subgoals.
+`@lemma(:simp)` in Cure. Delivered closure mechanisms and measured integration
+results are distinguished throughout and recorded in the scorecard.
 
 ### Template-tactic audit — 2026-11-22
 
@@ -75,8 +85,8 @@ not a goal. The subsequent continuation adds the goal-inspecting
 `computed by` / `Std.Tactic` protocol described below.
 Authoritative Phase 3 (§8) remains operator fixity; template tactics are a
 prerequisite slice of authoritative Phase 4. See the scorecard for measured
-status. Induction templates are explicitly refused until recursive command
-lowering is supported, but invoking tactics inside ordinary induction arms works.
+status. Induction templates now invoke the checked induction command, with
+structural case validation and constructor-field/IH binder hygiene.
 Source-backed imported templates retain provider helper grammar; interface-only
 macro grammar loading remains an inherited limitation shared with syntax macros.
 
@@ -99,12 +109,18 @@ a machine-checked soundness theorem. Deliberate negative pins, including false
 goals and unfinished proofs, must remain negative.
 
 These measurements are historical baselines, not validation of the current
-continuation. The final integrated run passed **7,214 tests, zero failures,
+closure implementation. The previous continuation run passed **7,214 tests, zero failures,
 eight excluded**, followed by **361 documentation snippets, zero failures**
 (seed 622482). All **39 parity pins**, **71 stdlib checks and 40 examples**
 passed; formatting, Credo, Dialyzer and whitespace checks passed without new
 suppressions. The scorecard records the detailed results and remaining gates;
-passing these checks does not establish all authoritative Phase 4 gates.
+passing those historical checks does not establish current Phase 4 closure.
+The final closure run passes **7,310 tests, zero failures, eight excluded**
+(seed 622482), followed by **363 documentation snippets, zero failures**.
+All **44 parity pins (25 accept, 19 reject)**, **71 stdlib checks** and
+**40 examples** pass. Formatting, Credo, Dialyzer and whitespace checks pass
+without new suppressions. The rebuilt-server official VS Code Extension Host,
+TypeScript compilation, grammar check and nine Node tests pass as well.
 
 ---
 
@@ -124,12 +140,12 @@ scope, not blanket parity with every Lean tactic, library or calculus feature:
 | P7 | Mutual and well-founded recursion | Implicit forward/mutual references; SCC size-change certification | **Mechanisms present**; not a claim of all Lean well-founded-recursion capabilities |
 | P8 | Metaprogramming over goals (`Lean.Meta`) | Host goal API, checked templates and typed goal-inspecting `computed by` tactics | **Delivered bounded protocol**; not unrestricted `Lean.Meta` equivalence |
 
-**The measured conclusion:** Cure has checked proof commands, bounded solver
-clients, user-defined templates and goal-inspecting computed tactics.
-Premise-generating backward application, reusable induction-command adequacy,
-and a VS Code goal-panel client remain open. Per-command server/REPL views do
-not fix the legacy hole-summary/inlay limitation. Universes, fixity completion
-and the reach ledger have separate gates; this work does not close them.
+**Implementation boundary:** Cure has checked proof commands, bounded solver
+clients, templates, goal-inspecting computed tactics, premise-generating
+application, canonical-frame induction and source-aware native editor views.
+Their final merged acceptance gates pass. Env-only hole summaries remain
+coarse by design. Universes, fixity completion and the reach ledger have
+separate gates; this work does not close them.
 
 The tactic layer is not structurally absent. `docs/PROOFS.md` §3 defines
 `have`, `proof chain`, `because`, `simplify` (with `using [rules]` and
@@ -142,13 +158,13 @@ The tactic layer is not structurally absent. `docs/PROOFS.md` §3 defines
 
 | ID | Audited status / remaining gap | Lean counterpart | Impact | Gate |
 |---|---|---|---|---|
-| **C1** | **Partial:** host goal state, combinators, bounded solvers, templates and goal-inspecting Cure tactics exist; reusable induction-command adequacy remains. | `Lean.Meta` / `Lean.Elab.Tactic` | Custom tactics | C1.1–C1.3 below |
+| **C1** | **Implemented and validated within stated scope:** goal API, combinators, bounded solvers, templates, computed tactics and canonical-frame induction. | `Lean.Meta` / `Lean.Elab.Tactic` | Custom tactics | C1.1–C1.3 below |
 | **C2** | **Open:** execute the existing U0–U7 universe design; surface syntax is not its completion gate. | `Type u` | Generic stdlib | Existing spec §21 |
 | **C3** | **Unaudited completion:** fixity machinery exists; neither its parser support nor the presence of a `Precedence.ex` module settles the end-to-end gate. | Declared fixity / notation | Operator ergonomics | Section 5 |
 | **C4** | **Closed:** explicit decreasing simp declarations and checked quantified ambient rules. | `@[simp]` attribute | Proof tedium | Landed |
 | **C5** | **Closed:** certified recursive definitions compute; uncertified recursion stays opaque. | `simp` + certified unfolding | Every proof | Verified existing path |
-| **C6** | **Partial:** `exact` and closing `apply` work; premise-generating backward application remains. | `apply`/`exact` | Proof style | Phase 4 |
-| **C7** | **Partial:** per-command cursor-filtered LSP and REPL views work, including refused proofs; VS Code panel integration and precise legacy hole hints remain open. | InfoView | Proof authoring | Phase 4 |
+| **C6** | **Implemented and validated:** focused ordered/staged premises and checked pending-parent reconstruction. | `apply`/`exact` | Proof style | Gate met |
+| **C7** | **Implemented and validated:** explicit source-context CLI/REPL/LSP/hints and native VS Code goal tree, including refused states. Env-only compatibility summaries remain coarse. | InfoView | Proof authoring | Gate met |
 | **C8** | **Closed:** opt-in `rewrite … all`; default still requires one occurrence. | occurrence selection | Proof tedium | Landed |
 | **C9** | **Not closed by this audit:** follow the guarded-lambda recursion entry, K-bug 2. | Termination certification | Reach | Existing kernel ledger |
 | **C10** | **Not closed by this audit:** follow the individual elaborator reach entries; E9's premise was falsified and is not an active gap. | — | Reach | Existing kernel ledger |
@@ -170,9 +186,9 @@ lets a callback inspect a goal and request existing checked operations.
 
 ### C1.1 — Goal state and command adequacy
 
-**Delivered:** the goal state, checked result shape and combinators below.
-**Remaining:** the original all-six-command adequacy requirement, specifically
-induction as a reusable checked command rather than declaration-only lowering.
+**Implemented:** the goal state, checked result shape, combinators and genuine
+canonical-frame induction command. **Gate met:** merged non-vacuous
+all-six-command execution, reconstruction and diagnostic compatibility.
 
 1. Use `Cure.Elab.ProofGoal` as the single goal state, with `new/5` and
    `inspect_goal/1` for construction and hypothesis/target inspection.
@@ -181,14 +197,17 @@ induction as a reusable checked command rather than declaration-only lowering.
    Legacy list-only results remain scheduling projections, not proof artifacts.
 3. Expose combinators: `focus`, `all_goals`, `seq`, `or_else`, `repeat_until_fail`.
 4. Route justification commands through this API while preserving original
-   obligations and proof reconstruction. Ordinary induction currently retains
-   its declaration-level path; accepting an `:induction` AST tag without an
-   executable lowering does not meet the adequacy requirement.
+   obligations and proof reconstruction. Ordinary induction and authored branch
+   commands use the same API, retaining checked match/recursive lowering.
+   Standalone callers supply an explicit canonical declaration frame; missing,
+   foreign or changed-motive frames refuse. Arbitrary new helper motives are
+   not synthesized.
 
-**Remaining gate:** demonstrate all six original proof forms as genuine API
-clients, including induction, with unchanged existing E109–E115 compatibility
-tests and non-vacuous execution/evidence tests. Passing the existing suite alone
-does not establish that the refactor covers every command.
+**Measured gate:** all six original proof forms are genuine API clients.
+Induction-template and ordinary-source tests actually invoke recursive IHs;
+branch, scope, hygiene, false-goal and E109–E115 compatibility controls pass.
+This evidence is additional to the existing suite, not inferred from merely
+retaining old tests.
 
 ### C1.2 — Goal-inspecting library tactics
 
@@ -217,8 +236,9 @@ Changing the reflected target cannot change the original checking obligation.
 Actual inspection/branching, checked handwritten-vs-computed Core equivalence,
 source-backed imports, refusal diagnostics and malformed/original-goal controls
 are covered by the computed-tactic tests. These are executable scope checks,
-not a universal soundness theorem. Premise-generating `apply` and reusable
-induction lowering are not supplied by this protocol.
+not a universal soundness theorem. Application sessions and canonical-frame
+induction supply the corresponding checked commands; the computed protocol
+does not turn callbacks into trusted evidence constructors.
 
 ### C1.3 — Checked solver clients
 
@@ -308,8 +328,8 @@ callers thread `fixity(M)`.
 |---|---|---|
 | **C4** | Implemented | `@simp` / `@lemma(:simp)` with declaration-time strict decrease and non-increasing variable multiplicities; checked quantified/imported rules and bounded fixed points. Safe legacy `@lemma` rules remain ambient. This is not Lean's literal `@[simp]` syntax or an unrestricted simp-rule admission policy. |
 | **C5** | Verified existing path | Certified recursive computation uses existing kernel normalization and certified unfolding, including `Normalise.unfold_certified_head/3`; no second unfold implementation. Uncertified recursion remains opaque. |
-| **C6** | Partial | `exact` and closing `apply` exist. Remaining backward application must infer premises as new goals and reconstruct evidence checked at the original goal. Ordinary calls alone do not provide this capability; `PROOFS.md` now records that correction. |
-| **C7** | Partial | Per-command before/after/failure observations, encoded cursor-position LSP requests and retained REPL residuals are delivered. A VS Code goal-panel consumer is still absent; legacy `Program.hole_goals/1` and hole inlay hints remain definition-return summaries. |
+| **C6** | Implemented and validated | Partial global/local applications and constructors produce ordered focused premises. Value/proof-dependent domains stage after earlier witnesses close. Original-parent checking happens only after evidence reconstruction; no metas or internal holes count as evidence. |
+| **C7** | Implemented and validated | Explicit source context drives actual hole occurrences, CLI/REPL/LSP/hints and the native VS Code tree. Version/URI/cursor/generation checks reject stale client results; empty cursor state is not a proof-completion claim. Env-only `Program.hole_goals/1` remains coarse. |
 | **C8** | Implemented | Opt-in `rewrite … all` visits original normalized occurrences, composes checked transports, respects binder scope and does not revisit replacement-introduced occurrences. Keep the strict single-occurrence default. |
 
 ---
@@ -341,15 +361,15 @@ is a delivered slice of **Phase 4**, not a renumbering or completion of it.
 | Phase | Scope | Audited status | Closure gate |
 |---|---|---|---|
 | **1** | C4, C5, C8 | **Complete for stated scope** | Certified-recursive simplification closes; unsafe/looping explicit simp declarations are rejected; multi-occurrence rewrite-all closes through checked transports; uncertified/false-goal refusals remain. |
-| **2** | C1.1, C1.3 | **Core delivered; strict adequacy gate incomplete** | Evidence-preserving goals/combinators and bounded solver clients are implemented. The original all-six-command gate additionally requires a genuine induction client on the goal API, with unchanged compatibility tests and checked evidence. |
+| **2** | C1.1, C1.3 | **Complete for stated scope** | Genuine canonical-frame induction and branch clients join the goal API. All six original forms, compatibility diagnostics, hygienic IH use and ordinary checked evidence/totality are validated. |
 | **3** | C3 | **Completion unaudited** | Establish declaration-driven semantic fixity across transitive `use`/prelude closure, ambiguity/refusal behavior and printer callers; no competing fixed semantic operator list. |
-| **4** | C1.2, C6, C7 | **Partial: computed tactics and server/REPL views delivered** | Keep the computed-inspection and original-goal controls green. Still required: backward `apply` generates/reconstructs premise goals and a VS Code goal panel consumes per-command cursor states. Legacy hole hints must not be presented as precise nested-hole states. |
+| **4** | C1.2, C6, C7 | **Complete for documented contracts** | Computed/original-goal controls, focused ordered/staged reconstruction, precise source views, real merged-server Extension Host behavior and automatic proof-admission refusals pass with the final full validation. |
 | **5** | C2 | **Not closed by this audit** | Meet the existing universe spec's §21 criteria, including arbitrary-level polymorphism, prohibited self-typing, walker coverage and artifact/version obligations. |
 | **6** | C9, C10 | **Per-ledger work remains** | Close each genuine reach item with oracle-anchored positive/negative pins and remove its workaround from a real module that still replays `rel=same`, or explicitly retain it as deliberate. |
 
-C2 and C3 can proceed independently. Complete the induction-client adequacy
-work rather than treating a passing old suite as proof that every command is
-already exposed. Phase 4 builds on the delivered goal infrastructure; metatheory,
+C2 and C3 can proceed independently. Validate the actual induction-client
+execution rather than treating a passing old suite as proof that every command
+is exposed. Phase 4 builds on the delivered goal infrastructure; metatheory,
 second-checker and runtime correspondence obligations remain separate tracks.
 
 **Evidence:**
@@ -374,6 +394,40 @@ second-checker and runtime correspondence obligations remain separate tracks.
   `omega_solver_test.exs` in the same directory.
 - Reach through the real compiler, including deliberate refusals:
   `test/lean4_parity_test.exs` and `test/lean4_parity/corpus.exs`.
+- Ordered/staged applications, parent evidence and genuine induction:
+  `test/cure/elab/application_session_test.exs`,
+  `test/cure/elab/phase4_closure_audit_test.exs` and
+  `test/cure/elab/induction_command_test.exs`.
+- Source isolation, admission and the arithmetic proof dependency cone:
+  `test/cure/elab/source_context_test.exs`,
+  `test/cure/elab/proof_admission_test.exs` and
+  `test/cure/elab/int_order_totality_test.exs`.
+- Actual native editor consumer: `vscode-cure/src/test/hostSuite.ts`,
+  `vscode-cure/test/` and `.github/workflows/extension.yml`.
+
+### Proof-admission gate
+
+Completed declarations executing proof syntax or successful implicit search require ordinary
+totality certification after body checking. This includes templates/computed
+tactics, induction and legacy `rewrite proof in body`; quoted syntax is data,
+not executed proof syntax. E013 distinguishes an unproven logical-proof
+requirement from an authored `@total true` requirement. `@total false` cannot
+waive proof admission. Ordinary partial runtime code remains legal, and
+development holes remain checkable but cannot pass release/code-generation
+E014. No pending certification deferral counts as proof.
+Anonymous search holes and automatic refinements are covered; only the
+selected overload commits admission effects. Ordinary partial runtime code
+without proof execution is not reclassified merely by a discarded candidate.
+
+Single-buffer compile/check and imported-provider loading share canonical
+grammar expansion. The editor checks an unsaved active consumer with saved
+source providers; provider saves invalidate dependent analysis. Unsaved sibling
+provider overlays and interface-only grammar publication are not claimed.
+
+The integer-order dependency cone is repaired through four private structural
+Nat helpers for commutativity/associativity without changing public theorem
+types or trusted termination rules. This does not add general Farkas
+soundness, full Presburger automation or a broader `omega` fragment.
 
 Scope-specific test success is not a completion claim for unexercised
 interfaces or a substitute for a kernel soundness/refinement theorem.

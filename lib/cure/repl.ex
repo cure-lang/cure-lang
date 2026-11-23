@@ -578,15 +578,15 @@ defmodule Cure.REPL do
 
   defp add_definitions(state, entries) do
     {candidate_defs, annotated} = Session.merge(state.defs, entries)
-    {elaborated, snapshots} = Cure.Elab.ProofState.elaborate(Session.build_source(candidate_defs))
+    {elaborated, context} = Cure.Elab.SourceContext.analyze(Session.build_source(candidate_defs))
 
     checked =
       case elaborated do
-        {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env)}
+        {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env, context)}
         {:error, _} = error -> error
       end
 
-    state = %{state | proof_states: snapshots}
+    state = %{state | proof_states: context.observations}
 
     case checked do
       {:ok, [_ | _] = holes} ->
@@ -836,10 +836,10 @@ defmodule Cure.REPL do
           rendered_context =
             case context do
               [] -> ""
-              values -> " (context: " <> Enum.map_join(values, ", ", &Cure.Core.Printer.print/1) <> ")"
+              values -> " (context: " <> Enum.join(values, ", ") <> ")"
             end
 
-          render_info(state, "#{label} : #{Cure.Core.Printer.print(goal)}#{rendered_context}")
+          render_info(state, "#{label} : #{goal}#{rendered_context}")
         end)
     end
 

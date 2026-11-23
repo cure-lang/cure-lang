@@ -14,13 +14,12 @@ defmodule Cure.Elab.Tactic do
 
   Proof commands return `{:ok, %Cure.Elab.Tactic.Result{}}`, containing the
   remaining goals and checked closure evidence keyed by original goal identity.
-  An empty `goals` list means closed. Goal-list-only results remain supported
+  An empty `goals` list with no `pending` parents means closed. Goal-list-only results remain supported
   for scheduling and legacy callers, but cannot reconstruct proofs.
 
-  A list rather than a single goal is deliberate. Today every Cure command is
-  single-goal, so the list is always zero or one element; but a `case`/`split`
-  tactic produces several subgoals, and the shape must not need changing when
-  that lands.
+  Backward application can produce several concrete premises and retain a
+  suspended parent. Source statements focus the first open premise;
+  explicit host `run_all` and `all_goals` still broadcast.
 
   ## Why this module exists
 
@@ -29,16 +28,15 @@ defmodule Cure.Elab.Tactic do
   made the vocabulary closed: a library could not add a command, and the
   combinators (`seq`, `or_else`, `repeat`) had nowhere to live.
 
-  Extracting the shape here is a **pure refactor**: `ProofGoal` keeps its
-  behaviour and its diagnostics byte-for-byte, and simply routes through this
-  module. The acceptance gate for Phase 2 is exactly that — every existing
-  `E109`–`E115` test passes unchanged.
+  The initial extraction preserved existing diagnostics. Backward application
+  now extends that API with ordered premises and checked parent reconstruction;
+  existing single-goal command diagnostics remain compatibility gates.
 
   ## Scope
 
   This module defines the checked goal API and its combinators. Contextual
   template tactic rules execute through `Tactic.Step` and `Tactic.Script`.
-  Goal-inspecting `computed by` tactics remain future C1.2 work.
+  Goal-inspecting `computed by` tactics execute the same checked commands.
   """
 
   alias Cure.Elab.ProofGoal
@@ -74,6 +72,7 @@ defmodule Cure.Elab.Tactic do
   @spec of_command_result(ProofGoal.command_result(), goal()) :: result()
   def of_command_result({:closed, _evidence, _trace}, _goal), do: {:ok, []}
   def of_command_result({:open, next_goal}, _goal), do: {:ok, [next_goal]}
+  def of_command_result({:result, %Result{goals: goals}}, _goal), do: {:ok, goals}
   def of_command_result({:error, reason}, _goal), do: {:error, reason}
 
   @doc "Lift an existing proof command into a checked, evidence-preserving tactic."
@@ -85,6 +84,9 @@ defmodule Cure.Elab.Tactic do
       result =
         Cure.Elab.ProofState.within_command(fn ->
           case ProofGoal.command(statement, goal) do
+            {:result, %Result{} = result} ->
+              {:ok, result}
+
             {:open, next} ->
               {:ok, %Result{goals: [next]}}
 
@@ -140,7 +142,16 @@ defmodule Cure.Elab.Tactic do
   defp merge_result(%Result{} = left, right) when is_list(right), do: %{left | goals: left.goals ++ right}
 
   defp merge_result(%Result{} = left, %Result{} = right),
-    do: %Result{goals: left.goals ++ right.goals, solutions: Map.merge(left.solutions, right.solutions)}
+    do: %Result{
+      goals: left.goals ++ right.goals,
+      solutions: Map.merge(left.solutions, right.solutions),
+      pending: Map.merge(left.pending, right.pending)
+    }
+
+  @doc "Run one authored statement on the first premise and settle its parents."
+  def run_focused(tactic, %Result{} = result) do
+    focus(tactic).(result)
+  end
 
   @doc "Run a tactic on all remaining goals, retaining checked solutions."
   def all_goals(tactic), do: fn goals -> run_all(tactic, goals) end
@@ -150,7 +161,7 @@ defmodule Cure.Elab.Tactic do
     fn
       %Result{} = result ->
         with {:ok, next} <- focus(tactic, index).(result.goals) do
-          {:ok, merge_result(%{result | goals: []}, next)}
+          Result.settle(merge_result(%{result | goals: []}, next), result.goals)
         end
 
       goals when is_list(goals) ->
@@ -197,7 +208,7 @@ defmodule Cure.Elab.Tactic do
 
   def run_all(tactic, %Result{} = result) do
     with {:ok, next} <- run_all(tactic, result.goals) do
-      {:ok, merge_result(%{result | goals: []}, next)}
+      Result.settle(merge_result(%{result | goals: []}, next), result.goals)
     end
   end
 
@@ -266,7 +277,7 @@ defmodule Cure.Elab.Tactic do
   Whether a result closed the goal.
   """
   @spec closed?(result()) :: boolean()
-  def closed?({:ok, %Result{goals: []}}), do: true
+  def closed?({:ok, %Result{goals: [], pending: pending}}), do: map_size(pending) == 0
   def closed?({:ok, []}), do: true
   def closed?(_other), do: false
 end

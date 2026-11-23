@@ -78,8 +78,10 @@ mod Std.Tactic
   ##
   ## Invoke a rule in a `because` block, or use `by close` as a checked function
   ## body. Qualify `Std.Tactic.simplify(g)` to distinguish the helper function
-  ## from the contextual proof command. `apply` currently closes a goal only;
-  ## it does not schedule unsupplied premises as new goals.
+  ## from the contextual proof command. `apply` can open ordered premises;
+  ## following operations focus the first one, and dependent domains become
+  ## available after their earlier witnesses close. Unresolved implicit
+  ## witnesses are explicit typed obligations, not automatic proof search.
   ## An imported bare callback reference requires a single-module provider file.
   ## Multi-module homes must use an explicitly qualified callback reference;
   ## an unavailable or ambiguous canonical provider is refused, never guessed.
@@ -189,7 +191,7 @@ mod Std.Tactic
   fn decide_using(g: Goal, decision: Syntax) -> Syntax =
     operation(:decide_using, g, [decision])
 
-  ## `by omega` at `g`: linear integer arithmetic over `Int` hypotheses.
+  ## `by omega` at `g`: the bounded, checked non-strict IntOrder fragment.
   fn omega(g: Goal) -> Syntax = operation(:omega, g, [])
 
   ## Refuse the goal with a diagnostic of the expander's own making.

@@ -2485,6 +2485,18 @@ defmodule Cure.Compiler.Parser do
     {{:match_arm, meta, new_children}, state}
   end
 
+  # Constructor fields and IH binders scope only this induction case's body.
+  defp scoped_freshen({:induction_case, meta, [pattern, body]}, rename, holes, used, state) do
+    {pattern, case_rename, state} =
+      case pattern do
+        {:variable, _meta, _name} -> {pattern, rename, state}
+        _ -> bind_pattern(pattern, rename, holes, used, state)
+      end
+
+    {body, state} = scoped_freshen(body, case_rename, holes, used, state)
+    {{:induction_case, meta, [pattern, body]}, state}
+  end
+
   # Expression-position lambda: params bind the body only.
   defp scoped_freshen({:lambda, meta, children}, rename, holes, used, state) do
     {new_params, lam_rename, state} = bind_params(Keyword.get(meta, :params, []), rename, holes, used, state)
@@ -12640,8 +12652,17 @@ defmodule Cure.Compiler.Parser do
         take_tactic_block(tokens_from(state, state.pos), 0, [])
 
       _ ->
-        tokens_from(state, state.pos)
-        |> Enum.take_while(&(&1.type not in [:newline, :dedent, :eof]))
+        {head, rest} =
+          tokens_from(state, state.pos)
+          |> Enum.split_while(&(&1.type not in [:newline, :dedent, :eof]))
+
+        case rest do
+          [%Token{type: :newline}, %Token{type: :indent} | _] ->
+            head ++ take_tactic_block(rest, 0, [])
+
+          _ ->
+            head
+        end
     end
   end
 

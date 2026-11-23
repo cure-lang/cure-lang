@@ -8,7 +8,20 @@ defmodule Cure.Elab.ProofGoal do
   alias Cure.MetaAST.Metadata
 
   @enforce_keys [:expected, :names, :context, :env, :source, :status, :builders, :trace]
-  defstruct [:expected, :names, :context, :env, :source, :status, :builders, :trace, :id, :root_expected, :root_context]
+  defstruct [
+    :expected,
+    :names,
+    :context,
+    :env,
+    :source,
+    :status,
+    :builders,
+    :trace,
+    :id,
+    :root_expected,
+    :root_context,
+    :declaration_frame
+  ]
 
   @type status :: :open | :closed
   @type t :: %__MODULE__{
@@ -16,6 +29,7 @@ defmodule Cure.Elab.ProofGoal do
           id: reference() | nil,
           root_expected: Cure.Core.Term.t() | nil,
           root_context: Cure.Core.Context.t() | nil,
+          declaration_frame: Cure.Elab.Induction.Frame.t() | nil,
           names: [String.t()],
           context: Cure.Core.Context.t(),
           env: Cure.Core.Env.t(),
@@ -25,18 +39,25 @@ defmodule Cure.Elab.ProofGoal do
           trace: [term()]
         }
 
-  @type command_result :: {:open, t()} | {:closed, Cure.Core.Term.t(), [term()]} | {:error, term()}
+  @type command_result ::
+          {:open, t()} | {:closed, Cure.Core.Term.t(), [term()]} | {:result, Result.t()} | {:error, term()}
 
   def run({:proof_justification, meta, statements}, expected, names, context, env, step_index) do
-    execute(statements, new(expected, names, context, env, meta), step_index)
+    goal = new(expected, names, context, env, meta)
+
+    Cure.Elab.ProofState.with_session(
+      fn -> execute_session(statements, %Result{goals: [goal]}, goal, step_index) end,
+      {:proof_justification, meta, statements}
+    )
   end
 
   @doc "Construct a goal while preserving its original checking obligation."
-  def new(expected, names, context, env, source \\ []) do
+  def new(expected, names, context, env, source \\ [], opts \\ []) do
     %__MODULE__{
       id: make_ref(),
       root_expected: expected,
       root_context: context,
+      declaration_frame: Keyword.get(opts, :declaration_frame, Cure.Elab.Induction.Frame.current()),
       expected: expected,
       names: names,
       context: context,
@@ -83,9 +104,19 @@ defmodule Cure.Elab.ProofGoal do
     %{target: goal.expected, hypotheses: Enum.reverse(local_facts) ++ hypotheses, status: goal.status}
   end
 
-  defp execute([], %__MODULE__{status: :open} = goal, step_index) do
+  defp execute_session(_statements, %Result{goals: [], pending: pending}, root, step_index)
+       when map_size(pending) > 0,
+       do: pending_application(root, step_index)
+
+  defp execute_session([], %Result{goals: [], pending: pending, solutions: solutions}, root, _step_index)
+       when map_size(pending) == 0 do
+    %{evidence: evidence, trace: trace} = Map.fetch!(solutions, root.id)
+    {:ok, evidence, trace}
+  end
+
+  defp execute_session([], %Result{goals: [goal | _] = frontier}, root, step_index) do
     info = Metadata.source_info(goal.source)
-    Cure.Elab.ProofState.observe(:unfinished, goal.source, goal, [goal])
+    Cure.Elab.ProofState.observe_session(:unfinished, root.source, root, frontier)
 
     {:error,
      {:proof_chain_mismatch,
@@ -98,25 +129,68 @@ defmodule Cure.Elab.ProofGoal do
       }}}
   end
 
-  defp execute([statement | rest], %__MODULE__{status: :open} = goal, step_index) do
-    case Cure.Elab.Tactic.command(statement).(goal) do
-      {:ok, %Cure.Elab.Tactic.Result{goals: [next_goal]}} ->
-        execute(rest, next_goal, step_index)
+  defp execute_session([statement | _], %Result{goals: [], solutions: solutions}, root, _step_index) do
+    %{trace: trace} = Map.fetch!(solutions, root.id)
+    unreachable_statement(statement, root.source, trace)
+  end
 
-      {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} when rest == [] ->
-        %{evidence: evidence, trace: trace} = Map.fetch!(solutions, goal.id)
-        {:ok, evidence, trace}
+  defp execute_session([statement | rest], result, root, step_index) do
+    Cure.Elab.ProofState.observe_session(:before, statement, root, result.goals)
 
-      {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} ->
-        %{trace: trace} = Map.fetch!(solutions, goal.id)
-        unreachable_statement(hd(rest), goal.source, trace)
+    executed =
+      Cure.Elab.ProofState.within_statement(statement, fn ->
+        Cure.Elab.Tactic.run_focused(Cure.Elab.Tactic.command(statement), result)
+      end)
+
+    case executed do
+      {:ok, next} ->
+        Cure.Elab.ProofState.observe_session(:after, statement, root, next.goals)
+        execute_session(rest, next, root, step_index)
+
+      {:error, _} = error ->
+        Cure.Elab.ProofState.observe_session(:failed, statement, root, result.goals)
+        error
+    end
+  end
+
+  @doc false
+  def pending_application(root, step_index \\ nil) do
+    info = Metadata.source_info(root.source)
+    Cure.Elab.ProofState.observe_session(:unfinished, root.source, root, [root])
+
+    {:error,
+     {:proof_chain_mismatch,
+      %ProofChainMismatchProblem{
+        kind: :unfinished_justification,
+        step_index: step_index,
+        justification: info && info.whole,
+        residual_goal: root.expected,
+        cause: :pending_application
+      }}}
+  end
+
+  @doc false
+  def finish_application(term, meta, goal) do
+    evidence = Enum.reduce(Enum.reverse(goal.builders), term, &apply_builder/2)
+    {:closed, evidence, goal.trace ++ [{:apply, surface_span(meta)}]}
+  end
+
+  @doc false
+  def command({:induction, meta, _children} = induction, goal) do
+    with :ok <- Cure.Elab.Induction.Frame.validate(goal.declaration_frame, goal),
+         {:ok, expanded} <- Cure.Elab.Induction.expand(induction, goal.declaration_frame.signature, goal.env) do
+      Cure.Elab.Induction.Frame.within(goal.declaration_frame, fn ->
+        close_with_expression(expanded, goal, :induction, meta)
+      end)
+    else
+      {:error, reason} when is_atom(reason) ->
+        {:error, {:induction_failed, %Cure.Diagnostic.InductionProblem{kind: reason}}}
 
       {:error, _} = error ->
         error
     end
   end
 
-  @doc false
   def command({:assignment, meta, [{:variable, _, name}, _rhs]} = statement, goal)
       when is_list(meta) do
     if Keyword.get(meta, :have, false) do
@@ -191,8 +265,8 @@ defmodule Cure.Elab.ProofGoal do
             tactic_not_closed(meta, goal)
         end
 
-      {:ok, %Result{goals: [next_goal]}} ->
-        {:open, next_goal}
+      {:ok, %Result{} = result} ->
+        {:result, result}
 
       {:error, _} = error ->
         error
@@ -224,8 +298,8 @@ defmodule Cure.Elab.ProofGoal do
               tactic_not_closed(meta, goal)
           end
 
-        {:ok, %Result{goals: [next_goal]}} ->
-          {:open, next_goal}
+        {:ok, %Result{} = result} ->
+          {:result, result}
 
         {:error, _} = error ->
           error
@@ -804,28 +878,30 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
-  # Backward reasoning: close the goal with `proof`, or report why it does not fit.
-  #
-  # `apply` is the backward-reasoning counterpart of writing the evidence term
-  # directly. The proof is elaborated and then checked against the goal's
-  # expected type, so a proof whose conclusion unifies with the goal closes it,
-  # and one that does not is rejected with the goal and the supplied proposition
-  # both surfaced. Nothing is trusted: the kernel re-checks the result.
+  # Keep the ordinary checked-expression path for fully supplied evidence.
+  # Otherwise plan a suspended application whose typed premises are solved in
+  # source order. Neither a pending parent nor an internal hole is evidence.
   defp apply_proof(proof_ast, meta, goal) do
     case close_with_expression(proof_ast, goal, :apply, meta) do
       {:closed, evidence, trace} ->
         {:closed, evidence, trace}
 
       {:error, _reason} ->
-        {:error,
-         {:proof_chain_mismatch,
-          %ProofChainMismatchProblem{
-            kind: :unfinished_justification,
-            step_index: 0,
-            justification: surface_span(meta),
-            residual_goal: goal.expected,
-            cause: {:apply_does_not_close, surface_span(proof_ast)}
-          }}}
+        case Cure.Elab.Tactic.Apply.start(proof_ast, meta, goal) do
+          {:result, _} = result ->
+            result
+
+          {:error, _} ->
+            {:error,
+             {:proof_chain_mismatch,
+              %ProofChainMismatchProblem{
+                kind: :unfinished_justification,
+                step_index: 0,
+                justification: surface_span(meta),
+                residual_goal: goal.expected,
+                cause: {:apply_does_not_close, surface_span(proof_ast)}
+              }}}
+        end
     end
   end
 
@@ -837,7 +913,8 @@ defmodule Cure.Elab.ProofGoal do
 
   # A hypothesis rewrite adds a real Core binder. Flush deferred surface facts
   # first so all names below that binder have matching kernel-context entries.
-  defp materialize_facts(goal) do
+  @doc false
+  def materialize_facts(goal) do
     facts = Enum.filter(goal.builders, &match?({:assignment, _, _}, &1))
 
     case List.last(facts) do

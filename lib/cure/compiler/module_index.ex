@@ -65,6 +65,7 @@ defmodule Cure.Compiler.ModuleIndex do
     paths = paths |> Enum.map(&Path.expand/1) |> Enum.uniq() |> Enum.sort()
 
     with {:ok, entries} <- scan_entries(paths, opts),
+         entries = filter_requested(entries, Keyword.get(opts, :only_modules)),
          :ok <- reject_duplicates(entries),
          :ok <- reject_provider_duplicates(entries) do
       index = assemble(entries)
@@ -74,6 +75,9 @@ defmodule Cure.Compiler.ModuleIndex do
         else: {:ok, index}
     end
   end
+
+  defp filter_requested(entries, nil), do: entries
+  defp filter_requested(entries, requested), do: Enum.filter(entries, &MapSet.member?(requested, &1.module_name))
 
   @doc "Build an index from already-scanned canonical entries."
   @spec from_entries([Entry.t()], keyword()) :: {:ok, t()} | {:error, term()}
@@ -176,7 +180,9 @@ defmodule Cure.Compiler.ModuleIndex do
   end
 
   defp scan_entry(path, opts) do
-    with {:ok, source} <- File.read(path) do
+    read = Keyword.get(opts, :source_reader, &File.read/1)
+
+    with {:ok, source} <- read.(path) do
       if String.trim(source) == "" do
         {:ok, nil}
       else

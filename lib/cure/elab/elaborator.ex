@@ -890,6 +890,95 @@ defmodule Cure.Elab.Elaborator do
   defp expression_category({kind, _meta, _left, _right}) when is_atom(kind), do: kind
   defp expression_category(_expression), do: :expression
 
+  @doc false
+  def application_unify(left, right, mctx, ctx, env),
+    do: unify_in_context(left, right, mctx, env, ctx)
+
+  @doc false
+  def application_head({:function_call, meta, args}, names, ctx, env) do
+    case Keyword.get(meta, :callee) do
+      nil ->
+        application_named_head(Keyword.fetch!(meta, :name), args, names, ctx, env)
+
+      callee ->
+        with {:ok, plan} <- application_head(callee, names, ctx, env),
+             do: {:ok, %{plan | supplied: plan.supplied ++ args}}
+    end
+  end
+
+  def application_head({:variable, _, name}, names, ctx, env),
+    do: application_named_head(name, [], names, ctx, env)
+
+  def application_head(expr, names, ctx, env) do
+    with {:ok, head, type} <- elaborate_expr_typed(expr, names, ctx, env) do
+      {:ok,
+       %{
+         head: head,
+         type: Quote.reify(type, Context.length(ctx), Context.signature(ctx)),
+         plicities: [],
+         supplied: [],
+         constructor: nil
+       }}
+    end
+  end
+
+  defp application_named_head(name, args, names, ctx, env) do
+    cname = resolve_ctor_key(env, String.to_atom(name))
+    ctor = if name in names, do: nil, else: Inductive.get_ctor(env, cname)
+
+    if ctor do
+      family = Inductive.ctor_family(env, cname)
+      params = Inductive.param_telescope(env, family) || []
+      entries = params ++ ctor.args
+      grades = List.duplicate(:erased, length(params)) ++ ctor.quantities
+      result = {:data, family, Map.get(ctor, :result_params, []), ctor.result_indices}
+
+      type =
+        Enum.zip(entries, grades)
+        |> Enum.reverse()
+        |> Enum.reduce(result, fn
+          {{_name, domain}, quantity}, body -> {:pi, quantity_grade(quantity), domain, body}
+        end)
+
+      {:ok,
+       %{
+         head: nil,
+         type: type,
+         plicities: List.duplicate(:implicit, length(params)) ++ Inductive.plicities_of(ctor),
+         supplied: args,
+         constructor: {cname, length(params)}
+       }}
+    else
+      with {:ok, head, type} <- elaborate_expr_typed({:variable, [], name}, names, ctx, env) do
+        plicities =
+          case head do
+            {:global, key} ->
+              defn = Env.get_def(env, key) || %{}
+
+              Map.get(defn, :plicities) ||
+                Enum.map(Map.get(defn, :quantities, []), fn
+                  :erased -> :implicit
+                  _ -> :explicit
+                end)
+
+            _ ->
+              []
+          end
+
+        {:ok,
+         %{
+           head: head,
+           type: Quote.reify(type, Context.length(ctx), Context.signature(ctx)),
+           plicities: plicities,
+           supplied: args,
+           constructor: nil
+         }}
+      end
+    end
+  end
+
+  defp quantity_grade(quantity), do: quantity
+
   defp call_owner({:global, name}), do: name
   defp call_owner({:app, head, _argument}), do: call_owner(head)
   defp call_owner(_term), do: nil
@@ -2915,6 +3004,12 @@ defmodule Cure.Elab.Elaborator do
     Cure.Elab.ProofState.checked_solver(command, expected_core, names, ctx, env, fn ->
       Cure.Elab.Solver.solve(command, expected_core, names, ctx, env)
     end)
+  end
+
+  def elaborate_expr_checked({:induction, meta, _args} = command, expected_core, names, ctx, env) do
+    with {:ok, evidence, _trace} <-
+           Cure.Elab.ProofGoal.run({:proof_justification, meta, [command]}, expected_core, names, ctx, env, 0),
+         do: {:ok, evidence}
   end
 
   def elaborate_expr_checked({:tactic_script, meta, _args} = command, expected_core, names, ctx, env) do
@@ -4944,11 +5039,18 @@ defmodule Cure.Elab.Elaborator do
       aligned ->
         survivors =
           Enum.flat_map(aligned, fn {key, reordered} ->
-            case profile_attempt(key, :overload_bidirectional, fn ->
-                   elaborate_implicit_app_bidirectional(env, key, reordered, names, ctx)
-                 end) do
+            {{result, observations}, proof_used?} =
+              Cure.Elab.ProofAdmission.speculate(fn ->
+                Cure.Elab.ProofState.speculate(fn ->
+                  profile_attempt(key, :overload_bidirectional, fn ->
+                    elaborate_implicit_app_bidirectional(env, key, reordered, names, ctx)
+                  end)
+                end)
+              end)
+
+            case result do
               {:ok, term, type} ->
-                [{key, term, type}]
+                [{key, term, type, observations, proof_used?}]
 
               {:error, _} ->
                 []
@@ -4956,7 +5058,9 @@ defmodule Cure.Elab.Elaborator do
           end)
 
         case survivors do
-          [{_winner, term, type}] ->
+          [{_winner, term, type, observations, proof_used?}] ->
+            Cure.Elab.ProofState.commit_observations(observations)
+            Cure.Elab.ProofAdmission.commit(proof_used?)
             {:ok, term, type}
 
           [] ->
@@ -11015,6 +11119,14 @@ defmodule Cure.Elab.Elaborator do
       end)
 
     replace_branch_vars(shifted, subst)
+  end
+
+  defp elaborate_branch_body({:induction_branch, meta, statements}, expected, names, ctx, env) do
+    statements = Cure.Elab.Induction.branch_statements(statements)
+
+    with {:ok, evidence, _trace} <-
+           Cure.Elab.ProofGoal.run({:proof_justification, meta, statements}, expected, names, ctx, env, 0),
+         do: {:ok, evidence}
   end
 
   defp elaborate_branch_body(@contextual_impossible_body, expected, _names, ctx, env),

@@ -103,6 +103,12 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:usage_violation, details} = error, opts) when is_map(details),
     do: StaticAnalysis.from_error(error, opts)
 
+  def from_error({:proof_totality_required, _name} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
+  def from_error({:source_context, {:proof_totality_required, _name}, _context} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
   def from_error({kind, name}, opts)
       when kind in [
              :duplicate_type,
@@ -433,6 +439,9 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:codegen_error, reason}, opts), do: Codegen.from_error({:codegen_error, reason}, opts)
 
   def from_error({:parse_error, [reason | _]}, opts), do: from_error(reason, opts)
+
+  def from_error({:parse_error, reason}, opts) when is_tuple(reason),
+    do: from_error(reason, opts)
 
   def from_error(
         {:source_context, {:unsupported_pattern, %{reason: :shadowed_sub_union, name: _name} = details}, context},

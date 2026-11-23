@@ -1,0 +1,36 @@
+name: VS Code extension
+
+on: [push, pull_request]
+
+jobs:
+  extension-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20"
+          otp-version: "29"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: vscode-cure/package-lock.json
+      - name: Provision display and VS Code runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2t64 libgbm1 libgtk-3-0 libnss3
+      - name: Build current Cure LSP and bundled standard library
+        run: |
+          mix deps.get
+          mix cure.escript
+      - name: Compile extension and run unit tests
+        working-directory: vscode-cure
+        run: |
+          npm ci
+          npm run compile
+          node scripts/build-grammar.js --check
+          npm run test:unit
+      - name: Real Cure LSP in official VS Code Extension Host
+        working-directory: vscode-cure
+        run: xvfb-run -a npm run test:host

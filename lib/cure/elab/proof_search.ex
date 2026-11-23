@@ -18,12 +18,17 @@ defmodule Cure.Elab.ProofSearch do
   @depth_limit 5
 
   @spec resolve(goal(), Context.t(), Cure.Core.Env.t()) :: result()
-  def resolve(goal, ctx, env), do: resolve(goal, ctx, env, %{depth: 0, trying: []})
+  def resolve(goal, ctx, env) do
+    resolve(goal, ctx, env, %{depth: 0, trying: []})
+    |> Cure.Elab.ProofAdmission.observe_result()
+  end
 
   @doc "Resolve with only the selected strategy, including recursive premises."
   @spec resolve_strategy(goal(), Context.t(), Cure.Core.Env.t(), :search | :positivity | :assumption) :: result()
-  def resolve_strategy(goal, ctx, env, strategy) when strategy in [:search, :positivity, :assumption],
-    do: resolve(goal, ctx, env, %{depth: 0, trying: [], strategy: strategy})
+  def resolve_strategy(goal, ctx, env, strategy) when strategy in [:search, :positivity, :assumption] do
+    resolve(goal, ctx, env, %{depth: 0, trying: [], strategy: strategy})
+    |> Cure.Elab.ProofAdmission.observe_result()
+  end
 
   # Depth-bound guard: abandon a branch that has descended past the ceiling.
   def resolve(_goal, _ctx, _env, %{depth: d}) when d > @depth_limit, do: :none

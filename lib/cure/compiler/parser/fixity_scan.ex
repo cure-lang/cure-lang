@@ -41,6 +41,21 @@ defmodule Cure.Compiler.Parser.FixityScan do
     end
   end
 
+  @doc "Expand an import's module-grouping sugar without inventing a namespace module."
+  @spec import_sources(keyword()) :: [String.t()]
+  def import_sources(meta) do
+    case Keyword.get(meta, :source) do
+      source when is_binary(source) ->
+        case Keyword.get(meta, :items, []) do
+          [] -> [source]
+          items -> Enum.map(items, &(source <> "." <> to_string(&1)))
+        end
+
+      _ ->
+        []
+    end
+  end
+
   # A bare (mod-less) macro container — `sup Colony`, `actor Echo`, `app X`,
   # `fsm M` — declares its module identity through a COMPUTED MACRO, so the
   # harvest scan cannot see it: `harvest/4` runs with no macro grammar active
@@ -177,10 +192,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
     do:
       deep_collect(ast, fn
         {:import, meta, _} when is_list(meta) ->
-          case Keyword.get(meta, :source) do
-            s when is_binary(s) -> [%{target: s, line: source_line(meta) || 1}]
-            _ -> []
-          end
+          Enum.map(import_sources(meta), &%{target: &1, line: source_line(meta) || 1})
 
         _ ->
           []
@@ -428,17 +440,12 @@ defmodule Cure.Compiler.Parser.FixityScan do
           {[value | fixity], uses}
 
         {:import, meta, _} when is_list(meta) ->
-          case Keyword.get(meta, :source) do
-            # `source_line/1`, not `Keyword.get(meta, :line, 1)`: an import node
-            # carries its position as `source_info`, so reading `:line` alone
-            # attributed every `use` to line 1 and made a diagnostic about a
-            # missing module point at the `mod` header instead of the `use`.
-            source when is_binary(source) ->
-              {fixity, [%{target: source, line: source_line(meta) || 1} | uses]}
+          uses =
+            Enum.reduce(import_sources(meta), uses, fn source, acc ->
+              [%{target: source, line: source_line(meta) || 1} | acc]
+            end)
 
-            _ ->
-              {fixity, uses}
-          end
+          {fixity, uses}
 
         _ ->
           {fixity, uses}

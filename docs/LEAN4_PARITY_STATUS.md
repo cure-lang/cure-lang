@@ -1,7 +1,9 @@
 # Lean 4 Parity — Status Scorecard
 
-Updated for the 2026-11-22 implementation continuation. Current integrated
-validation is recorded separately from historical audit measurements below.
+Updated against final integrated validation on 2026-11-22.
+**Phase 4 is complete within its stated C1.2/C6/C7 gates.** The inherited
+canonical-frame induction adequacy gate is also met. This is not a claim of
+overall Lean parity, unrestricted metaprogramming or universal soundness.
 **Authoritative scope and phases:** [`PATH_TO_LEAN4.md`](PATH_TO_LEAN4.md), §8.
 **Proof-language reference:** [`PROOFS.md`](PROOFS.md).
 **Source corpus:** [`test/lean4_parity/`](../test/lean4_parity/), run with
@@ -12,22 +14,24 @@ validation is recorded separately from historical audit measurements below.
 - **Phase 1 — C4, C5, C8: implemented.** Explicit simp admission, certified
   unfolding, and deterministic opt-in rewrite-all have positive and refusal
   tests. No kernel rules or Agda files changed.
-- **Phase 2 — C1.1, C1.3: infrastructure delivered; adequacy gate incomplete.**
+- **Phase 2 — C1.1, C1.3: complete within stated scope.**
   Existing justification commands use the checked goal API and combinators
   retain evidence. Bounded solver clients have positive/refusal controls.
-  Reusable induction-command lowering remains open.
+  Canonical-frame induction and each branch execute goal commands; merged
+  six-command compatibility, genuine IH use and checked reconstruction pass.
 - **Phase 3 — C3:** not audited for completion in this change. Parser support
   alone does not establish declaration-driven transitive fixity completion.
 - **Template-tactic slice (historical Phase 3): implemented and audited.**
   Libraries can compose contextual, checked proof commands. This is a
   prerequisite slice, separate from the typed computed protocol.
-- **Phase 4 — C1.2, C6, C7: partial.** Typed goal-inspecting computed tactics
-  and per-command cursor-filtered LSP/REPL views are delivered. Closing `apply`
-  does not generate premises: C6's backward-reconstruction gate is still open.
-  The VS Code goal-panel client is absent, and legacy hole inlay hints retain
-  their definition-return-summary limitation. `simp?`, local-only assumption,
-  and checked bounded integer-order reconstruction are delivered slices, not
-  completion of unrestricted arithmetic automation or authoritative Phase 4.
+- **Phase 4 — C1.2, C6, C7: complete within the documented contracts.**
+  Typed computed tactics share focused application sessions with source
+  commands/templates. Ordered/staged premises reconstruct evidence at the
+  original parent. Source-context CLI/REPL/LSP/hints and a native VS Code tree
+  consume actual checking-site states. Automatic proof-admission totality
+  rejects uncertified recursive evidence without changing trusted rules.
+  `simp?`, local-only assumption and bounded integer-order reconstruction do
+  not establish unrestricted arithmetic automation or general Farkas soundness.
 - **Phase 5 — C2:** not changed; execute the existing universe design.
 - **Phase 6 — C9, C10:** not changed; follow the kernel reach ledger.
 
@@ -81,13 +85,26 @@ Evidence: `test/cure/elab/proof_ergonomics_test.exs`,
 `ProofGoal.new/5` preserves the original target/context and assigns an identity;
 `inspect_goal/1` exposes the current target and hypotheses. There is no second,
 incompatible goal struct. Existing justification commands pass through
-`Tactic.command/1`. Ordinary induction retains declaration-level recursive
-lowering; exposing it as a template command remains a separate reach gap.
+`Tactic.command/1`. Ordinary induction and its branches now use a canonical
+declaration frame and the existing checked recursive-match lowering. Actual
+induction templates validate cases and hygienic field/IH names. Missing/foreign
+frames and unsupported changed motives refuse; no arbitrary new helper motives
+are synthesized. Existing non-parameter pre-lifted helpers remain ordinary
+checked definitions.
 
 `Tactic.Result` retains remaining goals and checked solutions keyed by original
 goal identity. Sequence, choice, focus, all-goals and bounded repeat-until-fail
 preserve those solutions. Legacy goal-list projections are only scheduling or
 inspection data; discarding proof terms is not a soundness boundary.
+
+Application sessions retain immutable pending parents as well as child goals;
+closure is not an empty frontier while a parent remains unresolved. Ordinary
+source sequencing focuses the first premise and preserves siblings; explicit
+host all-goals combinators retain broadcast semantics. Independent premises
+appear in telescope order; dependent domains stage only after earlier witnesses
+close. Unresolved implicit arguments become visible typed witness obligations,
+not hidden proof search or meta-bearing concrete goals. Partial global/local
+heads, constructors and nested application use checked reconstruction.
 
 The existing proof-language and E109–E115 diagnostic suites remain the
 compatibility gates. Direct evidence reconstruction and combinator behavior
@@ -131,8 +148,8 @@ The declaration and instantiated command shapes are validated, but the ultimate
 trust boundary is kernel checking against the original obligation. Template
 rules alone do not expose a goal value or execute a goal-inspecting Cure
 function. The continuation supplies that separate computed protocol. Induction
-templates are currently refused at declaration, while actual tactic invocations
-inside ordinary induction arms are checked and supported.
+templates now execute the canonical-frame command, including real IH use;
+ordinary induction arms also retain checked tactic invocations.
 
 The 2026-11-22 audit corrected silent printer deletion/crashes, nested expression
 keyword capture, unsafe literal lookahead, contextual and sequence example pins,
@@ -188,23 +205,76 @@ the definition was refused; it does not install the failed definition.
 `Session.goals/1` uses the same observation API. Evidence:
 `test/cure/elab/proof_state_integration_test.exs`.
 
-**Remaining boundary:** no VS Code goal-panel consumer is supplied. Legacy
-`Program.hole_goals/1`, associated definition summaries, and existing hole
-inlay hints still do not expose precise nested-hole obligations. A custom
-server capability is not itself an editor UI, and these surfaces are not
-claimed to agree in every case.
+`SourceContext.analyze/2` wraps the canonical `Compiler.check_source` path and
+owns immutable text/file/hash/version observations, including failed checks.
+Actual hole spans and occurrence indices distinguish repeated source holes
+from logical-goal deduplication. CLI/REPL and LSP hints use the explicit context;
+question marks in strings/comments are not hole occurrences. The Env-only
+`Program.hole_goals/1` remains coarse/deprecated compatibility; the explicit
+`Program.hole_goals(env, source_context)` path supplies precise observations.
+Presentation context is not serialized into Core or interfaces.
+
+The shared buffer parser reuses canonical manifest/expansion grammar discovery
+for single-buffer compile/check and provider loading. It supports an unsaved
+active consumer with saved source providers and does not write the consumer.
+Provider saves invalidate dependent analyses; unsaved sibling provider overlays
+are outside this contract. Grouped module imports use the same expansion in
+header and semantic discovery, without inventing a namespace module.
+
+LSP analysis is scoped to URI/current version and invalidates on change/close.
+Optional request `version` rejects stale/closed content with `-32801`; responses
+include the actual version. The native `cure.goals` tree and `cure.showGoals`
+command render targets/named hypotheses using plain string tooltips.
+Debouncing, cancellation, latest-desired coalescing and
+generation/epoch/URI/version/position checks discard late answers. At most one
+request is in flight per live transport generation; replacing a stopped server
+cannot let an unresolved old promise block or clobber the new queue.
+Empty cursor responses are explicitly not proof-completion claims.
+
+The official real Extension Host runner passes against the rebuilt current
+server, including source-imported template/computed tactics, an unsaved active
+consumer, saved-provider invalidation, UTF-16 cursors, failures and restarts.
+Node transport mocks are separate controls, not that final gate.
+Evidence: `test/cure/elab/source_context_test.exs`,
+`vscode-cure/test/`, `vscode-cure/src/test/hostSuite.ts` and
+`.github/workflows/extension.yml`.
+
+### Automatic proof-admission totality
+
+Hole-free declarations executing proof syntax or successful implicit search require
+ordinary totality certification after body checking. This covers expanded
+templates/computed tactics, induction and legacy `rewrite proof in body`, but
+not quoted syntax as data. Self/mutual/imported nonterminating evidence cannot
+be admitted simply because kernel typing accepts an application.
+E013 (`proof_totality_unproven`) explains the logical-proof requirement,
+distinct from an authored `@total true` failure. `@total false` cannot waive it.
+Partial runtime functions remain legal; surviving development holes remain
+checkable but E014 blocks release. Pending certification is not evidence.
+Anonymous search holes and automatic refinement discharge are included.
+Admission effects are scoped and only the selected overload commits them;
+discarded candidates do not impose proof totality on unrelated partial code.
+
+Four private structural Nat helpers repair integer commutativity/associativity
+and their dependent proof cone through existing certification; public theorem
+types and trusted termination rules are unchanged. This does not add a general
+Farkas theorem or expand `omega`. Evidence:
+`test/cure/elab/proof_admission_test.exs`,
+`test/cure/elab/int_order_totality_test.exs`,
+`test/cure/elab/application_session_test.exs`,
+`test/cure/elab/phase4_closure_audit_test.exs` and
+`test/cure/elab/induction_command_test.exs`.
 
 ## Corpus and historical G-register
 
 The corpus uses historical G1–G11 identifiers, not the C-register or the gap
 numbers in the even older readiness audit. Retain stable IDs rather than
 silently reassign their meaning.
-- **G1 / C7:** per-command observations and cursor-filtered server/REPL views
-  delivered; the VS Code panel and precise legacy inlay hints remain open.
+- **G1 / C7:** explicit source-context observations, CLI/REPL/LSP/hints and
+  native VS Code consumer delivered and validated through the real editor host.
 - **G2 / C1:** goal execution/composition and named template tactics landed.
   Typed goal-inspecting computed tactics now execute checked requests.
-  Premise-generating `apply` and reusable induction-command adequacy remain
-  distinct open gates.
+  Premise-generating `apply` and canonical-frame induction pass merged
+  evidence, compatibility, scope and refusal gates.
 - **G3 / C5,C9:** certified computation verified; guarded-recursion ledger not
   changed. The neutral right-identity rejection is not itself a parity gap.
 - **G4 / C4:** explicit simp admission and quantified ambient rules implemented.
@@ -234,13 +304,48 @@ refusal), `by omega` (checked-reconstruction acceptance and unsupported/refusal
 controls) and `simp?`. Rejection counts include deliberate safety boundaries,
 not just unfinished features.
 
-The current inventory measured from `Corpus.all/0` is **39 cases: 21 accept
-and 18 reject**. All pins pass through the actual compiler pipeline in the
-integrated parity replay.
+The current inventory is **44 cases: 25 accept and 19 reject**, measured from
+`Corpus.all/0`; all pins pass through the actual compiler pipeline.
+The formerly rejected premise-generation pin now accepts with explicit premise
+evidence, while a separate unfinished-premise pin still refuses. New pins cover
+ordered and dependent premises, real induction-template execution and divergent
+false-proof refusal. Stable historical IDs are retained; safety refusals remain
+negative.
 
-## Current continuation validation
+## Final Phase 4 closure validation
 
-Final integrated validation on 2026-11-22:
+Final frozen-source validation on 2026-11-22:
+- `MIX_ENV=test mix test --seed 622482`: **7,310 tests, zero failures,
+  eight excluded**, followed by **363 documentation snippets, zero failures**.
+  The standard suite covers all **318 declared Antigen shape cells across
+  31 manifest assays**; no separate Antigen run is implied.
+- Compiled parity replay: **44 pins**, with **25 accept and 19 reject**.
+- `MIX_ENV=test mix check`: **71 stdlib checks and 40 examples**, zero failures
+  and zero skipped examples.
+- Formatting, `mix quality.ci`, Dialyzer and `git diff --check` pass. The
+  existing warning-ignore inventory is unchanged; fewer existing warnings now
+  require filtering. No new suppressions were added.
+- The current escript and TypeScript extension build, generated grammar check
+  and **nine Node unit tests** pass.
+- The official VS Code **1.95.3 Extension Host exits zero** against the
+  rebuilt server. It verifies native-view activation/visibility and actual
+  targets/contexts, cursor before/after rewrite, E110 residuals, multibyte
+  positions, malformed/non-goal buffers, file switches and concurrent restarts.
+  Source-imported templates/computed tactics, an unsaved consumer whose disk
+  file remains unchanged, and provider saves updating an unchanged consumer
+  version are part of that same real-host gate.
+
+The first broad run exposed two missing induction timing-stage events. The
+stage now measures actual declaration-frame setup, while recursive lowering
+runs inside checked typed elaboration; the final full run above follows that
+correction and the implicit-search/imported-buffer admission regressions.
+Kernel typing, totality certification and the hole-free release gate remain
+distinct obligations. These measurements establish the stated frontend gates,
+not a new universal kernel/artifact/runtime correspondence theorem.
+
+## Historical pre-closure continuation validation
+
+The previous continuation's integrated validation on 2026-11-22:
 - The combined computed-tactic, Phase 4, omega, proof-state, completion and
   parity run passed **150 tests, zero failures**.
 - Standard `MIX_ENV=test mix test --seed 622482` passed **7,214 tests, zero
@@ -253,10 +358,12 @@ Final integrated validation on 2026-11-22:
 
 The final full run followed the Dialyzer-driven traversal typing and unreachable
 producer-result corrections. Earlier measurements below remain historical.
-These results validate the delivered slices, not premise-generating `apply`,
+These historical results validate that earlier snapshot, not premise-generating `apply`,
 reusable induction lowering, a VS Code panel, complete arithmetic automation,
-or a universal soundness theorem. No kernel, Agda, dependency, schema or
-warning-suppression changes were needed.
+or a universal soundness theorem. That snapshot needed no kernel, Agda,
+dependency, schema or warning-suppression changes. The current editor test
+harness adds a dev-only official VS Code runner; root Mix dependencies remain
+unchanged.
 
 ## Historical template-tactic audit validation (2026-11-22)
 
@@ -300,9 +407,11 @@ claims and their remaining hypotheses/refinement obligations.
 No new kernel constructors, proof postulates, Lean build dependency, schema
 migration, or termination bypass. Automation is untrusted and checked at the
 original goal. Typed computed tactics are a bounded checked-request protocol,
-not unrestricted metaprogramming. Premise-generating application, reusable
-induction-command adequacy, the VS Code goal panel and a general arithmetic
-checker-to-goal theorem remain open.
+not unrestricted metaprogramming. Application sessions, canonical-frame
+induction and the native goal panel meet their measured closure gates.
+A general arithmetic checker-to-goal theorem,
+universes, fixity completion and the separate reach/metatheory tracks remain
+outside this implementation.
 
 When behavior changes, update the corresponding corpus expectation and this
 scorecard together. Negative safety pins are not aspirations to accept invalid

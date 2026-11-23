@@ -54,7 +54,7 @@ defmodule Cure.Elab.MacroExpand do
     else
       with {:ok, source} <- File.read(home),
            {:ok, tokens} <- Cure.Compiler.Lexer.tokenize(source, file: home, emit_events: false),
-           {:ok, ast} <- Parser.parse(tokens, file: home, emit_events: false),
+           {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: home, emit_events: false),
            1 <- source_module_count(ast),
            {:ok, index} <- Cure.Compiler.ModuleIndex.build([home], validate_dependencies: false),
            [owner] <- Cure.Compiler.ModuleIndex.module_names(index) do

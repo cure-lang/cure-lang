@@ -24,7 +24,7 @@ defmodule Cure.Compiler do
       {:ok, module} = Cure.Compiler.compile_and_load(source)
   """
 
-  alias Cure.Compiler.{Lexer, Parser, BeamWriter}
+  alias Cure.Compiler.{Lexer, BeamWriter}
 
   @doc """
   Compile a `.cure` source file to BEAM bytecode.
@@ -124,7 +124,7 @@ defmodule Cure.Compiler do
     with_source_roots(file, opts, fn ->
       with {:ok, edition} <- resolve_edition(source, opts),
            {:ok, tokens} <- lex(source, file, emit?, edition),
-           {:ok, ast} <- parse(tokens, file, emit?, edition, prelude_providers),
+           {:ok, ast} <- parse(tokens, file, emit?, edition, prelude_providers, source),
            {:ok, ast} <-
              migrate_warn(
                ast,
@@ -187,7 +187,7 @@ defmodule Cure.Compiler do
     with_source_roots(file, opts, fn ->
       with {:ok, edition} <- resolve_edition(source, opts),
            {:ok, tokens} <- lex(source, file, false, edition),
-           {:ok, ast} <- parse(tokens, file, false, edition, []),
+           {:ok, ast} <- parse(tokens, file, false, edition, [], source),
            {:ok, ast} <- Cure.Elab.Program.expand_declaration_uses(ast),
            :ok <- validate_lifted_modules(ast) do
         Cure.Elab.Program.check_ast(ast)
@@ -500,7 +500,9 @@ defmodule Cure.Compiler do
         with {:ok, tokens} <- lex(source, file, false, edition) do
           # Single-file tooling utility: no driver, so no user `@prelude`
           # providers — falls back to the compiler-bundled prelude only.
-          parse(tokens, file, false, edition, [])
+          with_source_roots(file, opts, fn ->
+            parse(tokens, file, false, edition, [], source)
+          end)
         end
 
       {:error, reason} ->
@@ -525,7 +527,7 @@ defmodule Cure.Compiler do
     with_source_roots(file, opts, fn ->
       with {:ok, edition} <- resolve_edition(source, opts),
            {:ok, tokens} <- lex(source, file, emit?, edition),
-           {:ok, ast} <- parse(tokens, file, emit?, edition, prelude_providers),
+           {:ok, ast} <- parse(tokens, file, emit?, edition, prelude_providers, source),
            ast = inject_prelude_uses(ast, prelude_providers),
            {:ok, ast} <- Cure.Elab.Program.expand_declaration_uses(ast),
            {:ok, units, _cg_warnings, artifact} <-
@@ -541,7 +543,8 @@ defmodule Cure.Compiler do
   # The dependent elaborator resolves `use` imports from source, not from the
   # BEAM loader. Keep roots process-local for one compilation so recursive
   # imported-module elaboration and parallel callers cannot leak project state.
-  defp with_source_roots(file, opts, fun) do
+  @doc false
+  def with_source_roots(file, opts, fun) do
     roots =
       case Keyword.fetch(opts, :source_roots) do
         {:ok, explicit} -> explicit
@@ -557,12 +560,15 @@ defmodule Cure.Compiler do
     Process.put(:cure_source_roots, roots)
 
     case Keyword.get(opts, :module_index) do
-      %Cure.Compiler.ModuleIndex{} = index -> Process.put(:cure_module_index, index)
-      _ -> Process.delete(:cure_module_index)
+      %Cure.Compiler.ModuleIndex{} = index ->
+        Process.put(:cure_module_index, index)
+
+      _ ->
+        unless Cure.Compiler.BufferParse.active?(), do: Process.delete(:cure_module_index)
     end
 
     try do
-      fun.()
+      Cure.Compiler.BufferParse.scope(fun)
     after
       if previous == nil,
         do: Process.delete(:cure_source_roots),
@@ -586,8 +592,8 @@ defmodule Cure.Compiler do
     end
   end
 
-  defp parse(tokens, file, emit?, edition, prelude_providers) do
-    case Parser.parse(tokens,
+  defp parse(tokens, file, emit?, edition, prelude_providers, source) do
+    case Cure.Compiler.BufferParse.parse(source, tokens,
            file: file,
            emit_events: emit?,
            edition: edition,

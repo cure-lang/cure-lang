@@ -10,7 +10,7 @@
     "url": "https://github.com/cure-lang/cure-lang.git"
   },
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages",
@@ -25,6 +25,11 @@
     "onCommand:cure.mcp.getHelp"
   ],
   "contributes": {
+    "views": {
+      "explorer": [
+        { "id": "cure.goals", "name": "Cure Goals" }
+      ]
+    },
     "configurationDefaults": {
       "[cure]": {
         "editor.tabSize": 2,
@@ -62,6 +67,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "cure.showGoals",
+        "title": "Cure: Show Proof Goals",
+        "category": "Cure"
+      },
       {
         "command": "cure.restartLsp",
         "title": "Cure: Restart LSP Server",
@@ -129,6 +139,8 @@
     "vscode:prepublish": "npm run compile",
     "build-grammar": "node scripts/build-grammar.js",
     "compile": "npm run build-grammar && tsc -p ./",
+    "test:unit": "node --test test/*.test.js",
+    "test:host": "node out/test/runHost.js",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
@@ -136,7 +148,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.80.0",
+    "@types/vscode": "1.82.0",
+    "@vscode/test-electron": "^2.5.2",
     "typescript": "^5.3.3"
   }
 }

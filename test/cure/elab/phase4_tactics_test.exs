@@ -1,9 +1,9 @@
 defmodule Cure.Elab.Phase4TacticsTest do
   @moduledoc """
   Delivered-scope and refusal tests for Phase 4 of `docs/PATH_TO_LEAN4.md` §8:
-  C1.2 computed tactics, closing apply and missing-premise refusal, server/REPL
+  C1.2 computed tactics, premise-producing apply and missing-premise refusal, server/REPL
   goal views, and checked automation (`assumption`, bounded `omega`, `simp?`).
-  These do not establish premise generation or a VS Code goal-panel client.
+  The VS Code client has a separate real Extension Host test gate.
 
   Every test here measures REACH or a REFUSAL. None of them is a soundness
   theorem: the trust boundary remains the kernel re-checking evidence at the
@@ -34,7 +34,7 @@ defmodule Cure.Elab.Phase4TacticsTest do
     end
   end
 
-  test "C6 remaining scope: an under-applied theorem does not fabricate premise evidence" do
+  test "C6: an under-applied theorem creates a premise which explicit evidence closes" do
     source = """
     mod PendingBackwardPremise
       use Std.Equivalent
@@ -48,8 +48,14 @@ defmodule Cure.Elab.Phase4TacticsTest do
     end
     """
 
-    assert {:error, {:proof_chain_mismatch, %{cause: {:apply_does_not_close, _}}}} =
-             source |> Program.elaborate() |> Program.semantic_result()
+    env = assert_elaborates(source)
+    assert :ok = Kernel.check_def(env, :"PendingBackwardPremise#theorem")
+    assert Env.total?(env, :"PendingBackwardPremise#theorem")
+
+    unfinished = String.replace(source, "      reflexive(x)\n", "")
+
+    assert {:error, {:proof_chain_mismatch, %{kind: :unfinished_justification}}} =
+             unfinished |> Program.elaborate() |> Program.semantic_result()
   end
 
   defp assert_refused(source) do

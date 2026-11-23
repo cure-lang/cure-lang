@@ -38,8 +38,8 @@ defmodule Cure.Elab.Tactic.Step do
     * `have name: T = e` — a checked local fact (`:assignment` with `:have`)
     * another finite tactic script — `:tactic_script`
 
-  Induction-template lowering is not implemented. Such templates are refused
-  at declaration; tactic invocations inside ordinary induction arms are supported.
+  Induction templates use the enclosing declaration frame; case bodies are
+  checked commands or ordinary checked evidence expressions.
 
   Composition is sequential: steps run in order, failures propagate, and
   statements after closure are rejected. See
@@ -99,7 +99,13 @@ defmodule Cure.Elab.Tactic.Step do
     end
   end
 
-  def classify({:induction, _meta, _children}), do: {:error, :unsupported_induction_tactic}
+  def classify({:induction, meta, [subject | [_ | _] = cases]} = node) when is_list(meta) do
+    if Keyword.keyword?(meta) and surface_expression?(subject) and Enum.all?(cases, &valid_induction_case?/1),
+      do: {:ok, {:command, node}},
+      else: {:error, :not_a_step}
+  end
+
+  def classify({:induction, _meta, _children}), do: {:error, :not_a_step}
 
   def classify({tag, meta, children} = node) when tag in @command_tags and is_list(meta) and is_list(children) do
     if Keyword.keyword?(meta) and valid_command?(tag, meta, children),
@@ -149,6 +155,37 @@ defmodule Cure.Elab.Tactic.Step do
   end
 
   defp valid_command?(_tag, _meta, _children), do: false
+
+  defp valid_induction_case?({:induction_case, meta, [pattern, body]}) when is_list(meta) do
+    Keyword.keyword?(meta) and valid_case_pattern?(pattern) and
+      ((is_nil(body) and Keyword.get(meta, :impossible, false)) or
+         match?({:ok, _}, classify(body)) or surface_expression?(body))
+  end
+
+  defp valid_induction_case?(_case), do: false
+
+  defp valid_case_pattern?({:variable, meta, name}), do: is_list(meta) and is_binary(name)
+
+  defp valid_case_pattern?({:function_call, meta, fields}) when is_list(meta) and is_list(fields),
+    do: is_binary(Keyword.get(meta, :name)) and Enum.all?(fields, &valid_case_pattern?/1)
+
+  defp valid_case_pattern?({:named_implicit_pat, meta, [field]}) when is_list(meta),
+    do: valid_case_pattern?(field)
+
+  defp valid_case_pattern?(_pattern), do: false
+
+  # This is surface syntax, not evidence: the elaborator and kernel still check
+  # it at the refined branch goal. Core-shaped tuples never enter this grammar.
+  defp surface_expression?({:variable, meta, name}), do: is_list(meta) and is_binary(name)
+  defp surface_expression?({:literal, meta, _value}), do: is_list(meta)
+
+  defp surface_expression?({:function_call, meta, args}) when is_list(meta) and is_list(args),
+    do: is_binary(Keyword.get(meta, :name)) and Enum.all?(args, &surface_expression?/1)
+
+  defp surface_expression?({:rewrite_expr, meta, [proof, body]}) when is_list(meta),
+    do: surface_expression?(proof) and surface_expression?(body)
+
+  defp surface_expression?(_expression), do: false
 
   defp valid_target?(target) when target in [:goal, :all], do: true
   defp valid_target?({:at, n}) when is_integer(n) and n > 0, do: true

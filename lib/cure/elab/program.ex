@@ -48,10 +48,12 @@ defmodule Cure.Elab.Program do
 
     Cure.Elab.GuardLint.reset_warnings()
 
-    with {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, file: file, emit_events: false) do
-      check_ast(ast)
-    end
+    Cure.Compiler.with_source_roots(file, opts, fn ->
+      with {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false),
+           {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: file, emit_events: false) do
+        check_ast(ast)
+      end
+    end)
   end
 
   @doc "Project an elaboration result's surface context away for semantic comparisons."
@@ -1042,8 +1044,14 @@ defmodule Cure.Elab.Program do
         :ok
 
       name ->
-        detail = %{reason: :total_decorator_unproven, members: [name]}
-        reason = {:total_required_by_decorator, name}
+        explicit? = Cure.Elab.ProofAdmission.explicit_total?(ast, name)
+
+        detail = %{
+          reason: if(explicit?, do: :total_decorator_unproven, else: :proof_totality_unproven),
+          members: [name]
+        }
+
+        reason = {if(explicit?, do: :total_required_by_decorator, else: :proof_totality_required), name}
         {:error, {:source_context, reason, totality_source_context(ast, name, detail, opts)}}
     end
   end
@@ -2201,7 +2209,7 @@ defmodule Cure.Elab.Program do
   defp find_module_name(_other), do: nil
 
   @doc """
-  Hole goal reports (design spec §10/§11): for every definition whose body still
+  Coarse compatibility hole reports: for every definition whose body still
   carries a hole, report the hole's **goal type** (the definition's return type)
   and its **local context** (the parameter types in scope). This is the
   `:hole_goal` diagnostic — a hole typechecks, reports what must fill it, and
@@ -2215,6 +2223,15 @@ defmodule Cure.Elab.Program do
       {context, goal} = split_pi(type, [])
       %{function: name, goal: goal, context: context}
     end
+  end
+
+  @doc "Precise checking-site hole occurrences from an explicit source context."
+  def hole_goals(%Env{} = env, %Cure.Elab.SourceContext{} = context) do
+    owned = program_owned_definitions(env)
+
+    context
+    |> Cure.Elab.SourceContext.hole_goals()
+    |> Enum.filter(&Map.has_key?(owned, &1.function))
   end
 
   defp split_pi({:pi, _g, dom, cod}, acc), do: split_pi(cod, [dom | acc])
@@ -2335,7 +2352,7 @@ defmodule Cure.Elab.Program do
   def module_type_skeleton(module_name, path) when is_binary(module_name) and is_binary(path) do
     with {:ok, source} <- File.read(path),
          {:ok, tokens} <- Lexer.tokenize(source, file: path, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, file: path, emit_events: false),
+         {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: path, emit_events: false),
          :ok <- validate_module_identity(ast, module_name, Path.expand(path)),
          :ok <- check_declarations(ast) do
       env = Env.with_owner(seed_with_telescope_support(ast), module_name)
@@ -2534,15 +2551,7 @@ defmodule Cure.Elab.Program do
   # WHICH of the module's names come in unqualified, not a different module list, so
   # it does not affect the source expansion here.)
   defp import_entries({:import, meta, _}) when is_list(meta) do
-    source = Keyword.fetch!(meta, :source)
-
-    sources =
-      case Keyword.get(meta, :items, []) do
-        [] -> [source]
-        items -> Enum.map(items, &(source <> "." <> to_string(&1)))
-      end
-
-    [{sources, meta}]
+    [{FixityScan.import_sources(meta), meta}]
   end
 
   defp import_entries({_tag, _meta, children}) when is_list(children),
@@ -2650,6 +2659,10 @@ defmodule Cure.Elab.Program do
   # Macro homes are ordinary module interfaces. Definition-site lookup therefore
   # observes exactly the same dependency graph and cache as a `use` import.
   defp cached_macro_home_env(path) do
+    if stdlib_source_path?(path), do: cached_stdlib_macro_home_env(path), else: module_slice_env(path)
+  end
+
+  defp cached_stdlib_macro_home_env(path) do
     key = {__MODULE__, :macro_home_env, path}
 
     case :persistent_term.get(key, :missing) do
@@ -2682,7 +2695,7 @@ defmodule Cure.Elab.Program do
     with_loader_session(fn ->
       with {:ok, source} <- File.read(path),
            {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
-           {:ok, ast} <- Parser.parse(tokens, emit_events: false),
+           {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: path, emit_events: false),
            module_name when is_binary(module_name) <- find_module_name(ast) do
         load_module_interface(module_name, path)
       else
@@ -3361,7 +3374,7 @@ defmodule Cure.Elab.Program do
   defp compute_module_interface(requested_name, path) do
     with {:ok, source} <- File.read(path),
          {:ok, tokens} <- Lexer.tokenize(source, file: path, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, file: path, emit_events: false),
+         {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: path, emit_events: false),
          {:ok, %CheckedModule{interface: %ModuleInterface{} = interface}} <-
            check_ast_artifact(ast,
              source: source,

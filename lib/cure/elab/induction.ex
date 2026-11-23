@@ -124,6 +124,7 @@ defmodule Cure.Elab.Induction do
         Enum.map(captures, fn {name, _type} -> {:variable, [scope: :local], name} end) ++ [subject]
 
       call = {:function_call, [name: helper_name, generated_induction_call: true], call_args}
+      call = {:tactic_script, [], [{:proof_application, [kind: :exact], [call]}]}
       helper = {:function_def, helper_meta, [helper_induction]}
       {:ok, call, [helper], counter + 1}
     else
@@ -570,10 +571,35 @@ defmodule Cure.Elab.Induction do
   end
 
   defp induction_case_body(nil, _assignments, _meta), do: nil
-  defp induction_case_body(body, [], _meta), do: body
 
   defp induction_case_body(body, assignments, meta),
-    do: {:block, Keyword.put(meta, :induction_case_body, true), assignments ++ [body]}
+    do: {:induction_branch, meta, assignments ++ [body]}
+
+  @doc false
+  def branch_statements(statements) do
+    {assignments, [body]} =
+      Enum.split_while(statements, fn
+        {:assignment, meta, _} -> Keyword.get(meta, :generated_induction_hypothesis, false)
+        _ -> false
+      end)
+
+    assignments ++ authored_branch_statements(body)
+  end
+
+  defp authored_branch_statements({:block, _meta, statements} = body) do
+    if Enum.all?(statements, &match?({:ok, _}, Cure.Elab.Tactic.Step.classify(&1))) do
+      statements
+    else
+      [{:proof_application, [kind: :exact], [body]}]
+    end
+  end
+
+  defp authored_branch_statements(body) do
+    case Cure.Elab.Tactic.Step.classify(body) do
+      {:ok, _} -> [body]
+      {:error, _} -> [{:proof_application, [kind: :exact], [body]}]
+    end
+  end
 
   defp expand_nested({:induction, _meta, _children} = induction, sig, env), do: expand(induction, sig, env)
 
@@ -599,7 +625,7 @@ defmodule Cure.Elab.Induction do
   defp expand_nested(other, _sig, _env), do: {:ok, other}
 
   defp constructor_pattern({:variable, meta, name}) do
-    {:ok, String.to_atom(name), [], fn [] -> {:variable, meta, name} end}
+    {:ok, String.to_atom(name), [], fn [] -> {:function_call, Keyword.put(meta, :name, name), []} end}
   end
 
   defp constructor_pattern({:function_call, meta, fields}) do

@@ -367,12 +367,9 @@ defmodule Cure.REPL.Session do
   def hole_goals([]), do: {:ok, []}
 
   def hole_goals(defs) when is_list(defs) do
-    defs
-    |> build_source()
-    |> Cure.Elab.Program.elaborate()
-    |> case do
-      {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env)}
-      {:error, reason} -> {:error, reason}
+    case Cure.Elab.SourceContext.analyze(build_source(defs)) do
+      {{:ok, env}, context} -> {:ok, Cure.Elab.Program.hole_goals(env, context)}
+      {{:error, reason}, _context} -> {:error, reason}
     end
   end
 

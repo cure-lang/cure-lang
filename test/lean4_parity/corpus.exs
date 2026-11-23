@@ -658,7 +658,7 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g2-backward-apply-closes",
         gap: :g2,
         axis: :l3,
-        title: "fully supplied closing `apply` checks evidence (the implemented C6 subset)",
+        title: "fully supplied `apply` preserves its checked closing behavior",
         expect: :accept,
         module: "Cure.Parity.G2BackwardApplyCloses",
         source: """
@@ -703,18 +703,123 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g2-backward-apply-premise-still-open",
         gap: :g2,
         axis: :l3,
-        title: "premise-generating apply remains a reach gap",
-        expect: :reject,
-        reason:
-          "Closing apply does not create premise goals. This pin measures unfinished C6 reach, not false mathematics.",
+        title: "backward apply generates a premise and reconstructs its checked parent",
+        expect: :accept,
+        module: "Cure.Parity.G2BackwardApplyPremise",
         source: """
         mod Parity.G2BackwardApplyPremise
+          use Std.Equivalent
           fn need(x: Int, h: Equivalent(Int, x, x)) -> Equivalent(Int, x, x) = h
           fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
             x == x
             because
               apply need(x)
               reflexive(x)
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-unsolved-premise",
+        gap: :g2,
+        axis: :l3,
+        title: "an unsolved application premise is not a closed proof",
+        expect: :reject,
+        reason: "Application creates a checked obligation, not invented evidence. An unfinished premise refuses E110.",
+        source: """
+        mod Parity.G2BackwardApplyUnsolved
+          use Std.Equivalent
+          fn need(x: Int, h: Equivalent(Int, x, x)) -> Equivalent(Int, x, x) = h
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because apply need(x)
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-ordered-premises",
+        gap: :g2,
+        axis: :l3,
+        title: "source commands close independent application premises in order",
+        expect: :accept,
+        module: "Cure.Parity.G2ApplyOrdered",
+        source: """
+        mod Parity.G2ApplyOrdered
+          use Std.Equivalent
+          fn theorem(
+            x: Int, y: Int, z: Int,
+            consume: (Equivalent(Int, x, y), Equivalent(Int, y, z)) -> Equivalent(Int, x, z),
+            left: Equivalent(Int, x, y), right: Equivalent(Int, y, z)
+          ) -> Equivalent(Int, x, z) = proof chain
+            x == z
+            because
+              apply consume
+              exact left
+              exact right
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-dependent-witness",
+        gap: :g2,
+        axis: :l3,
+        title: "an application premise is instantiated from its earlier explicit witness",
+        expect: :accept,
+        module: "Cure.Parity.G2ApplyDependent",
+        source: """
+        mod Parity.G2ApplyDependent
+          use Std.Equivalent
+          use Std.Nat
+          fn need(x: Int, witness: Nat, evidence: Equivalent(Nat, witness, Z())) -> Equivalent(Int, x, x) =
+            reflexive(x)
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because
+              apply need(x)
+              exact Z()
+              exact reflexive(Z())
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-induction-template-executes",
+        gap: :g2,
+        axis: :l4,
+        title: "a genuine induction template uses a checked recursive hypothesis",
+        expect: :accept,
+        module: "Cure.Parity.G2InductionTemplate",
+        source: """
+        mod Parity.G2InductionTemplate
+          use Std.Equivalent
+          type Nat = Z | S(Nat)
+          fn plus(left: Nat, right: Nat) -> Nat = match left
+            Z() -> right
+            S(k) -> S(plus(k, right))
+          macro Tactics
+            tactic induct <value: Code> becomes induction value
+              case Z => simplify
+              case S(previous, ih) => simplify using [ih]
+          fn theorem(n: Nat) -> Equivalent(Nat, plus(n, Z()), n) = proof chain
+            plus(n, Z()) == n
+            because induct n
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-divergent-proof-evidence-refused",
+        gap: :g2,
+        axis: :l3,
+        title: "uncertified divergence cannot discharge a false equality",
+        expect: :reject,
+        reason:
+          "Completed proof-command declarations require ordinary kernel-backed totality certification; typing a self-call is not logical evidence.",
+        source: """
+        mod Parity.G2DivergentProof
+          use Std.Equivalent
+          use Std.Nat
+          fn loop() -> Equivalent(Nat, Z(), S(Z())) = loop()
+          fn theorem() -> Equivalent(Nat, Z(), S(Z())) = proof chain
+            Z() == S(Z())
+            because exact loop()
         end
         """
       ),

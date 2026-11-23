@@ -166,16 +166,28 @@ defmodule Cure.Elab.TacticMacroAuditTest do
     end
   end
 
-  test "unsupported induction templates are rejected at declaration, even when unused" do
-    assert {:error, {:source_context, {:invalid_tactic_expansion, "induct", :unsupported_induction_tactic}, _}} =
-             Program.elaborate("""
-             mod UnsupportedInductionTemplate
-               macro Tactics
-                 tactic induct <n: Code> becomes induction n
-                   case Z => reflexive(Z())
-                   case S(k, ih) => reflexive(S(k))
-               fn theorem(x: Int) -> Equivalent(Int, x, x) = reflexive(x)
-             end
-             """)
+  test "an induction template executes and uses its recursive hypothesis" do
+    env =
+      checked!("""
+      mod CheckedInductionTemplate
+        use Std.Equivalent
+        type Nat = Z | S(Nat)
+        fn plus(left: Nat, right: Nat) -> Nat = match left
+          Z() -> right
+          S(k) -> S(plus(k, right))
+
+        macro Tactics
+          tactic induct <value: Code> becomes induction value
+            case Z => simplify
+            case S(previous, ih) => simplify using [ih]
+
+        fn theorem(n: Nat) -> Equivalent(Nat, plus(n, Z()), n) = proof chain
+          plus(n, Z()) == n
+          because induct n
+      end
+      """)
+
+    assert :ok = Cure.Core.Kernel.check_def(env, :"CheckedInductionTemplate#theorem")
+    assert Cure.Core.Env.total?(env, :"CheckedInductionTemplate#theorem")
   end
 end
