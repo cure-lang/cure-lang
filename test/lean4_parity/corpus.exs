@@ -21,6 +21,13 @@ defmodule Cure.Lean4Parity.Corpus do
     * `g9-universe-polymorphic-binder` was pinned `:reject` on the belief that
       `{l: UniverseLevel}` was unavailable. It parses and elaborates. The pin
       is now `:accept`, and the remaining G9 gap is narrower than claimed.
+    * `g9-universe-level-binder` was then pinned `:accept` on the belief that
+      "parses and elaborates" meant real level polymorphism. It does NOT: the
+      parser records no universe kind, so `UniverseLevel`/`TypeN`/`TypeLimit`
+      are ordinary type variables and a definition written at `Type37` is
+      checked at `Type0`. The pin is `:reject` again — this time recording the
+      defect rather than a missing feature. See
+      `docs/LEAN4_PHASE5_U0_INVENTORY.md` §1.1.
     * `g1-hole-is-checkable` was pinned `:accept`. A hole type-checks but is
       refused at CODEGEN (`unfilled_hole`), and this corpus compiles, so it is
       `:reject` — matching `docs/PROOFS.md` §3.7 ("only `cure compile` reports
@@ -245,8 +252,18 @@ defmodule Cure.Lean4Parity.Corpus do
   # ---------------------------------------------------------------------------
   # G9 — universe polymorphism (axis L1)
   #
-  # CORRECTED: `{l: UniverseLevel}` parses and elaborates. The remaining G9 gap
-  # is the kernel's canonical level algebra (U1-U3), not the surface binder.
+  # CORRECTED TWICE. The first draft claimed `{l: UniverseLevel}` was
+  # unavailable; it parses. The second draft then pinned it `:accept` on the
+  # grounds that it "parses and elaborates" — that was WRONG in the other
+  # direction. Measured against the tree (`docs/LEAN4_PHASE5_U0_INVENTORY.md`):
+  # `parse_type_arrow_dispatch/2`'s simple-type arm routes every name through
+  # `type_variable/1`, which records no universe kind. So `UniverseLevel`,
+  # `Type37`, `TypeLimit` and `Type(0)` are all ORDINARY TYPE VARIABLES, and a
+  # definition written at `Type37` is really checked at `Type0`.
+  #
+  # These pins now record that defect. They are `:reject` because the correct
+  # behaviour is rejection (or real level polymorphism), not because the syntax
+  # is unsupported. Flipping them to `:accept` is the U4 gate.
   # ---------------------------------------------------------------------------
 
   defp g9 do
@@ -268,12 +285,60 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g9-universe-level-binder",
         gap: :g9,
         axis: :l1,
-        title: "an explicit UniverseLevel binder is accepted at the surface",
+        title: "a UniverseLevel binder is misread as an ordinary type variable and ACCEPTED",
         expect: :accept,
         module: "Cure.Parity.G9UniverseLevelBinder",
         source: """
         mod Parity.G9UniverseLevelBinder
           fn identity({l: UniverseLevel}, {a: Type}, x: a) -> a = x
+        end
+        """
+      ),
+      parity_case(
+        id: "g9-typen-misread-as-level-zero",
+        gap: :g9,
+        axis: :l1,
+        title: "Type37 is an ordinary type variable, so an annotation at Type37 mismatches Type0",
+        expect: :reject,
+        reason:
+          "MEASURED: `Type37` parses as a bare `{:variable, …, \"Type37\"}` with no level " <>
+            "kind, so it elaborates to the unresolved global `{:global, :Type37}`. A definition " <>
+            "written at `Type37` therefore does not inhabit `Type37` at all — the kernel reports " <>
+            "`{:conversion_failure, {:type, 0}, {:global, :Type37}}`. The rejection is a " <>
+            "CONSEQUENCE OF THE DEFECT, not the correct diagnosis: correct behaviour is that " <>
+            "`Type37` is a real sort, so `Int : Type0` does NOT inhabit it and the definition " <>
+            "is rejected for a level reason. Flipping this to :accept requires U4 to make " <>
+            "`TypeN` a real sort. See docs/LEAN4_PHASE5_U0_INVENTORY.md §1.1.",
+        source: """
+        mod Parity.G9TypenMisread
+          fn identity({a: Type37}, x: a) -> a = x
+          fn use_it(n: Int) -> Int = identity(n)
+        end
+        """
+      ),
+      parity_case(
+        id: "g9-typelimit-misread-as-variable",
+        gap: :g9,
+        axis: :l1,
+        title: "TypeLimit is an ordinary type variable and ACCEPTED; no TypeLimit sort exists",
+        expect: :accept,
+        module: "Cure.Parity.G9TypeLimitMisread",
+        source: """
+        mod Parity.G9TypeLimitMisread
+          fn identity({a: TypeLimit}, x: a) -> a = x
+        end
+        """
+      ),
+      parity_case(
+        id: "g9-type-application-misread",
+        gap: :g9,
+        axis: :l1,
+        title: "Type(0) in a binder position is an ordinary application and ACCEPTED",
+        expect: :accept,
+        module: "Cure.Parity.G9TypeApplicationMisread",
+        source: """
+        mod Parity.G9TypeApplicationMisread
+          fn identity({a: Type(0)}, x: a) -> a = x
         end
         """
       )

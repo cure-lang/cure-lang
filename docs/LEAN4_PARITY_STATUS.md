@@ -32,7 +32,12 @@ overall Lean parity, unrestricted metaprogramming or universal soundness.
   rejects uncertified recursive evidence without changing trusted rules.
   `simp?`, local-only assumption and bounded integer-order reconstruction do
   not establish unrestricted arithmetic automation or general Farkas soundness.
-- **Phase 5 — C2:** not changed; execute the existing universe design.
+- **Phase 5 — C2:** executing the universe spec's U0–U7 sequence. **U0
+  complete** (inventory + characterization tests, no `lib/` change); **U1
+  landed** (`Cure.Core.UniverseLevel` canonical maximum-plus algebra, with
+  algebra property tests and malformed-form rejection, and no kernel semantics
+  changed). U2–U7 remain. The surface is currently *misread*, not merely
+  unimplemented — see the G9 bullet below.
 - **Phase 6 — C9, C10:** not changed; follow the kernel reach ledger.
 
 The phase numbers in `PATH_TO_LEAN4_PLAN.md` and `LEAN4_MIGRATION_PLAN.md`
@@ -283,8 +288,17 @@ silently reassign their meaning.
   reconstruction. No general Farkas checker-to-goal soundness theorem is
   claimed. A rejected dependent-decision library-call pin is a specific reach
   boundary, not evidence that all decision clients are absent.
-- **G9 / C2:** universe work not changed. Surface binders alone are not proof of
-  arbitrary-level kernel polymorphism.
+- **G9 / C2:** universe work not changed. **The surface is misread, not merely
+  unimplemented.** `UniverseLevel`, `TypeN`, `TypeLimit` and `Type(0)` all parse
+  as ordinary type variables (`parse_type_arrow_dispatch/2` → `type_variable/1`
+  records no universe kind), so a definition written at `Type37` is not a
+  definition at level 37. The `:accept` pins for these forms are therefore **not
+  evidence of level polymorphism**. `TypeN` is the sharpest case: it resolves to
+  an unresolved global, so an annotated use fails with
+  `{:conversion_failure, {:type, 0}, {:global, :Type37}}` rather than a level
+  error. Phase 5 (C2) is executing the spec's U0–U7 sequence; U0 is complete
+  (`docs/LEAN4_PHASE5_U0_INVENTORY.md`) and U1 (`Cure.Core.UniverseLevel`
+  canonical level algebra) is landed with no kernel semantics changed.
 - **G10:** `simp?` is implemented. It runs the same simplification as
   `simplify` and reports the ambient lemmas that actually progressed the goal,
   both in the proof trace and as a `:simp_trace` pipeline event. Event reports
@@ -304,8 +318,11 @@ refusal), `by omega` (checked-reconstruction acceptance and unsupported/refusal
 controls) and `simp?`. Rejection counts include deliberate safety boundaries,
 not just unfinished features.
 
-The current inventory is **44 cases: 25 accept and 19 reject**, measured from
-`Corpus.all/0`; all pins pass through the actual compiler pipeline.
+The current inventory is **47 cases: 27 accept and 20 reject**, measured from
+`Corpus.all/0`; all pins pass through the actual compiler pipeline. Phase 5's U0
+added three G9 pins recording the universe surface misreading (see the G9 bullet
+above): two `:accept` (the misread forms genuinely compile) and one `:reject`
+(`TypeN` resolves to an unresolved global).
 The formerly rejected premise-generation pin now accepts with explicit premise
 evidence, while a separate unfinished-premise pin still refuses. New pins cover
 ordered and dependent premises, real induction-template execution and divergent
