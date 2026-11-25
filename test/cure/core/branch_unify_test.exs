@@ -14,11 +14,11 @@ defmodule Cure.Core.BranchUnifyTest do
   defp sig do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Dec, [], [], 0),
+      Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:Ix, [], [{:n, @dec}], 0),
+      Inductive.family(:Ix, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:wrap, [{:p, @dec}], [{:ctor, :Causal, []}])]
     )
   end
@@ -52,11 +52,11 @@ defmodule Cure.Core.BranchUnifyTest do
 
     sig =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Char, [], [], 0), [])
-      |> Inductive.declare(Inductive.family(:Chars, [], [], 0), [])
-      |> Inductive.declare(Inductive.family(:Proof, [], [], 0), [])
+      |> Inductive.declare(Inductive.family(:Char, [], [], Cure.Core.Sort.finite_closed(0)), [])
+      |> Inductive.declare(Inductive.family(:Chars, [], [], Cure.Core.Sort.finite_closed(0)), [])
+      |> Inductive.declare(Inductive.family(:Proof, [], [], Cure.Core.Sort.finite_closed(0)), [])
       |> Inductive.declare(
-        Inductive.family(:ResultIx, [], [{:n, @dec}], 0),
+        Inductive.family(:ResultIx, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)),
         [
           # This adversarial signature models a de Bruijn-frame corruption: the
           # declared codomain is rigidly Dec, but `bad` receives a Chars field
@@ -80,7 +80,7 @@ defmodule Cure.Core.BranchUnifyTest do
     sig =
       sig()
       |> Inductive.declare(
-        Inductive.family(:GroundIx, [], [{:n, @dec}], 0),
+        Inductive.family(:GroundIx, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:ground_wrap, [], [{:ctor, :Causal, []}])]
       )
 

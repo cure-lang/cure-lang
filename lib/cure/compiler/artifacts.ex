@@ -10,6 +10,7 @@ defmodule Cure.Compiler.Artifacts do
 
   alias Cure.Compiler.Artifacts.Writer
   alias Cure.Compiler.BuildManifest
+  alias Cure.Core.UniverseCodec
 
   @doc "Run the unified read-only or repairing artifact sweep."
   @spec sweep(keyword()) ::
@@ -146,6 +147,7 @@ defmodule Cure.Compiler.Artifacts do
           | :provenance_missing
           | :provenance_mismatch
           | :producer_snapshot_mismatch
+          | :universe_identity_mismatch
 
   @type artifact :: %{
           path: String.t(),
@@ -194,7 +196,10 @@ defmodule Cure.Compiler.Artifacts do
       fun.()
     after
       if previous, do: Process.put(key, previous), else: Process.delete(key)
-      if previous_stats, do: Process.put(stats_key, previous_stats), else: Process.delete(stats_key)
+
+      if previous_stats,
+        do: Process.put(stats_key, previous_stats),
+        else: Process.delete(stats_key)
     end
   end
 
@@ -248,12 +253,20 @@ defmodule Cure.Compiler.Artifacts do
 
   @doc "Verify an in-memory Cure BEAM before loading it into the VM."
   @spec verify_binary(binary(), module()) :: :ok | {:error, reason()}
-  def verify_binary(binary, expected_module) when is_binary(binary) and is_atom(expected_module) do
+  def verify_binary(binary, expected_module)
+      when is_binary(binary) and is_atom(expected_module) do
     case beam_metadata({:binary, binary}) do
-      {:ok, ^expected_module, _exports, provenance} when is_map(provenance) -> :ok
-      {:ok, ^expected_module, _exports, _provenance} -> {:error, :provenance_missing}
-      {:ok, _other, _exports, _provenance} -> {:error, :beam_module_mismatch}
-      {:error, reason} -> {:error, reason}
+      {:ok, ^expected_module, _exports, provenance} when is_map(provenance) ->
+        if current_universe?(provenance), do: :ok, else: {:error, :universe_identity_mismatch}
+
+      {:ok, ^expected_module, _exports, _provenance} ->
+        {:error, :provenance_missing}
+
+      {:ok, _other, _exports, _provenance} ->
+        {:error, :beam_module_mismatch}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -277,8 +290,12 @@ defmodule Cure.Compiler.Artifacts do
           |> mismatch(actual.module != Map.get(expected, :module), :beam_module_mismatch)
           |> mismatch(actual.sha256 != Map.get(expected, :sha256), :artifact_hash_mismatch)
           |> mismatch(actual.size != Map.get(expected, :size), :artifact_size_mismatch)
-          |> mismatch(actual.exports_hash != Map.get(expected, :exports_hash), :exports_hash_mismatch)
+          |> mismatch(
+            actual.exports_hash != Map.get(expected, :exports_hash),
+            :exports_hash_mismatch
+          )
           |> mismatch(not is_map(actual.provenance), :provenance_missing)
+          |> mismatch(not current_universe?(actual.provenance), :universe_identity_mismatch)
           |> mismatch(
             actual.producer_snapshot != Map.get(expected, :producer_snapshot),
             :producer_snapshot_mismatch
@@ -297,7 +314,8 @@ defmodule Cure.Compiler.Artifacts do
   end
 
   @doc "Record every BEAM named by a module manifest entry."
-  @spec record_paths([String.t()], Path.t()) :: {:ok, [artifact()]} | {:error, {String.t(), reason()}}
+  @spec record_paths([String.t()], Path.t()) ::
+          {:ok, [artifact()]} | {:error, {String.t(), reason()}}
   def record_paths(paths, root) do
     paths
     |> Enum.sort()
@@ -326,6 +344,7 @@ defmodule Cure.Compiler.Artifacts do
       |> mismatch(actual.size != Map.get(expected, :size), :artifact_size_mismatch)
       |> mismatch(actual.exports_hash != Map.get(expected, :exports_hash), :exports_hash_mismatch)
       |> mismatch(not is_map(actual.provenance), :provenance_missing)
+      |> mismatch(not current_universe?(actual.provenance), :universe_identity_mismatch)
       |> mismatch(
         actual.producer_snapshot != Map.get(expected, :producer_snapshot),
         :producer_snapshot_mismatch
@@ -778,6 +797,9 @@ defmodule Cure.Compiler.Artifacts do
         not is_map(provenance) ->
           [:provenance_missing]
 
+        not current_universe?(provenance) ->
+          [:universe_identity_mismatch]
+
         Map.get(provenance, :source_hash) != get_in(entry, [:source, :sha256]) ->
           [:provenance_mismatch]
 
@@ -793,6 +815,11 @@ defmodule Cure.Compiler.Artifacts do
       end
     end)
   end
+
+  defp current_universe?(provenance) when is_map(provenance),
+    do: Map.get(provenance, :universe_identity) == UniverseCodec.identity()
+
+  defp current_universe?(_), do: false
 
   defp provenance_module_owned?(emitted, source_module) when is_binary(emitted) do
     emitted = String.replace_prefix(emitted, "Cure.", "")
@@ -861,7 +888,8 @@ defmodule Cure.Compiler.Artifacts do
     stat = path |> File.stat!(time: :posix) |> stat_signature()
     verification = Keyword.get(opts, :verification, :cached)
 
-    if verification == :cached and is_map(expected) and stat_matches?(Map.get(expected, :stat), stat) and
+    if verification == :cached and is_map(expected) and
+         stat_matches?(Map.get(expected, :stat), stat) and
          timestamp_safe?(stat, validated_at) do
       increment_hash_stat(:reused)
       expected

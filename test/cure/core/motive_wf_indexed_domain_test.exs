@@ -25,11 +25,11 @@ defmodule Cure.Core.MotiveWfIndexedDomainTest do
   defp base_env do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Dec, [], [], 0),
+      Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:SNat, [], [{:d, @dec}], 0),
+      Inductive.family(:SNat, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:snat0, [], [{:ctor, :Dcoupled, []}])]
     )
   end
@@ -70,7 +70,11 @@ defmodule Cure.Core.MotiveWfIndexedDomainTest do
 
     body =
       {:lam, Cure.Core.Grade.unrestricted(), @dec,
-       {:case, {:var, 0}, neg_motive, [{:Dcoupled, 0, {:type, 0}}, {:Causal, 0, {:type, 0}}]}}
+       {:case, {:var, 0}, neg_motive,
+        [
+          {:Dcoupled, 0, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+          {:Causal, 0, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+        ]}}
 
     env = Env.add_def(base_env(), :probe, def_type, body)
     assert {:error, :bad_motive} = Kernel.check_def(env, :probe)

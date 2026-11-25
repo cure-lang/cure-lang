@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofRecipeFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Env, Inductive, ProofRecipe, Term}
@@ -24,7 +25,7 @@ defmodule Cure.Test.ProofRecipeFixture do
       branch(alternate, motive, {:c_trans, alternate_index, :c_beta, :c_beta})
     ]
 
-    case_recipe = {:r_case, constructor, [], [:r_leaf], 0, kind, motive_recipe, branches}
+    case_recipe = {:r_case, constructor, [], [:r_leaf], @u0, kind, motive_recipe, branches}
     middle = {:app, beta({:app, motive, {:atom_type}}), value}
     conversion = {:c_trans, middle, {:c_app, :c_beta, :c_refl}, :c_beta}
     scalar = {:packet, :r_leaf, :r_leaf}

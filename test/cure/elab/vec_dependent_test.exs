@@ -18,7 +18,10 @@ defmodule Cure.Elab.VecDependentTest do
   test "the length-indexed Vector family elaborates with a Type parameter and Nat index" do
     assert {:ok, env} = Program.elaborate(@vec_core)
     # `a` is a uniform parameter (never matched); `n` is the sole index.
-    assert %{params: [a: {:type, 0}], indices: [n: {:data, :"Main#Nat", [], []}]} =
+    assert %{
+             params: [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+             indices: [n: {:data, :"Main#Nat", [], []}]
+           } =
              Inductive.get_family(env, :Vector)
   end
 

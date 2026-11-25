@@ -18,10 +18,20 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
   alias Cure.Core.Env
 
   # f(n) = g(n) ; g(n) = f(n) — a divergent mutual pair.
-  defp f_body, do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:app, {:global, :g}, {:var, 0}}}
-  defp g_body, do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:app, {:global, :f}, {:var, 0}}}
+  defp f_body,
+    do:
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:app, {:global, :g}, {:var, 0}}}
 
-  defp pi, do: {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}}
+  defp g_body,
+    do:
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:app, {:global, :f}, {:var, 0}}}
+
+  defp pi,
+    do:
+      {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
   test "an earlier mutual member is NOT certified while its sibling body is pending" do
     # Mid-body_pass: f's real body is registered; g is still a pending placeholder.
@@ -47,8 +57,10 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
   test "a genuine self-recursive callee that is elaborated is unaffected (control)" do
     # h(n) = case n of Z => Z | S(m) => h(m) — structurally decreasing, total.
     h_body =
-      {:lam, Cure.Core.Grade.unrestricted(), {:type, 0},
-       {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}},
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:case, {:var, 0},
+        {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
         [
           {:Z, 0, {:ctor, :Z, []}},
           {:S, 1, {:app, {:global, :h}, {:var, 0}}}

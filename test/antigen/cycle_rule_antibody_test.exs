@@ -146,8 +146,10 @@ defmodule Antigen.CycleRuleAntibodyTest do
 
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Wr, [], [], 0), [Inductive.ctor(:MkWr, [], [])])
-      |> Inductive.declare(Inductive.family(:IA, [], [{:w, wr}], 0), [
+      |> Inductive.declare(Inductive.family(:Wr, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:MkWr, [], [])
+      ])
+      |> Inductive.declare(Inductive.family(:IA, [], [{:w, wr}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:ia, [], [{:app, {:var, 1}, [{:var, 1}]}])
       ])
 

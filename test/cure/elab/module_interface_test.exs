@@ -132,7 +132,7 @@ defmodule Cure.Elab.ModuleInterfaceTest do
 
   test "a fresh in-memory loader reuses the fingerprinted interface artifact" do
     path = Path.expand("lib/std/core.cure")
-    cache_key = {Program, :module_interface, path}
+    cache_key = {Program, :module_interface, path, Program.module_interface_cache_identity()}
 
     # Arrange the artifact this test is about, rather than inheriting one. The
     # fingerprint covers every stdlib source, so it conservatively -- and

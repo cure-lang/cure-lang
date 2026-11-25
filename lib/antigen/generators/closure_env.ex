@@ -55,7 +55,7 @@ defmodule Antigen.Generators.ClosureEnv do
             name: fam,
             params: [],
             indices: [{:i, {:app, {:global, g}, {:int_lit, 0}}}],
-            level: 0
+            sort: Cure.Core.Sort.finite_zero()
           })
     }
 

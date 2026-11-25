@@ -1,9 +1,7 @@
 defmodule Antigen.TotalitySeedTest do
   @moduledoc """
-  Banks the W1 adversarial diverging antibodies (pre-port banking spec §4 W1) and
-  guards that every banked totality record replays through the kernel to `:ok`.
-  Idempotent: on a fresh checkout the committed records are already present, so
-  `Corpus.append/3` dedups and writes nothing (keeping `mix test` git-clean).
+  Read-only presence guard for the W1 adversarial diverging antibodies
+  (pre-port banking spec §4 W1), plus real replay of every totality record.
   These five must keep replaying `:ok` FOREVER — including after the P1
   size-change port makes the certifier more permissive; that transition is the
   only moment they can go red, and catching it is their entire purpose.
@@ -27,7 +25,13 @@ defmodule Antigen.TotalitySeedTest do
   ]
 
   test "W1 diverging antibodies are banked and every totality record replays :ok" do
-    for a <- @antibodies, do: Corpus.append(@corpus, a, Corpus.dedup_key(a, :antibody))
+    before = File.read!(@corpus)
+    stored = @corpus |> Corpus.record_lines() |> MapSet.new(&Corpus.raw_key/1)
+
+    for antibody <- @antibodies do
+      assert MapSet.member?(stored, Corpus.dedup_key(antibody, :antibody)),
+             "missing committed totality antibody: #{inspect(antibody.note)}"
+    end
 
     reg = %{"totality/diverging" => Assays.Totality, "totality/terminating" => Assays.Totality}
     results = Runner.replay([@corpus], reg)
@@ -43,5 +47,7 @@ defmodule Antigen.TotalitySeedTest do
     assert Enum.all?(tot, &(&1.verdict == :ok)),
            "totality replay produced a non-:ok verdict: " <>
              inspect(tot |> Enum.reject(&(&1.verdict == :ok)) |> Enum.map(& &1.verdict))
+
+    assert File.read!(@corpus) == before
   end
 end

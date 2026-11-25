@@ -126,7 +126,7 @@ defmodule Cure.Core.UniverseLevelTest do
       # max(a, a+1) must collapse to a+1, not keep both.
       level = L.max(a, L.succ(a))
       assert %UniverseLevel{atoms: [{_, 1}]} = level
-      assert length(level.atoms) == 1
+      assert [_] = level.atoms
     end
 
     test "atoms are sorted deterministically regardless of insertion order" do
@@ -174,7 +174,11 @@ defmodule Cure.Core.UniverseLevelTest do
 
     test "shift descends under a binder inside an atom" do
       # atom = λ. #0  — the variable is BOUND, so shifting must not touch it.
-      level = L.atom({:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}})
+      level =
+        L.atom(
+          {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}}
+        )
+
       shifted = L.shift(level, 1, 0)
       assert [{lam, _, _, {:var, 0}}] = shifted.atoms |> Enum.map(&elem(&1, 0))
       assert lam == :lam
@@ -187,16 +191,24 @@ defmodule Cure.Core.UniverseLevelTest do
     end
 
     test "subst shifts the replacement under a binder" do
-      # atom = λ. #1  — substituting index 1 (free) must shift the replacement.
-      level = L.atom({:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 1}})
-      substituted = L.subst(level, 1, {:var, 0})
-      # Under the binder the replacement's free var 0 becomes 1.
-      assert [{:lam, _, _, {:var, 1}}] = substituted.atoms |> Enum.map(&elem(&1, 0))
+      # The outer index 0 occurs as index 1 under the lambda.
+      level =
+        L.atom(
+          {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %UniverseLevel{constant: 0, atoms: []}}}, {:var, 1}}
+        )
+
+      substituted = L.subst(level, 0, {:var, 2})
+      # A distinct free index 2 becomes 3; leaving the old 1 proves nothing.
+      assert [{:lam, _, _, {:var, 3}}] = substituted.atoms |> Enum.map(&elem(&1, 0))
     end
 
     test "free_vars reports free variables in atoms, respecting binders" do
       free = L.atom({:var, 0})
-      bound = L.atom({:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}})
+
+      bound =
+        L.atom(
+          {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}}
+        )
 
       assert L.free_vars(free) == [0]
       assert L.free_vars(bound) == []
@@ -295,12 +307,10 @@ defmodule Cure.Core.UniverseLevelTest do
       # `universe_max(atom, 2)` would denote `max(atom, 2)` — a level floored by
       # the numeral 2 — which is a different level.
       #
-      # NOTE: canonical form also carries the constant `2` here, because
-      # `succ(succ(a))` raises the constant alongside the offset (that is what
-      # makes `succ` distribute over `max`). The constant is emitted as its own
-      # `universe_max` operand, which is correct: `max(2, a+2)`.
+      # The offset already guarantees the lower bound 2, so canonical form
+      # drops that redundant constant.
       assert L.to_string(L.succ(L.succ(L.atom({:var, 0})))) ==
-               "universe_max(2, universe_succ(universe_succ(?#{0})))"
+               "universe_succ(universe_succ(?#{0}))"
     end
   end
 end

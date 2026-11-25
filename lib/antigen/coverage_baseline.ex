@@ -17,9 +17,14 @@ defmodule Antigen.CoverageBaseline do
   distilled greedily — keep a challenge iff its replay grows the covered-line set —
   from a deterministic generative pool, and is only ever (re)written by
   `mix antigen cover --record-new-coverage-baseline`. That command is the ONLY
-  sanctioned way to move the floor: a genuine improvement raises it; newly-added
+  sanctioned generative way to move the floor: a genuine improvement raises it; newly-added
   proven-unreachable guard code (which lowers the ratio) is accepted by re-recording.
   Everyday `mix test` never regenerates it, so the floor cannot silently drift down.
+
+  `mix antigen cover --refresh-existing-coverage-baseline` instead replays only
+  the existing stores, preserves every record byte, and refuses any decrease in
+  a covered-line floor. It can refresh source-line totals after a representation
+  change without re-distilling the corpus.
 
   Residual cold lines under this replay (7, as of the value-surface batch) are the
   documented, proven-unreachable defensive backstops — guarded by a same-module
@@ -84,6 +89,17 @@ defmodule Antigen.CoverageBaseline do
     end)
   end
 
+  defp parse_baseline(bytes) do
+    bytes
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(&parse_floor_line/1)
+    |> Map.new()
+  end
+
+  defp notify_refresh(opts, checkpoint) do
+    if observer = opts[:on_checkpoint], do: observer.(checkpoint)
+  end
+
   defp records(path),
     do:
       Corpus.stream(path)
@@ -114,13 +130,7 @@ defmodule Antigen.CoverageBaseline do
           | {:error, :missing}
   def read_baseline(path \\ @baseline) do
     if File.exists?(path) do
-      floors =
-        path
-        |> File.stream!()
-        |> Enum.flat_map(&parse_floor_line/1)
-        |> Map.new()
-
-      {:ok, floors}
+      {:ok, path |> File.read!() |> parse_baseline()}
     else
       {:error, :missing}
     end
@@ -154,8 +164,9 @@ defmodule Antigen.CoverageBaseline do
     header = [
       "; Antigen kernel-coverage floor — per-module covered/total from a PURE REPLAY of",
       "; corpus.sexp + seeds.sexp + reach.sexp + coverage.sexp (no generation). A drop",
-      "; below any floor fails test/antigen/coverage_baseline_test.exs. Regenerate ONLY via:",
-      ";   mix antigen cover --record-new-coverage-baseline"
+      "; below any floor fails test/antigen/coverage_baseline_test.exs. Explicit updates:",
+      ";   mix antigen cover --record-new-coverage-baseline",
+      ";   mix antigen cover --refresh-existing-coverage-baseline (no record changes or floor reductions)"
     ]
 
     body = header ++ rows ++ ["(cover-total #{tc} #{tt})"]
@@ -177,6 +188,68 @@ defmodule Antigen.CoverageBaseline do
         cur == nil or cur.covered < fcov do
       {mod, fcov, cur && cur.covered}
     end
+  end
+
+  @doc """
+  Refresh source-line totals while preserving covered-line floors exactly.
+
+  Unlike `record!/0`, this never generates, distils, banks or rewrites corpora.
+  Every committed record must replay successfully, every tracked module must
+  reach its captured covered-line floor, and all current input bytes must still
+  match the snapshot before publication. Optional trusted checkpoint observers
+  run outside instrumentation and cannot replace the captured inputs or verdicts.
+  """
+  @spec refresh_existing!(keyword()) :: %{records: non_neg_integer(), measured: map(), floor: map()}
+  def refresh_existing!(opts \\ []) do
+    paths = replay_paths()
+    before = Map.new(paths ++ [@baseline], &{&1, File.read!(&1)})
+    notify_refresh(opts, :snapshot_captured)
+    floor = parse_baseline(Map.fetch!(before, @baseline))
+
+    unless MapSet.new(Map.keys(floor)) == MapSet.new(Cover.cover_modules()),
+      do: raise("coverage baseline module set is incomplete or obsolete")
+
+    challenges =
+      Enum.flat_map(paths, fn path ->
+        before
+        |> Map.fetch!(path)
+        |> String.split("\n", trim: true)
+        |> Enum.map(fn line ->
+          case Corpus.decode_record(line) do
+            {:ok, challenge} -> challenge
+            {:error, _} -> raise("coverage baseline refresh refused: committed replay failures")
+          end
+        end)
+      end)
+
+    measured =
+      Cover.with_cover(Cover.cover_modules(), fn ->
+        Enum.each(challenges, fn challenge ->
+          unless Runner.replay_one(challenge) == :ok,
+            do: raise("coverage baseline refresh refused: instrumented replay failures")
+        end)
+
+        Map.new(Cover.cover_modules(), fn module ->
+          coverage = Cover.line_coverage(module)
+          {module, %{covered: length(coverage.covered), total: coverage.total}}
+        end)
+      end)
+
+    notify_refresh(opts, :measurement_complete)
+
+    unless regressions(measured, floor) == [],
+      do: raise("coverage baseline refresh cannot lower covered-line floors")
+
+    unless before == Map.new(paths ++ [@baseline], &{&1, File.read!(&1)}),
+      do: raise("coverage baseline refresh inputs changed during measurement")
+
+    refreshed =
+      Map.new(floor, fn {module, entry} ->
+        {module, %{covered: entry.covered, total: measured[module].total}}
+      end)
+
+    write_baseline(refreshed)
+    %{records: length(challenges), measured: measured, floor: refreshed}
   end
 
   # ── distillation (record side): greedy minimal coverage corpus ─────────────
@@ -207,18 +280,13 @@ defmodule Antigen.CoverageBaseline do
 
     File.rm_rf!(@coverage)
 
-    # Bank with a per-record UNIQUE key (antibody key + index), NOT the plain
-    # antibody key: scaffold-only kinds (`kernel/probe`, `decode_probe`) all share
-    # one antibody key because the probe tag rides the scaffold, not the terms
-    # list — so `Corpus.append`'s dedup would collapse all 20 probes to one record
-    # and drop their coverage. The greedy pass already deduped by *coverage*, so
-    # every record here is coverage-distinct; append still runs its portability
-    # check (a non-portable record that would crash a fresh replay VM is dropped).
+    # Current antibody identities include the complete semantic scaffold, so
+    # zero-piece recipes and decoder inputs no longer need row-index nonces.
+    # append still performs its current-carrier portability check.
     banked =
       new
-      |> Enum.with_index()
-      |> Enum.count(fn {c, i} ->
-        Corpus.append(@coverage, c, Corpus.dedup_key(c, :antibody) <> "##{i}") == :appended
+      |> Enum.count(fn c ->
+        Corpus.append(@coverage, c, Corpus.dedup_key(c, :antibody)) == :appended
       end)
 
     measured = measure()

@@ -130,9 +130,11 @@ constructor-fields-distinct = refl
 -- Generic MODEL constructors do not claim actual compact-Bounded identity.
 module CompactModel = Quotation.Case 0 Observed.compact-program []
   (E.v-ctor "First" (E.v-atom-type ∷ [])) Observed.compact-program refl refl refl
-actual-compacts : Observed.compact-actual-quoted ≡ tm-bounded_lit 0
+actual-retains-non-nat-bound : Observed.compact-actual-quoted ≡ Observed.compact-program
+actual-retains-non-nat-bound = refl
+actual-compacts : Observed.concrete-actual-quoted ≡ tm-bounded_lit 0
 actual-compacts = refl
-compact-not-generic : Observed.compact-actual-quoted ≢ Observed.compact-program
+compact-not-generic : Observed.concrete-actual-quoted ≢ Observed.concrete-program
 compact-not-generic ()
 -- Data-family readback needs a metadata-dependent split, not vctor recursion.
 actual-flat-split-differ : Observed.data-flat-quoted ≢ Observed.data-split-quoted

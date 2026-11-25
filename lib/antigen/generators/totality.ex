@@ -428,7 +428,7 @@ defmodule Antigen.Generators.Totality do
       {:lam, Cure.Core.Grade.unrestricted(), {:int_type},
        {:case, {:app, {:app, {:global, :int_eq}, {:var, 0}}, {:int_lit, 0}},
         {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, {:int_type}},
-        [{:True, 0, {:int_lit, 0}}, {:False, 0, {:app, {:global, :f}, {:var, 0}}}]}}
+        [{:"Std.Bool#True", 0, {:int_lit, 0}}, {:"Std.Bool#False", 0, {:app, {:global, :f}, {:var, 0}}}]}}
 
     Challenge.new(
       kind: :def_group,
@@ -453,8 +453,11 @@ defmodule Antigen.Generators.Totality do
   @spec terminating_bool_elim_branch() :: Challenge.t()
   def terminating_bool_elim_branch do
     inner =
-      {:case, {:ctor, :True, []}, {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, @nat},
-       [{:True, 0, {:app, {:global, :h}, {:var, 0}}}, {:False, 0, {:app, {:global, :h}, {:var, 0}}}]}
+      {:case, {:ctor, :"Std.Bool#True", []}, {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, @nat},
+       [
+         {:"Std.Bool#True", 0, {:app, {:global, :h}, {:var, 0}}},
+         {:"Std.Bool#False", 0, {:app, {:global, :h}, {:var, 0}}}
+       ]}
 
     body =
       {:lam, Cure.Core.Grade.unrestricted(), @nat,

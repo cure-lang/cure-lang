@@ -41,10 +41,12 @@ defmodule Cure.Test.ProofConstructorFixture do
     atom = {:atom_type}
     data = {:data, :"Boundary#Packed", [], [atom]}
     data_value = Eval.eval(data, [])
-    # This RAW compaction control is not asserted well typed: actual First
-    # compacts its erased bound without inspecting the bound's value shape.
+    # Preserve this raw, deliberately untyped observation: a non-Nat bound
+    # must not be discarded by compaction. A closed Nat has its own control.
     first = {:ctor, :First, [atom]}
     compact = Quote.reify(Eval.eval(first, []), 0)
+    concrete_first = {:ctor, :First, [{:nat_lit, 0}]}
+    concrete_compact = Quote.reify(Eval.eval(concrete_first, []), 0)
     flat = Quote.reify(data_value, 0)
     split = Quote.reify(data_value, 0, ProofSnapshotFixture.environment())
 
@@ -76,6 +78,10 @@ defmodule Cure.Test.ProofConstructorFixture do
      compact-program = #{term(first)}
      compact-actual-quoted : Term
      compact-actual-quoted = #{term(compact)}
+     concrete-program : Term
+     concrete-program = #{term(concrete_first)}
+     concrete-actual-quoted : Term
+     concrete-actual-quoted = #{term(concrete_compact)}
      data-program : Term
      data-program = #{term(data)}
      data-flat-quoted : Term
@@ -109,7 +115,12 @@ defmodule Cure.Test.ProofConstructorFixture do
 
   defp values([]), do: "[]"
   defp values(values), do: "(" <> Enum.map_join(values, " ∷ ", &value/1) <> " ∷ [])"
-  defp value({:vtype, level}), do: "(E.v-type l#{level})"
+
+  defp value({:vtype, sort}) do
+    {:ok, level} = Cure.Core.HistoricalFinite3.project_value_sort_finite3(sort)
+    "(E.v-type l#{level})"
+  end
+
   defp value({:vatom_type}), do: "E.v-atom-type"
   defp value({:vatom, name}), do: "(E.v-atom #{inspect(Atom.to_string(name))})"
   defp value({:vctor, name, fields}), do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(fields)})"

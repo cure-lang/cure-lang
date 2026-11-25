@@ -38,13 +38,14 @@ defmodule Antigen.BinaryPrimAntibodyTest do
     {:binary_type},
     {:int_type},
     {:float_type},
-    {:type, 0},
+    {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
     {:data, :Nat, [], []},
     {:data, :Bool, [], []}
   ]
 
   test "KINDED-ONCE: Binary infers to Type 0 exactly" do
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx(), {:binary_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} =
+             Kernel.infer(ctx(), {:binary_type})
   end
 
   test "HEAD-DISTINCTNESS: Binary is convertible with itself and no other canonical head" do

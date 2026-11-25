@@ -29,11 +29,11 @@ defmodule Cure.Core.EquivalentKernelTest do
   defp env do
     Env.empty()
     |> Builtins.seed(MapSet.new())
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
-    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])
     ])
   end
@@ -60,7 +60,7 @@ defmodule Cure.Core.EquivalentKernelTest do
   # ---- formation / introduction (eq_test twins) ------------------------------
 
   test "Equivalent formation is a type at the level of its carrier" do
-    assert {:ok, {:vtype, 0}} ==
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} ==
              Kernel.infer(Context.empty(env()), {:data, @equiv, [@dec], [@causal, @causal]})
   end
 

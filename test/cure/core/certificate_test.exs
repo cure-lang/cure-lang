@@ -10,7 +10,7 @@ defmodule Cure.Core.CertificateTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
@@ -193,7 +193,7 @@ defmodule Cure.Core.CertificateTest do
 
     env =
       base()
-      |> Inductive.declare(Inductive.family(:Chain, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Chain, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Stop, [], []),
         Inductive.ctor(:Step, [prior: chain], [])
       ])

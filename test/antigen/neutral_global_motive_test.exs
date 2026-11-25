@@ -22,7 +22,7 @@ defmodule Antigen.NeutralGlobalMotiveTest do
     nat = {:data, :"P#Nat", [], []}
 
     base
-    |> Env.add_def(:AliasNat, {:type, 0}, nat)
+    |> Env.add_def(:AliasNat, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, nat)
     |> Env.certify(:AliasNat)
     |> Env.add_def(:valNat, nat, {:ctor, :"P#Z", []})
     |> Env.certify(:valNat)

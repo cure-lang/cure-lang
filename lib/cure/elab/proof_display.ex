@@ -5,8 +5,11 @@ defmodule Cure.Elab.ProofDisplay do
 
   def format(term, names \\ [])
   def format({:var, index}, names), do: Enum.at(names, index, "_#{index}")
-  def format({:type, 0}, _names), do: "Type"
-  def format({:type, level}, _names), do: "Type #{level}"
+
+  def format({tag, _payload} = term, names) when tag in [:type, :level_value],
+    do: Cure.Core.Printer.print(term, names)
+
+  def format({:level_type} = term, names), do: Cure.Core.Printer.print(term, names)
   def format({:global, name}, _names), do: Name.base(name)
   def format({:int_lit, value}, _names), do: Integer.to_string(value)
   def format({:nat_lit, value}, _names), do: Integer.to_string(value)

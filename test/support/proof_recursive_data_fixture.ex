@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofRecursiveDataFixture do
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Eval, Grade, Inductive, ProofRecipe, ProofWire, Quote}
@@ -18,8 +19,8 @@ defmodule Cure.Test.ProofRecursiveDataFixture do
       {:nested, {:data, :"Spine#Indexed", [data], [{:atom_lit, :payload}]}, [], 0},
       {:domain, {:lam, g, data, {:var, 0}}, [], 0},
       {:body, {:lam, g, atom, data}, [], 0},
-      {:capture, {:let, g, {:type, 1}, data, {:lam, g, atom, {:var, 1}}}, [], 0},
-      {:application, {:app, {:lam, g, {:type, 1}, {:var, 0}}, data}, [], 0},
+      {:capture, {:let, g, {:type, @u1}, data, {:lam, g, atom, {:var, 1}}}, [], 0},
+      {:application, {:app, {:lam, g, {:type, @u1}, {:var, 0}}, data}, [], 0},
       {:pi, {:pi, g, data, data}, [], 0},
       {:field, {:ctor, :"Spine#Box", [data]}, [], 0},
       {:case, {:case, {:ctor, :"Spine#Box", [data]}, atom, [{:"Spine#Box", 1, {:var, 0}}]}, [], 0},
@@ -30,7 +31,7 @@ defmodule Cure.Test.ProofRecursiveDataFixture do
   def checking_request do
     g = Grade.unrestricted()
     data = {:data, :"Spine#Indexed", [{:atom_type}], [{:atom_lit, :payload}]}
-    beta = {:app, {:lam, g, {:type, 1}, {:var, 0}}, data}
+    beta = {:app, {:lam, g, {:type, @u1}, {:var, 0}}, data}
     kind = {:r_data, [:r_leaf], [:r_leaf]}
     beta_kind = {:r_app, {:r_lam, :r_leaf, :r_leaf}, kind}
 
@@ -42,7 +43,8 @@ defmodule Cure.Test.ProofRecursiveDataFixture do
     observations = Enum.map_join(cases(), "\n", &observation/1)
     names = Enum.map_join(table(), " ∷ ", &inspect/1) <> " ∷ []"
 
-    {:ok, checking} = ProofRecipe.encode_checking(checking_request(), ProofDataSpineFixture.table())
+    {:ok, checking} =
+      ProofRecipe.encode_checking(checking_request(), ProofDataSpineFixture.table())
 
     {:ok,
      """
@@ -105,7 +107,9 @@ defmodule Cure.Test.ProofRecursiveDataFixture do
   defp value({:vatom_type}), do: "E.v-atom-type"
   defp value({:vatom, name}), do: "(E.v-atom #{inspect(Atom.to_string(name))})"
   defp value({:vneutral, {:nvar, level}}), do: "(E.v-neutral (E.n-var #{level}))"
-  defp value({:vctor, name, args}), do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(args)})"
+
+  defp value({:vctor, name, args}),
+    do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(args)})"
 
   defp value({:vdata, name, args}) do
     %{params: params} = Inductive.get_family(ProofDataSpineFixture.environment(), name)

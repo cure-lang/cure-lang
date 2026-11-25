@@ -3,6 +3,13 @@ defmodule Cure.Core.ProofWire do
   Render Core terms as the serialised wire format formalised in
   `proof/Core/Wire.agda`.
 
+  The formal universe model is historical finite-0..2 only. Current inputs
+  must use canonical closed finite sorts; high/open/limit sorts and level
+  nodes are refused recursively. `encode_finite3/2` supplies an explicit
+  transport identity while `encode_term/2` retains the historical raw
+  character vector for existing Agda fixtures. Neither establishes semantics
+  for the new universe hierarchy.
+
   This is a REPRESENTATION bridge, not a certificate, an admission gate or a
   proof: it renders data the formal side can decode, and nothing here is
   proved about Elixir. The Agda development carries the codec and its
@@ -62,8 +69,16 @@ defmodule Cure.Core.ProofWire do
   Tag 16 remains part of the FORMAL codec, not this producer's supported slice.
   No universal producer/decoder correspondence is established by concrete vectors.
   """
-  alias Cure.Core.{Grade, Universe}
-  @ceiling Universe.ceiling()
+  alias Cure.Core.{Grade, HistoricalFinite3}
+
+  def transport_identity, do: HistoricalFinite3.transport_identity()
+
+  @doc "Versioned opt-in historical finite-three transport, not current universe evidence."
+  def encode_finite3(term, table) do
+    with {:ok, characters} <- encode_term(term, table) do
+      {:ok, %{format: transport_identity(), characters: characters}}
+    end
+  end
 
   @type table :: [atom() | String.t()]
   @type error ::
@@ -114,8 +129,14 @@ defmodule Cure.Core.ProofWire do
   @spec code(term()) :: {:ok, tuple()} | {:error, error()}
   def code(term)
 
-  def code({:type, level}) when is_integer(level) and level >= 0 and level <= @ceiling,
-    do: {:ok, node(0, "", level, [])}
+  def code({:type, {:finite, _}} = term) do
+    with {:ok, {:type, level}} <- HistoricalFinite3.project_finite3(term),
+         do: {:ok, node(0, "", level, [])}
+  end
+
+  def code({:type, {:omega, _}} = term), do: {:error, {:unsupported_term, term}}
+  def code({:level_type} = term), do: {:error, {:unsupported_term, term}}
+  def code({:level_value, _} = term), do: {:error, {:unsupported_term, term}}
 
   def code({:var, k}) when is_integer(k) and k >= 0, do: {:ok, node(1, "", k, [])}
 
@@ -187,7 +208,10 @@ defmodule Cure.Core.ProofWire do
   def code({:nat_lit, k}) when is_integer(k) and k >= 0, do: {:ok, node(13, "", k, [])}
   def code({:bounded_lit, k}) when is_integer(k) and k >= 0, do: {:ok, node(14, "", k, [])}
   def code({:float_type}), do: {:ok, node(15, "", 0, [])}
-  def code({:float_lit, value} = term) when is_float(value), do: {:error, {:unsupported_term, term}}
+
+  def code({:float_lit, value} = term) when is_float(value),
+    do: {:error, {:unsupported_term, term}}
+
   def code({:binary_type}), do: {:ok, node(17, "", 0, [])}
   def code({:atom_type}), do: {:ok, node(18, "", 0, [])}
   def code({:atom_lit, name} = term), do: named(19, name, 0, [], term)
@@ -229,7 +253,8 @@ defmodule Cure.Core.ProofWire do
 
   defp branch_loop([], acc), do: {:ok, Enum.reverse(acc)}
 
-  defp branch_loop([{name, arity, body} = branch | rest], acc) when is_integer(arity) and arity >= 0 do
+  defp branch_loop([{name, arity, body} = branch | rest], acc)
+       when is_integer(arity) and arity >= 0 do
     with {:ok, b} <- code(body), {:ok, reflected} <- named(0, name, arity, [b], branch) do
       branch_loop(rest, [reflected | acc])
     else
@@ -248,7 +273,9 @@ defmodule Cure.Core.ProofWire do
   """
   @spec intern(tuple(), table()) :: {:ok, tuple()} | {:error, error()}
   def intern(code, table) do
-    if valid_table?(table), do: intern_code(code, table), else: {:error, {:malformed_table, table}}
+    if valid_table?(table),
+      do: intern_code(code, table),
+      else: {:error, {:malformed_table, table}}
   end
 
   defp intern_code({:node, tag, name, number, kids} = code, table)

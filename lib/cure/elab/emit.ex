@@ -46,8 +46,8 @@ defmodule Cure.Elab.Emit do
         ephemeral_provenance(module, env)
       end)
 
-    with :ok <- validate_emission_closure(env, names),
-         :ok <- reject_holes(env, names) do
+    with :ok <- reject_holes(env, names),
+         :ok <- validate_emission_closure(env, names) do
       BeamWriter.compile_and_load(module_forms(env, module, names, origins, emit_opts))
     end
   end
@@ -105,8 +105,8 @@ defmodule Cure.Elab.Emit do
     # set that actually reaches emission.
     names = Enum.map(names, &emission_root_key(env, &1))
 
-    with :ok <- validate_emission_closure(env, names),
-         :ok <- reject_holes(env, names) do
+    with :ok <- reject_holes(env, names),
+         :ok <- validate_emission_closure(env, names) do
       emit_names = Enum.reject(names, &type_level_def?(env, &1))
 
       try do
@@ -340,6 +340,7 @@ defmodule Cure.Elab.Emit do
   defp artifact_provenance_attrs(opts) do
     case Keyword.get(opts, :artifact_provenance) do
       provenance when is_map(provenance) ->
+        provenance = Map.put(provenance, :universe_identity, Cure.Core.UniverseCodec.identity())
         [{:attribute, @line, :cure_artifact, [provenance]}]
 
       _ ->
@@ -353,6 +354,7 @@ defmodule Cure.Elab.Emit do
 
     %{
       format: 1,
+      universe_identity: Cure.Core.UniverseCodec.identity(),
       module: module |> Atom.to_string() |> String.replace_prefix("Cure.", ""),
       source_path: "nofile",
       source_hash: source_hash,
@@ -425,7 +427,7 @@ defmodule Cure.Elab.Emit do
   defp reject_holes(env, names) do
     Enum.reduce_while(names, :ok, fn name, :ok ->
       with {:ok, body} <- def_body(env, name) do
-        case Validator.validate(body, Validator.release_config()) do
+        case Validator.validate(body, Validator.release_config(), env) do
           {:ok, _warnings} ->
             {:cont, :ok}
 

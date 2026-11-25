@@ -2,7 +2,8 @@ defmodule Cure.Core.ProofContext do
   @moduledoc """
   Observe a closure-free semantic context for independent proof comparison.
 
-  Supported values are universe sorts, Atom type/literals and neutral
+  Supported values are canonical closed finite-0..2 universe sorts from the
+  private semantic `LevelValue` representation, Atom type/literals and neutral
   variables whose levels are strictly below the context depth. Closures,
   applications, cases, data/constructor/effect values and other primitives
   are explicit exclusions. This is not semantic context validity, native
@@ -15,14 +16,15 @@ defmodule Cure.Core.ProofContext do
   `Context.lookup`, `grade`, `env` and `length` operations. Readback terms are
   encoded with `ProofWire`, not trusted as native proofs.
   """
-  alias Cure.Core.{Context, Grade, ProofSnapshot, ProofWire, Quote}
+  alias Cure.Core.{Context, Grade, HistoricalFinite3, ProofSnapshot, ProofWire, Quote}
 
   @spec capture(Context.t(), ProofWire.table()) :: {:ok, map()} | {:error, term()}
   def capture(%Context{} = ctx, table) do
     with :ok <- shape(ctx),
          :ok <- validate_table(table),
          {:ok, signature} <- ProofSnapshot.capture(Context.signature(ctx)),
-         {:ok, types} <- values(Enum.map(indices(ctx.length), &Context.lookup(ctx, &1)), ctx.length),
+         {:ok, types} <-
+           values(Enum.map(indices(ctx.length), &Context.lookup(ctx, &1)), ctx.length),
          {:ok, environment} <- values(Context.env(ctx), ctx.length),
          {:ok, type_characters} <- readbacks(ctx.types, ctx, table),
          {:ok, environment_characters} <- readbacks(Context.env(ctx), ctx, table) do
@@ -43,9 +45,12 @@ defmodule Cure.Core.ProofContext do
 
   @doc "Reflect one supported semantic value without invoking evaluation."
   @spec value(term(), non_neg_integer()) :: {:ok, term()} | {:error, term()}
-  def value({:vtype, level}, depth)
-      when is_integer(depth) and depth >= 0 and is_integer(level) and level in 0..2,
-      do: {:ok, {:sort, level}}
+  def value({:vtype, sort} = value, depth) when is_integer(depth) and depth >= 0 do
+    case HistoricalFinite3.project_value_sort_finite3(sort) do
+      {:ok, level} -> {:ok, {:sort, level}}
+      {:error, _} -> {:error, {:unsupported_context_value, value}}
+    end
+  end
 
   def value({:vatom_type}, depth) when is_integer(depth) and depth >= 0, do: {:ok, :atom_type}
 
@@ -84,7 +89,8 @@ defmodule Cure.Core.ProofContext do
   defp readbacks([], _ctx, _table), do: {:ok, []}
 
   defp readbacks([value | values], ctx, table) do
-    with {:ok, characters} <- ProofWire.encode_term(Quote.reify(value, ctx.length, ctx.signature), table),
+    with {:ok, characters} <-
+           ProofWire.encode_term(Quote.reify(value, ctx.length, ctx.signature), table),
          {:ok, rest} <- readbacks(values, ctx, table) do
       {:ok, [characters | rest]}
     end

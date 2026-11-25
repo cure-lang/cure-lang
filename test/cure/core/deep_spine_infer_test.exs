@@ -15,7 +15,7 @@ defmodule Cure.Core.DeepSpineInferTest do
   defp nat_ctx do
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Zero, [], []),
         Inductive.ctor(:Succ, [{:n, @nat}], [])
       ])

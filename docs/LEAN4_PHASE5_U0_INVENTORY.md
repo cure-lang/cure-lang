@@ -10,7 +10,68 @@ behavior; existing suite remains green." This document is the checked
 inventory (U0 items 2 and 4); the characterization tests are
 `test/cure/core/universe_polymorphism_characterization_test.exs`.
 
-**Status:** U0 in progress. No kernel semantics changed by this phase slice.
+**Status (2026-11-23):** baseline/U1 repair evidence is recorded below; the
+coordinated U2 representation migration is in progress. U3–U7 and overall C2
+completion are not certified. The main checkout has not been built during its
+incomplete representation cutover.
+
+### Audited baseline and repair evidence
+
+The committed starting point is `722ee355665fdac39b3d954fd95e9ae7f7c4b9bd`.
+Contrary to the original inventory below, it already contains
+`Cure.Core.UniverseLevel`. Its open successor constructor was noncanonical,
+known-level substitution did not flatten offsets, and nested level structs
+hid free variables. Independent generated expression/valuation tests reproduce
+four failures in that original algebra.
+
+An immutable U1-only repair snapshot passes 41 focused tests; three
+explicitly U2 representation tests are outside that U1 gate. The original
+characterization file has two failures and contains precondition-only tests,
+so its titles and the original “existing suite stays green” assertion are not
+semantic evidence. The historical focused subset passes 44 tests with the
+three named future-phase exclusions; the documentation gate passes all
+363 snippets. These exclusions are not permitted in final Phase 5 acceptance.
+
+Runtime evidence was captured twice from the committed compiler without
+normalizing away any emitted forms. The identical payload contains 29 executed
+calls, exports/arities, constructor/projection representations and emitted
+Erlang forms. A changed literal and changed arity are independently detected.
+The fixture sources, toolchain identity and hashes are in
+`test/fixtures/phase5_universe_runtime/manifest.json`; the payload SHA-256 is
+`f063ae4ec511366a474150f23e734e9e029faa14b85e032bb0fff709e07f456c`.
+Annotated erased Core is retained as diagnostic evidence, not confused with
+the runtime backend surface.
+
+The isolated pure U2 representation/NbE snapshot passes 16 independent tests
+without exclusions. Private `LevelValue` atoms capture semantic environments;
+Core `UniverseLevel` atoms remain quoted syntax. This does not establish
+kernel admission, integrated compiler correctness or U2 completion.
+
+### Corrections governing the migration
+
+- A tuple/list walker stops at a private level struct. `Term.closed?`,
+  release-hole checks, certificate/totality references, positivity,
+  elaborator renaming/zonking and proof/macro walkers need explicit traversal.
+- AST-only metadata is not Core. Preserve opaque diagnostic metadata and
+  enforce the actual capture boundary; do not recursively reinterpret maps.
+  Runtime dependency projection must drop compile-time levels.
+- The original validator's `level_expr` clause was disabled, including at
+  release. Its existence alone was not an active safety gate.
+- Every level atom needs contextual scope and UniverseLevel typing, not just
+  `Term.term?`. Evaluation and quotation must account for the environment
+  and read-back depth. Independent Pi sorts need binder strengthening.
+- Cumulativity permits **A**, under `A : Type(a)`, at `Type(max(a,b))`.
+  Literal `Type(a)` instead requires `Type(max(succ(a),b))`; it never
+  inhabits itself. `Type(0)` must change from accidental acceptance to rejection.
+- The old proof bridge specifies a separate finite-0..2 fragment. Its explicit
+  bounded adapter must not restrict current Cure source or claim a theorem
+  about the new arbitrary/open/limit hierarchy.
+
+## Historical pre-migration inventory
+Sections 1–8 retain the original pre-U1 inventory and line references for
+migration tracking. Their “today/current/next” wording is historical, not a
+description of the ongoing checkout or a claim that their gates passed.
+The corrections and measured evidence above supersede conflicting statements.
 
 ---
 
@@ -184,7 +245,7 @@ behave when `{:type, sort_index}` gains atom subterms.
 |---|---|---|
 | `Term.shift/3` | `term.ex` | `{:type, _}` returns as-is; must shift atoms |
 | `Term.subst/3` | `term.ex` | same |
-| `Term.closed?/1` | `term.ex` | `has_free_var?` catch-all recurses tuples — **already safe** |
+| `Term.closed?/1` | `term.ex` | tuple recursion stops at a private level struct; explicit traversal required |
 | `Term.to_external` / `from_external` | `term.ex` | needs a new tag |
 | `Serialize.enc` / `build_node` | `serialize.ex` | needs a new tag |
 | `Validator` | `validator.ex` | has `level_expr` clause already |
@@ -214,10 +275,10 @@ names:
 | `ModulePipeline.Cycle` | `cycle.ex:79,100` |
 | `ModulePipeline.Expansion.collect_variables/2` | `expansion.ex:165` |
 
-**U0 finding:** the migration cannot be done by changing `Term` alone. Every
-row in §3.2 must gain an explicit level-atom clause in the same commit as the
-representation change, or a level variable can escape its binder scope
-silently. This is the single largest risk in U2 and the reason U0 exists.
+**Corrected U0 finding:** changing `Term` alone is insufficient. Actual Core
+walkers need level-atom traversal; the AST-only metadata rows instead need
+their existing grammar preserved and the real Core-capture seams guarded.
+Blind struct/map traversal is not a sound replacement for that distinction.
 
 ---
 

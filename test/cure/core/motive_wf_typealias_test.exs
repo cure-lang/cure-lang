@@ -25,8 +25,10 @@ defmodule Cure.Core.MotiveWfTypealiasTest do
 
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Foo, [], [], 0), [Inductive.ctor(:foo, [], [])])
-      |> Env.add_def(:AliasFoo, {:type, 0}, foo)
+      |> Inductive.declare(Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:foo, [], [])
+      ])
+      |> Env.add_def(:AliasFoo, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, foo)
       |> Env.certify(:AliasFoo)
       |> Env.add_def(:notType, foo, {:ctor, :foo, []})
       |> Env.certify(:notType)

@@ -17,11 +17,11 @@ defmodule Cure.Core.NatLitCoverageSoundnessTest do
   defp env do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Nat, [], [], 0),
+      Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Z, [], []), Inductive.ctor(:S, [{:n, @nat}], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:Vone, [], [{:n, @nat}], 0),
+      Inductive.family(:Vone, [], [{:n, @nat}], Cure.Core.Sort.finite_closed(0)),
       [
         Inductive.ctor(:vz, [], [{:ctor, :Z, []}]),
         Inductive.ctor(:vs, [{:k, @nat}], [{:ctor, :S, [{:var, 0}]}])

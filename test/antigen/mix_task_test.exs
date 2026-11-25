@@ -81,7 +81,9 @@ defmodule Mix.Tasks.AntigenTest do
         Mix.Tasks.Antigen.run(["complete", "--corpus", corpus])
       end)
 
-    assert out =~ "Antigen completion: 318/318"
+    count = Antigen.CoverManifest.expected() |> MapSet.size()
+    assert count >= 320
+    assert out =~ "Antigen completion: #{count}/#{count}"
     refute File.exists?(Path.join(@tmp, "seeds.sexp"))
   end
 

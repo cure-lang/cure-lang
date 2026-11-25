@@ -45,54 +45,78 @@ defmodule Cure.Core.SerializeUntrustedInputTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Context, Env, Inductive, Kernel, Serialize, Term}
+  alias Cure.Core.{Context, Env, Inductive, Kernel, Serialize, Sort, Term, UniverseCodec}
+
+  defp current(node), do: "(cure-core #{UniverseCodec.version()} #{node})"
+
+  test "current decoding does not implicitly import unframed historical syntax" do
+    for wire <- ["(var 0)", "(type 0)", "(global int_add)"] do
+      assert {:error, :incompatible_core_format} = Serialize.decode(wire)
+    end
+  end
 
   describe "decode rejects a bare token where a full term belongs" do
     test "in constructor-argument position" do
-      assert {:error, _} = Serialize.decode("(ctor Z 5)")
+      assert {:error, :malformed} = Serialize.decode(current("(ctor Z 5)"))
     end
 
     test "in application-function position" do
-      assert {:error, _} = Serialize.decode("(app foo (int 5))")
+      assert {:error, :malformed} = Serialize.decode(current("(app foo (int 5))"))
     end
 
     test "at the top level" do
-      assert {:error, _} = Serialize.decode("5")
-      assert {:error, _} = Serialize.decode("foo")
-      assert {:error, _} = Serialize.decode(~S("hi"))
+      assert {:error, :malformed} = Serialize.decode(current("5"))
+      assert {:error, :malformed} = Serialize.decode(current("foo"))
+      assert {:error, :malformed} = Serialize.decode(current(~S("hi")))
     end
   end
 
   describe "decode rejects shapes Term.term?/1 rejects" do
-    test "a universe level outside 0..Universe.ceiling()" do
-      assert {:error, _} = Serialize.decode("(type 999)")
-      assert {:error, _} = Serialize.decode("(type -1)")
+    test "legacy integer universes and negative canonical levels" do
+      for level <- [-1, 0, 999] do
+        assert {:error, {:noncanonical_level_encoding, :invalid_sort}} =
+                 Serialize.decode(current("(type #{level})"))
+      end
+
+      assert {:error, {:noncanonical_level_encoding, :invalid_natural}} =
+               Serialize.decode(current("(type (finite (level-nf -1)))"))
     end
 
     test "a negative de Bruijn index" do
-      assert {:error, _} = Serialize.decode("(var -1)")
+      assert {:error, {:ill_formed_term, {:var, -1}}} = Serialize.decode(current("(var -1)"))
     end
 
     test "negative compact nat / bounded literals" do
-      assert {:error, _} = Serialize.decode("(nat -5)")
-      assert {:error, _} = Serialize.decode("(bounded -5)")
+      assert {:error, {:ill_formed_term, {:nat_lit, -5}}} = Serialize.decode(current("(nat -5)"))
+      assert {:error, {:ill_formed_term, {:bounded_lit, -5}}} = Serialize.decode(current("(bounded -5)"))
     end
 
     test "a negative case-branch arity" do
-      assert {:error, _} = Serialize.decode("(case (var 0) (type 0) (branch Z -3 (var 0)))")
+      motive = "(type (finite (level-nf 0)))"
+
+      assert {:error, {:ill_formed_term, {:case, {:var, 0}, {:type, sort}, [{:Z, -3, {:var, 0}}]}}} =
+               Serialize.decode(current("(case (var 0) #{motive} (branch Z -3 (var 0)))"))
+
+      assert sort == Sort.finite_zero()
     end
 
     test "the rejection names the ill-formed term rather than crashing" do
-      assert {:error, {:ill_formed_term, {:var, -1}}} = Serialize.decode("(var -1)")
+      assert {:error, {:ill_formed_term, {:var, -1}}} = Serialize.decode(current("(var -1)"))
     end
 
     test "the well-formed neighbours of each rejected shape still decode" do
       # Guard against a validator that simply rejects everything.
-      assert {:ok, {:type, 0}} = Serialize.decode("(type 0)")
-      assert {:ok, {:var, 0}} = Serialize.decode("(var 0)")
-      assert {:ok, {:nat_lit, 0}} = Serialize.decode("(nat 0)")
-      assert {:ok, {:bounded_lit, 0}} = Serialize.decode("(bounded 0)")
-      assert {:ok, {:int_lit, -5}} = Serialize.decode("(int -5)")
+      assert {:ok, {:type, sort}} = Serialize.decode(current("(type (finite (level-nf 0)))"))
+      assert sort == Sort.finite_zero()
+      assert {:ok, {:type, high_sort}} = Serialize.decode(current("(type (finite (level-nf 999)))"))
+      assert high_sort == Sort.finite_closed(999)
+      assert {:ok, {:var, 0}} = Serialize.decode(current("(var 0)"))
+      assert {:ok, {:nat_lit, 0}} = Serialize.decode(current("(nat 0)"))
+      assert {:ok, {:bounded_lit, 0}} = Serialize.decode(current("(bounded 0)"))
+      assert {:ok, {:int_lit, -5}} = Serialize.decode(current("(int -5)"))
+
+      assert {:ok, {:case, {:var, 0}, {:type, ^sort}, [{:Z, 0, {:var, 0}}]}} =
+               Serialize.decode(current("(case (var 0) (type (finite (level-nf 0))) (branch Z 0 (var 0)))"))
     end
   end
 
@@ -128,11 +152,11 @@ defmodule Cure.Core.SerializeUntrustedInputTest do
     end
 
     test "ordinary barewords are still emitted unquoted" do
-      assert Serialize.encode({:global, :int_add}) == "(global int_add)"
+      assert Serialize.encode({:global, :int_add}) == current("(global int_add)")
     end
 
     test "a decoded term is always a Core term" do
-      assert {:ok, t} = Serialize.decode("(app (app (global int_add) (int 3)) (int 5))")
+      assert {:ok, t} = Serialize.decode(current("(app (app (global int_add) (int 3)) (int 5))"))
       assert Term.term?(t)
     end
   end
@@ -150,11 +174,16 @@ defmodule Cure.Core.SerializeUntrustedInputTest do
       env =
         Env.empty()
         |> Inductive.declare(
-          Inductive.family(:Dec, [], [], 0),
+          Inductive.family(:Dec, [], [], Sort.finite_zero()),
           [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
         )
         |> Inductive.declare(
-          Inductive.family(:P, [{:a, {:type, 0}}], [{:n, {:data, :Dec, [], []}}], 1),
+          Inductive.family(
+            :P,
+            [{:a, {:type, Sort.finite_zero()}}],
+            [{:n, {:data, :Dec, [], []}}],
+            Sort.finite_closed(1)
+          ),
           [Inductive.ctor(:wrap, [{:p, {:var, 0}}], [{:ctor, :Causal, []}], [:unrestricted], [{:var, 1}])]
         )
 

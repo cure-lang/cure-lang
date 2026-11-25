@@ -23,7 +23,8 @@ defmodule Cure.Core.BinaryPrimTest do
   defp ctx, do: Context.empty(Env.empty())
 
   test "kernel types the Binary base type at Type 0" do
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx(), {:binary_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} =
+             Kernel.infer(ctx(), {:binary_type})
   end
 
   test "eval and reify round-trip the Binary type" do

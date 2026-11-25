@@ -102,10 +102,16 @@ defmodule Cure.Elab.SimpSet do
     Enum.all?(variables(right, %{}), fn {index, count} -> count <= Map.get(available, index, 0) end)
   end
 
+  defp variables({tag, _} = term, counts) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), counts, &variables/2)
+
   defp variables({:var, index}, counts), do: Map.update(counts, index, 1, &(&1 + 1))
   defp variables(term, counts) when is_tuple(term), do: variables(Tuple.to_list(term), counts)
   defp variables(term, counts) when is_list(term), do: Enum.reduce(term, counts, &variables/2)
   defp variables(_leaf, counts), do: counts
+
+  defp first_order?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.all?(Cure.Core.Term.level_atoms(term), &first_order?/1)
 
   defp first_order?(term) when is_tuple(term) do
     elem(term, 0) not in [:pi, :lam, :let, :case, :hole] and
@@ -114,6 +120,9 @@ defmodule Cure.Elab.SimpSet do
 
   defp first_order?(term) when is_list(term), do: Enum.all?(term, &first_order?/1)
   defp first_order?(_leaf), do: true
+
+  def size({tag, _} = term) when tag in [:type, :level_value],
+    do: 1 + Enum.sum(Enum.map(Cure.Core.Term.level_atoms(term), &size/1))
 
   def size(term) when is_tuple(term), do: 1 + size(Tuple.to_list(term))
   def size(term) when is_list(term), do: term |> Enum.map(&size/1) |> Enum.sum()

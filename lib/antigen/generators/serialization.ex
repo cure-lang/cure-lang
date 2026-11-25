@@ -59,7 +59,7 @@ defmodule Antigen.Generators.Serialization do
 
   defp leaf do
     Gen.one_of([
-      Gen.bind(Gen.int(0, 1), fn n -> Gen.return({:type, n}) end),
+      Gen.bind(Gen.int(0, 1), fn n -> Gen.return({:type, Cure.Core.Sort.finite_closed(n)}) end),
       Gen.bind(Gen.int(0, 4), fn k -> Gen.return({:var, k}) end),
       Gen.return({:int_type}),
       Gen.return({:float_type}),

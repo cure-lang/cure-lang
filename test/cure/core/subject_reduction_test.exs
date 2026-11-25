@@ -13,16 +13,22 @@ defmodule Cure.Core.SubjectReductionTest do
   # corpus.
   @corpus [
     # beta -> {:int_type}
-    {:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:int_type}},
+    {:app,
+     {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+      {:var, 0}}, {:int_type}},
     # beta -> {:int_lit, 7}
     {:app, {:lam, Cure.Core.Grade.unrestricted(), {:data, :"Std.Int#Int", [], []}, {:var, 0}}, {:int_lit, 7}},
     # already normal
-    {:type, 0}
+    {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
   ]
 
   test "the harness rejects an ill-typed term (detection works)" do
     # applying a type to a type is ill-typed -> not type-preserved
-    refute MetaCheck.type_preserved?(Context.empty(), {:app, {:type, 0}, {:type, 0}})
+    refute MetaCheck.type_preserved?(
+             Context.empty(),
+             {:app, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+           )
   end
 
   test "every corpus term preserves its type under normalization (#638)" do

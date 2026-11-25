@@ -25,8 +25,18 @@ defmodule Cure.Core.Printer do
   def print(term), do: print(term, [])
 
   @spec print(Cure.Core.Term.t(), [String.t()]) :: String.t()
-  def print({:type, 0}, _names), do: "Type"
-  def print({:type, level}, _names), do: "Type#{level}"
+  def print({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, _names), do: "Type"
+
+  def print({:type, {:finite, %Cure.Core.UniverseLevel{atoms: []} = level}}, _names),
+    do: "Type" <> Cure.Core.UniverseLevel.to_string(level)
+
+  def print({:type, {:finite, level}}, names),
+    do: "Type(" <> Cure.Core.UniverseLevel.to_string(level, names) <> ")"
+
+  def print({:type, {:omega, 0}}, _names), do: "TypeLimit"
+  def print({:type, {:omega, n}}, _names), do: "TypeLimit#{n}"
+  def print({:level_type}, _names), do: "UniverseLevel"
+  def print({:level_value, level}, names), do: Cure.Core.UniverseLevel.to_string(level, names)
   def print({:var, k}, names), do: Enum.at(names, k) || "?#{k}"
   # NOTE(int-facade): kept so printing stays total on a legacy/deserialized
   # `{:int_type}` node, even though fresh elaboration never produces one
@@ -150,6 +160,10 @@ defmodule Cure.Core.Printer do
   defp uses_var0?(term), do: uses_var?(term, 0)
 
   defp uses_var?({:var, k}, depth), do: k == depth
+
+  defp uses_var?({:type, sort}, depth), do: depth in Cure.Core.Sort.free_vars(sort)
+  defp uses_var?({:level_value, level}, depth), do: depth in Cure.Core.UniverseLevel.free_vars(level)
+
   defp uses_var?({:pi, _g, d, c}, depth), do: uses_var?(d, depth) or uses_var?(c, depth + 1)
   defp uses_var?({:lam, _g, d, b}, depth), do: uses_var?(d, depth) or uses_var?(b, depth + 1)
 

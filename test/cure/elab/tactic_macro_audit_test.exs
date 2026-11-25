@@ -149,6 +149,11 @@ defmodule Cure.Elab.TacticMacroAuditTest do
   test "empty blocks, malformed commands, and actual Core nodes are refused structurally" do
     assert {:error, :empty_tactic_body} = Step.classify({:block, [], []})
 
+    core_lambda =
+      {:lam, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}}
+
+    assert Cure.Core.Term.term?(core_lambda)
+
     for node <- [
           {:proof_application, nil, [{:variable, [], "h"}]},
           {:proof_application, [kind: :bogus], [{:variable, [], "h"}]},
@@ -159,7 +164,7 @@ defmodule Cure.Elab.TacticMacroAuditTest do
           {:block, [:bad], [{:simplify_command, [], []}]},
           {:rewrite_command, [direction: :forward, target: :bogus], [{:variable, [], "h"}]},
           {:app, {:global, :f}, {:var, 0}},
-          {:lam, :unrestricted, {:type, 0}, {:var, 0}},
+          core_lambda,
           {:data, :Forged, [], []}
         ] do
       assert {:error, _} = Step.classify(node)

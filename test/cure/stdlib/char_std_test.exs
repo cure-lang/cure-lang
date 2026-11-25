@@ -14,7 +14,8 @@ defmodule Cure.Stdlib.CharStdTest do
 
   test "Std.Char owns the nominal Char family, opaque and integer-erased" do
     assert {:ok, env} = Program.elaborate(File.read!("lib/std/char.cure"))
-    assert %{name: :"Std.Char#Char", level: 0, opaque: true, erasure: :integer} = char_family(env)
+    assert %{name: :"Std.Char#Char", sort: sort, opaque: true, erasure: :integer} = char_family(env)
+    assert sort == Cure.Core.Sort.finite_zero()
   end
 
   test "Char is ambient: it resolves with no `use Std.Char` at all" do

@@ -319,16 +319,25 @@ defmodule Cure.Elab.TotalityClosure do
 
   # -- seeds: globals appearing in family/constructor type positions ----------
 
-  defp seed_globals(%Env{families: families, ctors: ctors}) do
+  defp seed_globals(%Env{families: families, ctors: ctors, defs: defs}) do
     from_families =
-      families |> Map.values() |> Enum.flat_map(fn f -> tele_globals(f.params) ++ tele_globals(f.indices) end)
+      families
+      |> Map.values()
+      |> Enum.flat_map(fn family ->
+        tele_globals(family.params) ++ tele_globals(family.indices) ++ collect({:type, family.sort})
+      end)
 
     from_ctors =
       ctors
       |> Map.values()
-      |> Enum.flat_map(fn c -> tele_globals(c.args) ++ Enum.flat_map(c.result_indices, &collect/1) end)
+      |> Enum.flat_map(fn constructor ->
+        tele_globals(constructor.args) ++
+          Enum.flat_map(Map.get(constructor, :result_params, []), &collect/1) ++
+          Enum.flat_map(constructor.result_indices, &collect/1)
+      end)
 
-    MapSet.new(from_families ++ from_ctors)
+    from_signatures = Enum.flat_map(defs, fn {_name, definition} -> collect(definition.type) end)
+    MapSet.new(from_families ++ from_ctors ++ from_signatures)
   end
 
   defp tele_globals(tele), do: Enum.flat_map(tele, fn {_name, ty} -> collect(ty) end)
@@ -380,6 +389,11 @@ defmodule Cure.Elab.TotalityClosure do
   end
 
   # -- collect global names occurring in a Core term --------------------------
+
+  defp collect({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.flat_map(Cure.Core.Term.level_atoms(term), &collect/1)
+
+  defp collect({:level_type}), do: []
 
   defp collect({:global, n}), do: [n]
   defp collect({:pi, _g, d, c}), do: collect(d) ++ collect(c)

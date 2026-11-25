@@ -19,7 +19,9 @@ defmodule Cure.Elab.Erase do
   @doc "Erase a Core term to its runtime form (drop erased constructor arguments)."
   @spec erase(Cure.Core.Env.t(), Cure.Core.Term.t()) :: Cure.Core.Term.t()
   def erase(env, {:ctor, cname, args}) do
-    quantities = Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(args))
+    quantities =
+      Inductive.ctor_application_quantities(env, cname, length(args)) ||
+        Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(args))
 
     if length(args) == length(quantities) do
       kept =
@@ -141,7 +143,10 @@ defmodule Cure.Elab.Erase do
         # pass, already anticipates this head shape in `callee_quantities/3`; `Erase` did not.
         {:ctor, cname, head_args} ->
           all = head_args ++ args
-          quantities = Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(all))
+
+          quantities =
+            Inductive.ctor_application_quantities(env, cname, length(all)) ||
+              Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(all))
 
           if length(all) >= length(quantities) do
             # Saturated (or over-applied, when a field is itself a function): the leading
@@ -262,6 +267,10 @@ defmodule Cure.Elab.Erase do
 
   @doc "Does the term still contain an unfilled hole?"
   @spec has_hole?(Cure.Core.Term.t()) :: boolean()
+  def has_hole?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &has_hole?/1)
+
+  def has_hole?({:level_type}), do: false
   def has_hole?({:hole, _name}), do: true
   def has_hole?({:lam, _g, d, b}), do: has_hole?(d) or has_hole?(b)
   def has_hole?({:let, _g, t, v, b}), do: has_hole?(t) or has_hole?(v) or has_hole?(b)

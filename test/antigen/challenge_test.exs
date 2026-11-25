@@ -3,9 +3,9 @@ defmodule Antigen.ChallengeTest do
   alias Antigen.Challenge
 
   test "a stub challenge holds a single Core term and defaults" do
-    c = Challenge.stub({:type, 0})
+    c = Challenge.stub({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     assert %Challenge{kind: :stub, assay: "stub", label: :none} = c
-    assert c.payload == %{term: {:type, 0}}
+    assert c.payload == %{term: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
     assert c.seed == nil
   end
 
@@ -17,7 +17,7 @@ defmodule Antigen.ChallengeTest do
 
   test "indexed_case challenge round-trips through to_pieces/from_pieces" do
     dec = {:data, :Dec, [], []}
-    fam = Cure.Core.Inductive.family(:Dec, [], [], 0)
+    fam = Cure.Core.Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0))
     ctors = [Cure.Core.Inductive.ctor(:Dcoupled, [], []), Cure.Core.Inductive.ctor(:Causal, [], [])]
 
     payload = %{
@@ -67,9 +67,9 @@ defmodule Antigen.ChallengeTest do
       )
 
     {scaffold, pieces} = Challenge.to_pieces(c)
-    # simulate the corpus scaffold codec (term_to_binary → binary_to_term [:safe])
-    scaffold2 = Antigen.Corpus.decode_scaffold(Antigen.Corpus.encode_scaffold(scaffold))
-    c2 = Challenge.from_pieces(:mutant_term, c.assay, c.label, nil, nil, scaffold2, pieces)
+    c2 = Challenge.from_pieces(:mutant_term, c.assay, c.label, nil, nil, scaffold, pieces)
+    assert {:ok, stored} = Antigen.Corpus.decode_record(Antigen.Corpus.encode_record(c))
+    assert stored.payload == c2.payload
 
     assert c2.kind == :mutant_term
     assert c2.payload.fault == fault

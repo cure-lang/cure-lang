@@ -43,7 +43,7 @@ defmodule Antigen.AtomPrimAntibodyTest do
     {:binary_type},
     {:int_type},
     {:float_type},
-    {:type, 0},
+    {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
     {:data, :Nat, [], []},
     {:data, :Bool, [], []}
   ]
@@ -52,7 +52,7 @@ defmodule Antigen.AtomPrimAntibodyTest do
   @lits [{:atom_lit, :ok}, {:atom_lit, :error}, {:atom_lit, :millisecond}, {:atom_lit, :"$empty"}]
 
   test "KINDED-ONCE: Atom infers to Type 0, a literal infers to Atom" do
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx(), {:atom_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} = Kernel.infer(ctx(), {:atom_type})
     assert {:ok, {:vatom_type}} = Kernel.infer(ctx(), {:atom_lit, :ok})
   end
 

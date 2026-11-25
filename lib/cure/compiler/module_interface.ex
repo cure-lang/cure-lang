@@ -22,7 +22,8 @@ defmodule Cure.Compiler.ModuleInterface do
   # certificate identities for Agda-style incremental totality checking.
   # Version 8 retains diagnostic call-site/macro provenance in direct summaries
   # while excluding it from semantic interface identity.
-  @schema_version 8
+  # Version 9 authenticates canonical finite/limit universe representation.
+  @schema_version 9
 
   @enforce_keys [
     :module_name,
@@ -118,8 +119,7 @@ defmodule Cure.Compiler.ModuleInterface do
   def validate(other), do: {:error, {:module_interface_corrupt, other}}
 
   @spec semantic_hash(term()) :: binary()
-  def semantic_hash(term),
-    do: :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
+  def semantic_hash(term), do: Cure.Core.UniverseCodec.semantic_hash(term)
 
   defp normalize_hashes(hashes), do: hashes |> Enum.sort_by(&elem(&1, 0)) |> Map.new()
 

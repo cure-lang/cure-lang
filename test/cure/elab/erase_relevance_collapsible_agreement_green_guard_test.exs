@@ -37,7 +37,7 @@ defmodule Cure.Elab.EraseRelevanceCollapsibleAgreementGreenGuardTest do
   # Collapsible: `Proof`'s sole constructor `MkProof` has ONE field, erased.
   defp proof_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Proof, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Proof, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:MkProof, [w: @dummy], [], [:erased])
     ])
   end
@@ -46,7 +46,7 @@ defmodule Cure.Elab.EraseRelevanceCollapsibleAgreementGreenGuardTest do
   # test only names one of them).
   defp bool2_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Bool2, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Bool2, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:T2, [], []),
       Inductive.ctor(:F2, [], [])
     ])
@@ -59,14 +59,17 @@ defmodule Cure.Elab.EraseRelevanceCollapsibleAgreementGreenGuardTest do
   # the globally-single-constructor `Proof` case above.
   defp indexed_proof_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Index, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Index, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:LeftIndex, [], []),
       Inductive.ctor(:RightIndex, [], [])
     ])
-    |> Inductive.declare(Inductive.family(:IndexedProof, [], [index: {:data, :Index, [], []}], 0), [
-      Inductive.ctor(:LeftProof, [], [{:ctor, :LeftIndex, []}]),
-      Inductive.ctor(:RightProof, [], [{:ctor, :RightIndex, []}])
-    ])
+    |> Inductive.declare(
+      Inductive.family(:IndexedProof, [], [index: {:data, :Index, [], []}], Cure.Core.Sort.finite_closed(0)),
+      [
+        Inductive.ctor(:LeftProof, [], [{:ctor, :LeftIndex, []}]),
+        Inductive.ctor(:RightProof, [], [{:ctor, :RightIndex, []}])
+      ]
+    )
   end
 
   # A single-branch case scrutinising the sole in-scope `:erased` parameter

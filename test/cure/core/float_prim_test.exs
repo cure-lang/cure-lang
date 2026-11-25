@@ -52,7 +52,7 @@ defmodule Cure.Core.FloatPrimTest do
 
   test "kernel types Float literals and arithmetic spines" do
     ctx = ctx()
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx, {:float_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} = Kernel.infer(ctx, {:float_type})
     assert {:ok, {:vfloat_type}} = Kernel.infer(ctx, {:float_lit, 1.5})
     assert {:ok, {:vfloat_type}} = Kernel.infer(ctx, app2(:float_add, {:float_lit, 1.0}, {:float_lit, 2.0}))
 

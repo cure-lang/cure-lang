@@ -247,6 +247,9 @@ defmodule Antigen.Runner do
   # Count binders (lam / case-branch) and how many bind a variable that occurs.
   defp binder_stats(t), do: binder_stats(t, {0, 0})
 
+  defp binder_stats({tag, _} = term, acc) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &binder_stats/2)
+
   defp binder_stats({:lam, _g, _dom, body}, {u, tot}) do
     used = if occurs?(body, 0), do: 1, else: 0
     binder_stats(body, {u + used, tot + 1})
@@ -274,10 +277,16 @@ defmodule Antigen.Runner do
   defp binder_stats(_leaf, acc), do: acc
 
   # Does de Bruijn index `k` occur free in `t`? (crosses binders by incrementing k)
+  defp occurs?({tag, _} = term, k) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &occurs?(&1, k))
+
   defp occurs?({:var, k}, k), do: true
   defp occurs?({:var, _}, _k), do: false
   defp occurs?({:lam, _g, dom, body}, k), do: occurs?(dom, k) or occurs?(body, k + 1)
   defp occurs?({:pi, _g, dom, cod}, k), do: occurs?(dom, k) or occurs?(cod, k + 1)
+
+  defp occurs?({:let, _grade, type, value, body}, k),
+    do: occurs?(type, k) or occurs?(value, k) or occurs?(body, k + 1)
 
   defp occurs?({:case, scrut, motive, branches}, k) do
     # `motive` is itself a `:lam`-headed term (spec §6.5's constant-motive

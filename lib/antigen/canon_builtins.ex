@@ -21,7 +21,11 @@ defmodule Antigen.CanonBuiltins do
 
     * `Nat  : Type0 = Z | S(Nat)`                          (S's field is Nat)
     * `Int  : Type0 = FromNat(Nat) | NegativeSuccessor(Nat)` (both fields Nat)
-    * `Bool : Type0 = False | True`                        (both nullary)
+    * `Bool : Type0 = Std.Bool#False | Std.Bool#True`        (both nullary)
+
+  Bool's family remains bare, but its constructors use the exact canonical
+  names produced by signature-independent comparison folding. Lookup aliases
+  cannot repair the evaluator's constructor/branch identity at an iota site.
 
   Nat is declared before Int because Int's constructor fields reference the Nat
   family. All three are inert to every probe that does not type a literal, so
@@ -40,12 +44,12 @@ defmodule Antigen.CanonBuiltins do
     env =
       env
       |> Inductive.declare(
-        Inductive.family(:Nat, [], [], 0),
+        Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Z, [], []), Inductive.ctor(:S, [{:n, @nat}], [])]
       )
       |> Inductive.register_builtin(:nat, :Nat)
       |> Inductive.declare(
-        Inductive.family(:Int, [], [], 0),
+        Inductive.family(:Int, [], [], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(:FromNat, [{:n, @nat}], []),
           Inductive.ctor(:NegativeSuccessor, [{:n, @nat}], [])
@@ -59,8 +63,8 @@ defmodule Antigen.CanonBuiltins do
   defp seed_bool(env) do
     env
     |> Inductive.declare(
-      Inductive.family(:Bool, [], [], 0),
-      [Inductive.ctor(:False, [], []), Inductive.ctor(:True, [], [])]
+      Inductive.family(:Bool, [], [], Cure.Core.Sort.finite_closed(0)),
+      [Inductive.ctor(:"Std.Bool#False", [], []), Inductive.ctor(:"Std.Bool#True", [], [])]
     )
     |> Inductive.register_builtin(:bool, :Bool)
   end

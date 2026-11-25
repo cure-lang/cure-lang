@@ -89,7 +89,9 @@ defmodule Cure.Core.CompactBoundedTest do
     # First binds only the erased index (arity 1); Next binds {m}, pred (arity 2),
     # its present predecessor at de Bruijn index 0.
     defp pred_case(scrut),
-      do: {:case, scrut, {:type, 0}, [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:var, 0}}]}
+      do:
+        {:case, scrut, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:var, 0}}]}
 
     test "case on lit 0 selects the First branch" do
       assert {:vbounded, 42} == Eval.eval(pred_case({:bounded_lit, 0}), [])
@@ -106,7 +108,10 @@ defmodule Cure.Core.CompactBoundedTest do
     end
 
     test "nf reduces a case on a Bounded literal" do
-      c = {:case, {:bounded_lit, 5}, {:type, 0}, [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:var, 0}}]}
+      c =
+        {:case, {:bounded_lit, 5}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:var, 0}}]}
+
       assert {:bounded_lit, 4} == Normalise.nf(ctx(), c)
     end
   end

@@ -196,7 +196,11 @@ defmodule Cure.Elab.Union do
   def member_key({:float_type}), do: "Float"
   def member_key({:binary_type}), do: "Binary"
   def member_key({:atom_type}), do: "Atom"
-  def member_key({:type, l}), do: "Type" <> Integer.to_string(l)
+
+  def member_key({:type, {:finite, %Cure.Core.UniverseLevel{constant: n, atoms: []}}}),
+    do: "Type" <> Integer.to_string(n)
+
+  def member_key({:type, sort}), do: "sort:" <> Cure.Core.Serialize.encode({:type, sort})
 
   def member_key({:data, name, params, indices}) do
     case params ++ indices do
@@ -661,6 +665,9 @@ defmodule Cure.Elab.Union do
   defp known_global?(env, name) do
     Inductive.family?(env, name) or Env.get_def(env, name) != nil
   end
+
+  defp has?({tag, _} = term, pred) when tag in [:type, :level_value],
+    do: pred.(term) or Enum.any?(Cure.Core.Term.level_atoms(term), &has?(&1, pred))
 
   defp has?(term, pred) when is_tuple(term) do
     if pred.(term) do

@@ -13,7 +13,7 @@ defmodule Cure.Core.EqReflRetirementTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Context, Eval, Kernel, Serialize, Term}
+  alias Cure.Core.{Context, Eval, Kernel, Serialize, Term, UniverseCodec}
   alias Cure.Elab.Program
   import Cure.TestSupport.RetiredNode, only: [opaque: 1]
 
@@ -52,22 +52,25 @@ defmodule Cure.Core.EqReflRetirementTest do
   end
 
   test "Term.to_external/1 refuses {:eq} and {:refl}" do
-    assert_raise FunctionClauseError, fn -> Term.to_external(opaque({:refl, z()})) end
+    assert_raise ArgumentError, "ill-formed Core term", fn -> Term.to_external(opaque({:refl, z()})) end
 
-    assert_raise FunctionClauseError, fn ->
+    assert_raise ArgumentError, "ill-formed Core term", fn ->
       Term.to_external(opaque({:eq, @nat, z(), z()}))
     end
   end
 
   test "serializer neither encodes nor decodes {:eq} / {:refl}" do
-    assert_raise FunctionClauseError, fn -> Serialize.encode(opaque({:refl, {:int_lit, 1}})) end
+    assert_raise ArgumentError, "ill-formed Core term", fn -> Serialize.encode(opaque({:refl, {:int_lit, 1}})) end
 
-    assert_raise FunctionClauseError, fn ->
+    assert_raise ArgumentError, "ill-formed Core term", fn ->
       Serialize.encode(opaque({:eq, {:int_type}, {:int_lit, 1}, {:int_lit, 1}}))
     end
 
-    assert {:error, _} = Serialize.decode("(eq (int-type) (int 1) (int 1))")
-    assert {:error, _} = Serialize.decode("(refl (int 1))")
+    assert {:error, :unknown_node} =
+             Serialize.decode("(cure-core #{UniverseCodec.version()} (eq (int-type) (int 1) (int 1)))")
+
+    assert {:error, :unknown_node} =
+             Serialize.decode("(cure-core #{UniverseCodec.version()} (refl (int 1)))")
   end
 
   test "positive control: the inductive Equivalent/reflexive forms still work" do

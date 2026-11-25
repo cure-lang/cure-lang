@@ -29,7 +29,7 @@ defmodule Cure.Core.PositivityTypealiasSoundnessTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Empty, [], [], 0), [])
+    |> Inductive.declare(Inductive.family(:Empty, [], [], Cure.Core.Sort.finite_closed(0)), [])
   end
 
   # I1: strict positivity does not δ-unfold a `{:global, name}` reference
@@ -80,8 +80,12 @@ defmodule Cure.Core.PositivityTypealiasSoundnessTest do
   test "I1: a negative occurrence hidden behind an unexpanded typealias (`{:global, name}`) field must be rejected, not silently accepted" do
     env =
       base()
-      |> Env.add_def(:Neg, {:type, 0}, {:pi, Cure.Core.Grade.unrestricted(), @bad, {:int_type}})
-      |> Inductive.declare(Inductive.family(:Bad, [], [], 0), [
+      |> Env.add_def(
+        :Neg,
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:pi, Cure.Core.Grade.unrestricted(), @bad, {:int_type}}
+      )
+      |> Inductive.declare(Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk, [{:f, {:global, :Neg}}], [])
       ])
       # Control, declared alongside :Bad in the SAME env: the identical
@@ -92,7 +96,7 @@ defmodule Cure.Core.PositivityTypealiasSoundnessTest do
       # positivity of a family is about occurrences of THAT family, so
       # spelling the domain as `@bad` here would make the control vacuous
       # (:BadLiteral never occurs in it) and `:ok` would be the CORRECT answer.
-      |> Inductive.declare(Inductive.family(:BadLiteral, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:BadLiteral, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(
           :mk_literal,
           [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:data, :BadLiteral, [], []}, {:int_type}}}],
@@ -138,8 +142,8 @@ defmodule Cure.Core.PositivityTypealiasSoundnessTest do
   test "I2: a negative occurrence hidden behind a typealias used as an arrow DOMAIN must be rejected" do
     env =
       base()
-      |> Env.add_def(:NegDom, {:type, 0}, @bad)
-      |> Inductive.declare(Inductive.family(:Bad, [], [], 0), [
+      |> Env.add_def(:NegDom, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, @bad)
+      |> Inductive.declare(Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk, [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:global, :NegDom}, {:int_type}}}], [])
       ])
 
@@ -150,8 +154,8 @@ defmodule Cure.Core.PositivityTypealiasSoundnessTest do
   test "an unrelated recursive global does not invent an occurrence of the family under review" do
     env =
       base()
-      |> Env.add_def(:Loop, {:type, 0}, {:global, :Loop})
-      |> Inductive.declare(Inductive.family(:Fresh, [], [], 0), [
+      |> Env.add_def(:Loop, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, :Loop})
+      |> Inductive.declare(Inductive.family(:Fresh, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk_fresh, [{:field, {:global, :Loop}}], [])
       ])
 

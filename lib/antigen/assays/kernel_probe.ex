@@ -8,7 +8,7 @@ defmodule Antigen.Assays.KernelProbe do
 
   Each probe is a real soundness assertion — the kernel MUST return the documented
   verdict for the deliberately-shaped input (reject the ill-typed term, certify the
-  body-less builtin op, reject the over-ceiling family, pass the field error through
+  body-less builtin op, distinguish type/value family index domains, pass the field error through
   the non-family `remap_index_error` clause, …). A wrong verdict is an infection.
 
   Oracle = the fixed expected outcome per probe (`expected/1`); the payload carries
@@ -25,7 +25,7 @@ defmodule Antigen.Assays.KernelProbe do
     Eval,
     Conv,
     Inductive,
-    Universe,
+    Sort,
     Normalise,
     Quote,
     Serialize,
@@ -39,7 +39,19 @@ defmodule Antigen.Assays.KernelProbe do
   @z {:ctor, :Z, []}
   @bounded_ty {:data, :Bounded, [], []}
 
+  @retired_recipes [
+    :check_ctor_arity,
+    :check_bounded_tower,
+    :sort_value_type_formers,
+    :cert_dangling_callee,
+    :serialize_malformed_symbol,
+    :eval_nondata_scrutinee
+  ]
+
   @spec run(Challenge.t()) :: :ok | {:violation, term()}
+  def run(%Challenge{kind: :kernel_probe, payload: %{probe: probe}}) when probe in @retired_recipes,
+    do: {:violation, {:retired_kernel_probe, probe}}
+
   def run(%Challenge{kind: :kernel_probe, payload: %{probe: probe}}) do
     got = evaluate(probe)
 
@@ -58,7 +70,7 @@ defmodule Antigen.Assays.KernelProbe do
   # that declares `Bounded(n)` and marks it the `:bounded` builtin.
   defp bounded_env do
     base_env()
-    |> Inductive.declare(Inductive.family(:Bounded, [], [{:n, @nat}], 0), [])
+    |> Inductive.declare(Inductive.family(:Bounded, [], [{:n, @nat}], Cure.Core.Sort.finite_closed(0)), [])
     |> Inductive.register_builtin(:bounded, :Bounded)
   end
 
@@ -69,7 +81,7 @@ defmodule Antigen.Assays.KernelProbe do
   # scrutinee index list (`scrut`). Returns `:trivial` / `:impossible`.
   defp unify_index(ridx, scrut) do
     fam =
-      Inductive.declare(base_env(), Inductive.family(:BF, [], [{:n, @nat}], 0), [
+      Inductive.declare(base_env(), Inductive.family(:BF, [], [{:n, @nat}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:bc, [], ridx, [], [])
       ])
 
@@ -86,14 +98,29 @@ defmodule Antigen.Assays.KernelProbe do
   # -- per-probe kernel invocation (returns the raw kernel result) --
   defp evaluate(:infer_absurd), do: Kernel.infer(ctx(), {:absurd})
   defp evaluate(:infer_fields_only_ctor), do: Kernel.infer(ctx(), {:ctor, :mk_pair, [@z, @z]})
-  defp evaluate(:check_ctor_arity), do: Kernel.check(ctx(), {:ctor, :S, [@z, @z]}, Eval.eval(@nat, []))
+
+  defp evaluate(:check_canonical_ctor_arity) do
+    env = base_env()
+    ctors = Inductive.ctors_of(env, Inductive.builtin(env, :nat))
+    zero = Enum.find(ctors, &(Cure.Elab.Name.base(&1.name) == "Z")).name
+    successor = Enum.find(ctors, &(Cure.Elab.Name.base(&1.name) == "S")).name
+    z = {:ctor, zero, []}
+    c = Context.empty(env)
+    type = Kernel.nat_type_value(env)
+    {Kernel.check(c, {:ctor, successor, [z, z]}, type), Kernel.check(c, {:ctor, successor, [z]}, type)}
+  end
+
   defp evaluate(:check_def_unknown), do: Kernel.check_def(base_env(), :nosuchdef)
   defp evaluate(:check_def_builtin_op), do: Kernel.check_def(base_env(), :int_add)
   defp evaluate(:validate_cert_builtin_op), do: Kernel.validate_builtin_certificate(base_env(), :int_add)
 
-  defp evaluate(:family_ceiling) do
-    fam = Inductive.family(:TooHigh, [], [], Universe.ceiling() + 1)
-    Kernel.check_family(base_env(), fam)
+  defp evaluate(:family_formation) do
+    sort = Sort.finite_closed(37)
+    params = [a: {:type, sort}, x: {:var, 0}]
+    good = Inductive.family(:TooHigh, params, [y: {:var, 1}], sort)
+    bad = Inductive.family(:TooHigh, params, [y: {:var, 0}], sort)
+    env = base_env()
+    {Kernel.check_family(env, good), Kernel.check_family(env, bad)}
   end
 
   defp evaluate(:normalize_opts), do: Kernel.normalize(ctx(), {:nat_lit, 3}, [])
@@ -110,10 +137,15 @@ defmodule Antigen.Assays.KernelProbe do
   # against a mismatching term: `remap_index_error` must PASS THE ERROR THROUGH
   # (the `:index_mismatch` remap fires only when the expected type is a `:vdata`).
   defp evaluate(:remap_index_passthrough) do
-    fam = Inductive.family(:Wrap, [], [], 0)
+    fam = Inductive.family(:Wrap, [], [], Cure.Core.Sort.finite_closed(0))
     ctor = Inductive.ctor(:wrap, [{:v, {:int_type}}], [], [:unrestricted], [])
     env = Inductive.declare(base_env(), fam, [ctor])
-    Kernel.check(Context.empty(env), {:ctor, :wrap, [{:type, 0}]}, {:vdata, :Wrap, []})
+
+    Kernel.check(
+      Context.empty(env),
+      {:ctor, :wrap, [{:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}]},
+      {:vdata, :Wrap, []}
+    )
   end
 
   # `Quote.reify` of a data value whose family is ABSENT from the (non-nil) sig:
@@ -121,7 +153,8 @@ defmodule Antigen.Assays.KernelProbe do
   # rather than crashing (defensive — a value reified against a foreign/partial
   # signature). The lone "unsure" cold line; a real, if rarely-taken, path.
   defp evaluate(:quote_foreign_vdata),
-    do: Quote.reify({:vdata, :Ghost, [{:vtype, 0}]}, 0, base_env())
+    do:
+      Quote.reify({:vdata, :Ghost, [{:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}]}, 0, base_env())
 
   # Strict-positivity check where the family occurs THROUGH another datatype's
   # constructor field (`Bad`'s ctor takes `Wrap -> Nat`; `Wrap`'s ctor takes
@@ -130,11 +163,11 @@ defmodule Antigen.Assays.KernelProbe do
     env =
       base_env()
       |> Inductive.declare(
-        Inductive.family(:Wrap, [], [], 0),
+        Inductive.family(:Wrap, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:wrapB, [{:a, {:data, :Bad, [], []}}], [], [:unrestricted], [])]
       )
       |> Inductive.declare(
-        Inductive.family(:Bad, [], [], 0),
+        Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(
             :mkA,
@@ -146,7 +179,7 @@ defmodule Antigen.Assays.KernelProbe do
         ]
       )
 
-    Inductive.positive?(env, Inductive.family(:Bad, [], [], 0))
+    Inductive.positive?(env, Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)))
   end
 
   # Deserialize a term carrying a symbol name that is NOT an already-interned
@@ -176,19 +209,22 @@ defmodule Antigen.Assays.KernelProbe do
     Cure.Elab.TotalityClosure.provably_total?(env, :f)
   end
 
-  # Certification whose forward reach pulls in a DANGLING callee (`f → g → h`,
-  # `h` undefined): `callees_env`/`reaches?` must treat the body-less global as a
-  # leaf (`_ -> []`) instead of crashing; with no cycle back to `f` it certifies.
-  defp evaluate(:cert_dangling_callee) do
-    body_f = {:lam, Cure.Core.Grade.unrestricted(), @nat, {:app, {:global, :g}, {:var, 0}}}
-    body_g = {:lam, Cure.Core.Grade.unrestricted(), @nat, {:app, {:global, :h}, {:var, 0}}}
+  # An unresolved forward callee is not a totality proof. Contrast it with the
+  # same call graph completed by a declared, ordinarily typed identity leaf.
+  defp evaluate(:cert_unresolved_callee) do
+    base = base_env()
+    nat = {:data, Inductive.builtin(base, :nat), [], []}
+    type = {:pi, Cure.Core.Grade.unrestricted(), nat, nat}
+    body_f = {:lam, Cure.Core.Grade.unrestricted(), nat, {:app, {:global, :g}, {:var, 0}}}
+    body_g = {:lam, Cure.Core.Grade.unrestricted(), nat, {:app, {:global, :h}, {:var, 0}}}
 
     env =
-      base_env()
-      |> Env.add_def(:f, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}, body_f)
-      |> Env.add_def(:g, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}, body_g)
+      base
+      |> Env.add_def(:f, type, body_f)
+      |> Env.add_def(:g, type, body_g)
 
-    Cure.Elab.TotalityClosure.provably_total?(env, :f)
+    complete = Env.add_def(env, :h, type, {:lam, Cure.Core.Grade.unrestricted(), nat, {:var, 0}})
+    {Cure.Elab.TotalityClosure.provably_total?(env, :f), Cure.Elab.TotalityClosure.provably_total?(complete, :f)}
   end
 
   # -- adversarial "backstop" probes: malformed input at a real kernel boundary --
@@ -206,12 +242,12 @@ defmodule Antigen.Assays.KernelProbe do
         Eval.eval({:case, {:ctor, :S, [@z]}, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}, [{:Z, 0, @z}]}, [])
       end)
 
-  # A `case` whose scrutinee evaluates to a non-data value (`{:vint, 3}`): the
-  # ι-rule's `other ->` arm raises (an ill-typed case reached eval).
-  defp evaluate(:eval_nondata_scrutinee),
+  # Float remains a genuinely non-data value. Int now peels to an inductive
+  # FromNat/NegativeSuccessor constructor and cannot exercise this guard.
+  defp evaluate(:eval_float_scrutinee),
     do:
       catch_raise(fn ->
-        Eval.eval({:case, {:int_lit, 3}, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}, [{:Z, 0, @z}]}, [])
+        Eval.eval({:case, {:float_lit, 3.0}, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}, [{:Z, 0, @z}]}, [])
       end)
 
   # β-reducing an argument into a non-function value (over-applied ctor / term
@@ -356,7 +392,12 @@ defmodule Antigen.Assays.KernelProbe do
   # Decode of a malformed `(atom …)` whose payload is an integer token, not a symbol:
   # `sym_atom` must reject it cleanly with `:malformed_symbol` (a defensive backstop
   # against foreign serialized input) rather than crash.
-  defp evaluate(:serialize_malformed_symbol), do: Serialize.decode("(atom 5)")
+  defp evaluate(:serialize_current_malformed_symbol) do
+    {:atom_lit, :ok}
+    |> Serialize.encode()
+    |> String.replace("(atom ok)", "(atom 5)")
+    |> Serialize.decode()
+  end
 
   # infer of the closed type formers: `Binary` / `Atom` inhabit `Type0`; an atom
   # literal has type `Atom`; a hole in inference position is rejected (K3 admits
@@ -384,8 +425,22 @@ defmodule Antigen.Assays.KernelProbe do
 
   # …against a bound written as an `S`/`Z` tower rather than a compact `vnat`:
   # `concrete_nat` peels the tower to decide the range.
-  defp evaluate(:check_bounded_tower),
-    do: Kernel.check(bounded_ctx(), {:bounded_lit, 0}, {:vdata, :Bounded, [{:vctor, :S, [{:vctor, :Z, []}]}]})
+  defp evaluate(:check_canonical_bounded_tower) do
+    env = base_env()
+    nat = Inductive.builtin(env, :nat)
+    ctors = Inductive.ctors_of(env, nat)
+    zero = Enum.find(ctors, &(Cure.Elab.Name.base(&1.name) == "Z")).name
+    successor = Enum.find(ctors, &(Cure.Elab.Name.base(&1.name) == "S")).name
+
+    env =
+      env
+      |> Inductive.declare(Inductive.family(:Bounded, [], [n: {:data, nat, [], []}], Sort.finite_closed(0)), [])
+      |> Inductive.register_builtin(:bounded, :Bounded)
+
+    c = Context.empty(env)
+    type = {:vdata, Inductive.builtin(env, :bounded), [{:vctor, successor, [{:vctor, zero, []}]}]}
+    {Kernel.check(c, {:bounded_lit, 0}, type), Kernel.check(c, {:bounded_lit, 1}, type)}
+  end
 
   # …against a NON-concrete bound: a bare neutral, and a neutral under one `S` layer.
   # Both are rejected as `:bounded_bound_not_concrete` (the bound must reduce to a
@@ -407,20 +462,20 @@ defmodule Antigen.Assays.KernelProbe do
   defp evaluate(:check_ctor_via_infer),
     do: Kernel.check(ctx(), {:ctor, :Z, []}, {:vint_type})
 
-  # motive-sort of a `case` whose motive returns `Binary` / `Atom`: the well-formedness
-  # check must sort those type-former VALUES to `Type0` (`infer_type_value_sort`).
-  defp evaluate(:sort_value_type_formers) do
-    c = Context.extend(ctx(), {:vdata, :Bool, []})
-    branches = [{:False, 0, {:hole, :h}}, {:True, 0, {:hole, :h}}]
+  # Independently typed original motives return Binary/Atom over the actual
+  # seeded Bool identity. Context witnesses replace untyped hole fixtures.
+  defp evaluate(:typed_value_type_motives) do
+    env = base_env()
+    bool = Inductive.builtin(env, :bool)
+    bool_type = {:data, bool, [], []}
 
-    {Kernel.infer(
-       c,
-       {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, {:binary_type}}, branches}
-     ),
-     Kernel.infer(
-       c,
-       {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, {:atom_type}}, branches}
-     )}
+    Enum.map([{{:binary_type}, {:vbinary_type}}, {{:atom_type}, {:vatom_type}}], fn {type, value} ->
+      c = Context.empty(env) |> Context.extend(value) |> Context.extend(Kernel.bool_type_value(env))
+      branches = Enum.map(Inductive.ctors_of(env, bool), &{&1.name, 0, {:var, 1}})
+      motive = {:lam, Cure.Core.Grade.unrestricted(), bool_type, type}
+      Kernel.infer(c, {:case, {:var, 0}, motive, branches})
+    end)
+    |> List.to_tuple()
   end
 
   # The index-unifier's compact-`Bounded`↔`First`/`Next` bridge: equal literals and
@@ -449,7 +504,7 @@ defmodule Antigen.Assays.KernelProbe do
   # `opaque type` (a postulate): `opaque_family/3` builds the marker family and
   # `opaque?/2` reports it as opaque once declared.
   defp evaluate(:opaque_family_positivity) do
-    ofam = Inductive.opaque_family(:Eff, [], 0)
+    ofam = Inductive.opaque_family(:Eff, [], Cure.Core.Sort.finite_closed(0))
     env = Inductive.declare(base_env(), ofam, [])
     {ofam, Inductive.opaque?(env, :Eff)}
   end
@@ -461,16 +516,16 @@ defmodule Antigen.Assays.KernelProbe do
   defp evaluate(:positivity_alias_expansion) do
     ea =
       base_env()
-      |> Env.add_def(:Syn2, {:type, 0}, {:data, :HS, [], []})
-      |> Inductive.declare(Inductive.family(:HS, [], [], 0), [
+      |> Env.add_def(:Syn2, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:data, :HS, [], []})
+      |> Inductive.declare(Inductive.family(:HS, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mkS, [{:f, {:global, :Syn2}}], [], [:unrestricted], [])
       ])
 
     eb =
       base_env()
-      |> Env.add_def(:Syn, {:type, 0}, {:data, :Foo, [], []})
-      |> Inductive.declare(Inductive.family(:Foo, [], [], 0), [])
-      |> Inductive.declare(Inductive.family(:Host, [], [], 0), [
+      |> Env.add_def(:Syn, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:data, :Foo, [], []})
+      |> Inductive.declare(Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [])
+      |> Inductive.declare(Inductive.family(:Host, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(
           :mkH,
           [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:global, :Syn}, @nat}}],
@@ -481,7 +536,7 @@ defmodule Antigen.Assays.KernelProbe do
       ])
 
     ec =
-      Inductive.declare(base_env(), Inductive.family(:HU, [], [], 0), [
+      Inductive.declare(base_env(), Inductive.family(:HU, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(
           :mkU,
           [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:global, :Unknown}, @nat}}],
@@ -491,9 +546,9 @@ defmodule Antigen.Assays.KernelProbe do
         )
       ])
 
-    {Inductive.positive?(ea, Inductive.family(:HS, [], [], 0)),
-     Inductive.positive?(eb, Inductive.family(:Host, [], [], 0)),
-     Inductive.positive?(ec, Inductive.family(:HU, [], [], 0))}
+    {Inductive.positive?(ea, Inductive.family(:HS, [], [], Cure.Core.Sort.finite_closed(0))),
+     Inductive.positive?(eb, Inductive.family(:Host, [], [], Cure.Core.Sort.finite_closed(0))),
+     Inductive.positive?(ec, Inductive.family(:HU, [], [], Cure.Core.Sort.finite_closed(0)))}
   end
 
   # A family that refers to itself as a bare `{:global, name}` (rather than the usual
@@ -501,11 +556,11 @@ defmodule Antigen.Assays.KernelProbe do
   # the self-reference and rejects the non-strictly-positive occurrence.
   defp evaluate(:occurs_bare_global) do
     env =
-      Inductive.declare(base_env(), Inductive.family(:HN, [], [], 0), [
+      Inductive.declare(base_env(), Inductive.family(:HN, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mkN, [{:f, {:global, :HN}}], [], [:unrestricted], [])
       ])
 
-    Inductive.positive?(env, Inductive.family(:HN, [], [], 0))
+    Inductive.positive?(env, Inductive.family(:HN, [], [], Cure.Core.Sort.finite_closed(0)))
   end
 
   # The `whnf/2` arity clause (default opts) — reached only by a direct call, never by
@@ -591,6 +646,39 @@ defmodule Antigen.Assays.KernelProbe do
     end
   end
 
+  # Effect is an inert signature, but its public typing rules still require
+  # every formation, carrier, continuation and expected-result premise.
+  # An empty signature suffices: Atom/Binary are primitive closed carriers.
+  defp evaluate(:effect_typing_guards) do
+    c = Context.empty(Env.empty())
+    atom = {:atom_type}
+    binary = {:binary_type}
+    value = {:atom_lit, :ok}
+    pure = {:effect_pure, value}
+    continuation = {:lam, :unrestricted, atom, {:effect_pure, {:var, 0}}}
+    bind = {:effect_bind, pure, continuation}
+    goal = {:veffect_type, {:vatom_type}}
+    other_goal = {:veffect_type, {:vbinary_type}}
+
+    %{
+      formation: Kernel.infer(c, {:effect_type, atom}),
+      formation_not_type: Kernel.infer(c, {:effect_type, value}),
+      pure_infer: Kernel.infer(c, pure),
+      bind_infer: Kernel.infer(c, bind),
+      input_not_effect: Kernel.infer(c, {:effect_bind, value, continuation}),
+      continuation_not_function: Kernel.infer(c, {:effect_bind, pure, value}),
+      continuation_domain:
+        Kernel.infer(c, {:effect_bind, pure, {:lam, :unrestricted, binary, {:effect_pure, {:var, 0}}}}),
+      continuation_not_effect: Kernel.infer(c, {:effect_bind, pure, {:lam, :unrestricted, atom, {:var, 0}}}),
+      pure_check: Kernel.check(c, pure, goal),
+      pure_wrong_payload: Kernel.check(c, pure, other_goal),
+      pure_wrong_carrier: Kernel.check(c, pure, {:vatom_type}),
+      bind_check: Kernel.check(c, bind, goal),
+      bind_wrong_result: Kernel.check(c, bind, other_goal),
+      bind_wrong_carrier: Kernel.check(c, bind, {:vatom_type})
+    }
+  end
+
   # A minimal migration `Rule` fixture carrying only the fields `retired_keywords/2`
   # reads (`enforced_in` + `retires_keywords`); its rewrite is inert.
   defp fixture_rule(id, enforced_in, retires) do
@@ -651,11 +739,11 @@ defmodule Antigen.Assays.KernelProbe do
   # -- oracle: the verdict each probe MUST return --
   defp matches?(:infer_absurd, r), do: r == {:error, :absurd_in_reachable_position}
   defp matches?(:infer_fields_only_ctor, r), do: match?({:error, {:ctor_requires_checking_mode, _}}, r)
-  defp matches?(:check_ctor_arity, r), do: r == {:error, :ctor_arity}
+  defp matches?(:check_canonical_ctor_arity, r), do: r == {{:error, :ctor_arity}, :ok}
   defp matches?(:check_def_unknown, r), do: Cure.Diagnostic.key(r) == :unknown_global
   defp matches?(:check_def_builtin_op, r), do: r == :ok
   defp matches?(:validate_cert_builtin_op, r), do: match?({:ok, _}, r)
-  defp matches?(:family_ceiling, r), do: r == {:error, :universe_ceiling}
+  defp matches?(:family_formation, r), do: r == {:ok, {:error, :not_a_type}}
   defp matches?(:normalize_opts, r), do: r == {:nat_lit, 3}
   defp matches?(:validator_warn_emit, r), do: r == :ok
   # The field error must survive unremapped (NOT rewritten to :index_mismatch).
@@ -665,12 +753,12 @@ defmodule Antigen.Assays.KernelProbe do
   defp matches?(:decode_unknown_symbol, r), do: match?({:error, {:unknown_symbol, _}}, r)
   # Under-application cannot be certified decreasing → soundly rejected (false).
   defp matches?(:cert_under_application, r), do: r == false
-  # No cycle back to `f` through the dangling callee → certified total (true).
-  defp matches?(:cert_dangling_callee, r), do: r == true
+  # Missing callee rejects; a fully defined, typed acyclic closure accepts.
+  defp matches?(:cert_unresolved_callee, r), do: r == {false, true}
 
   # -- backstop oracles: the guard MUST fire (raise the documented ι-error / reject) --
   defp matches?(:eval_no_branch, r), do: match?({:raised, "ι: no branch" <> _}, r)
-  defp matches?(:eval_nondata_scrutinee, r), do: match?({:raised, "ι: non-data scrutinee" <> _}, r)
+  defp matches?(:eval_float_scrutinee, r), do: match?({:raised, "ι: non-data scrutinee" <> _}, r)
   defp matches?(:apply_nonfun, r), do: match?({:raised, "Eval.apply:" <> _}, r)
   defp matches?(:conv_unknown_ctor_fallback, r), do: r == true
   defp matches?(:validator_rejects_hole_body, r), do: match?({:error, {:final_core_violation, _}}, r)
@@ -712,16 +800,20 @@ defmodule Antigen.Assays.KernelProbe do
     do:
       r == {{{:atom_lit, :"has space"}, {:ok, {:atom_lit, :"has space"}}}, {{:atom_lit, :""}, {:ok, {:atom_lit, :""}}}}
 
-  defp matches?(:serialize_malformed_symbol, r), do: r == {:error, :malformed_symbol}
+  defp matches?(:serialize_current_malformed_symbol, r), do: r == {:error, :malformed_symbol}
 
   defp matches?(:infer_value_type_formers, r),
-    do: r == {{:ok, {:vtype, 0}}, {:ok, {:vtype, 0}}, {:ok, {:vatom_type}}, {:error, {:hole_in_inference_position, :h}}}
+    do:
+      r ==
+        {{:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}},
+         {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}}, {:ok, {:vatom_type}},
+         {:error, {:hole_in_inference_position, :h}}}
 
   defp matches?(:infer_bounded_unregistered, r), do: r == {:error, :bounded_family_unregistered}
   defp matches?(:infer_bounded_registered, r), do: r == {:ok, {:vdata, :Bounded, [{:vnat, 6}]}}
   defp matches?(:check_bounded_in_range, r), do: r == :ok
   defp matches?(:check_bounded_out_of_range, r), do: r == {:error, {:bounded_lit_out_of_range, 5, 3}}
-  defp matches?(:check_bounded_tower, r), do: r == :ok
+  defp matches?(:check_canonical_bounded_tower, r), do: r == {:ok, {:error, {:bounded_lit_out_of_range, 1, 1}}}
 
   defp matches?(:check_bounded_not_concrete, r),
     do:
@@ -731,7 +823,7 @@ defmodule Antigen.Assays.KernelProbe do
 
   defp matches?(:check_bounded_wrong_family, r), do: match?({:error, {:conversion_failure, {:bounded_lit, 2}, _}}, r)
   defp matches?(:check_ctor_via_infer, r), do: match?({:error, {:conversion_failure, _, _}}, r)
-  defp matches?(:sort_value_type_formers, r), do: r == {{:ok, {:vbinary_type}}, {:ok, {:vatom_type}}}
+  defp matches?(:typed_value_type_motives, r), do: r == {{:ok, {:vbinary_type}}, {:ok, {:vatom_type}}}
 
   # equal literals / matching towers unify (`:trivial`); every clash is `:impossible`.
   defp matches?(:unify_bounded_bridge, r),
@@ -752,6 +844,25 @@ defmodule Antigen.Assays.KernelProbe do
   defp matches?(:edition_retired_keywords, r), do: r == ["proto"]
   # The chained rule set converges with both marks appended (no divergence / verify abort).
   defp matches?(:migrate_fixpoint_converges, r), do: r == {true, true}
+
+  defp matches?(:effect_typing_guards, result) do
+    result == %{
+      formation: {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}},
+      formation_not_type: {:error, :not_a_type},
+      pure_infer: {:ok, {:veffect_type, {:vatom_type}}},
+      bind_infer: {:ok, {:veffect_type, {:vatom_type}}},
+      input_not_effect: {:error, :effect_bind_not_effect},
+      continuation_not_function: {:error, :not_a_function},
+      continuation_domain: {:error, :effect_bind_domain_mismatch},
+      continuation_not_effect: {:error, :effect_bind_cont_not_effect},
+      pure_check: :ok,
+      pure_wrong_payload: {:error, {:conversion_failure, {:atom_type}, {:binary_type}}},
+      pure_wrong_carrier: {:error, {:conversion_failure, {:effect_type, {:atom_type}}, {:atom_type}}},
+      bind_check: :ok,
+      bind_wrong_result: {:error, :effect_bind_result_mismatch},
+      bind_wrong_carrier: {:error, {:conversion_failure, {:effect_type, {:atom_type}}, {:atom_type}}}
+    }
+  end
 
   # every malformed body is soundly rejected (not certified terminating), never a crash.
   defp matches?(cert, r)

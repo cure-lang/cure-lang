@@ -89,7 +89,15 @@ defmodule Antigen.Generators.IndexedDecl do
   defp dependent_eq do
     Gen.bind(Gen.member_of([2, 3]), fn k ->
       indices = for i <- 0..(k - 1), do: {:n, {:var, i}}
-      fam = Inductive.family(:MyEqK, [{:a, {:type, 0}}], indices, 0)
+
+      fam =
+        Inductive.family(
+          :MyEqK,
+          [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          indices,
+          Cure.Core.Sort.finite_closed(0)
+        )
+
       ctor = Inductive.ctor(:mreflK, [{:w, {:var, 0}}], List.duplicate({:var, 0}, k), [:many], [{:var, 1}])
 
       Gen.return(
@@ -142,7 +150,14 @@ defmodule Antigen.Generators.IndexedDecl do
   # P : (a:Type0) -> (n:T) -> Type0 with ctor pc : (x:a) -> P a <lit>.
   # uniform: result_params = [a] (var 1 in ctx_full = [a, x]); non_uniform: [x] (var 0).
   defp param(kind, uniformity) do
-    fam = Inductive.family(:P, [{:a, {:type, 0}}], [{:n, itype(kind)}], 0)
+    fam =
+      Inductive.family(
+        :P,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:n, itype(kind)}],
+        Cure.Core.Sort.finite_closed(0)
+      )
+
     # result_params: [a]=uniform (accept); [x]=non-uniform var (reject); []=wrong
     # count (check_uniform_params' arity branch).
     {rparams, label, note, cell} =
@@ -168,7 +183,7 @@ defmodule Antigen.Generators.IndexedDecl do
     end)
   end
 
-  defp idxi(kind), do: Inductive.family(:IdxI, [], [{:n, itype(kind)}], 0)
+  defp idxi(kind), do: Inductive.family(:IdxI, [], [{:n, itype(kind)}], Cure.Core.Sort.finite_closed(0))
 
   defp itype(:int), do: {:data, :Int, [], []}
   defp itype(:float), do: {:float_type}

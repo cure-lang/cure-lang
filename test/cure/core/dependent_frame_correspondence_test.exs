@@ -13,14 +13,42 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
   @packed {:data, :FramePacked, [], [@carrier]}
 
   setup do
-    packed = Inductive.family(:FramePacked, [], [{:A, {:type, 0}}], 1)
-    pack = Inductive.ctor(:FramePack, [{:A, {:type, 0}}, {:x, {:var, 0}}], [{:var, 1}])
-    param_box = Inductive.family(:FrameParamBox, [{:A, {:type, 0}}], [], 1)
+    packed =
+      Inductive.family(
+        :FramePacked,
+        [],
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        Cure.Core.Sort.finite_closed(1)
+      )
+
+    pack =
+      Inductive.ctor(
+        :FramePack,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, {:x, {:var, 0}}],
+        [{:var, 1}]
+      )
+
+    param_box =
+      Inductive.family(
+        :FrameParamBox,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [],
+        Cure.Core.Sort.finite_closed(1)
+      )
 
     box =
       Inductive.ctor(:FrameBox, [{:x, {:var, 0}}], [], [:unrestricted], [{:var, 1}])
 
-    dual = Inductive.family(:FrameDual, [{:A, {:type, 0}}, {:B, {:type, 0}}], [], 1)
+    dual =
+      Inductive.family(
+        :FrameDual,
+        [
+          {:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+          {:B, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+        ],
+        [],
+        Cure.Core.Sort.finite_closed(1)
+      )
 
     pair =
       Inductive.ctor(
@@ -31,7 +59,14 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
         [{:var, 3}, {:var, 2}]
       )
 
-    indexed = Inductive.family(:FrameIndexed, [{:A, {:type, 0}}], [{:x, {:var, 0}}], 1)
+    indexed =
+      Inductive.family(
+        :FrameIndexed,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:x, {:var, 0}}],
+        Cure.Core.Sort.finite_closed(1)
+      )
+
     witness = Inductive.ctor(:FrameWitness, [{:x, {:var, 0}}], [{:var, 0}], [:unrestricted], [{:var, 1}])
     computed_index = {:app, {:lam, @g, {:var, 1}, {:var, 0}}, {:var, 0}}
 
@@ -60,19 +95,27 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
   end
 
   test "a scoped field declaration still needs a valid kind", %{ctx: ctx} do
-    family = Inductive.family(:FrameBadKind, [], [], 2)
-    constructor = Inductive.ctor(:FrameBadKindCtor, [{:x, {:type, 2}}], [])
+    family = Inductive.family(:FrameBadKind, [], [], Cure.Core.Sort.finite_closed(2))
+
+    constructor =
+      Inductive.ctor(
+        :FrameBadKindCtor,
+        [{:x, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}}}],
+        []
+      )
+
     env = Inductive.declare(Context.signature(ctx), family, [constructor])
 
     assert :ok = Kernel.check_family(env, family)
-    assert {:error, :universe_ceiling} = Kernel.check_ctor(env, family, constructor)
+    assert {:error, :universe_level} = Kernel.check_ctor(env, family, constructor)
   end
 
   defp packed(value), do: {:ctor, :FramePack, [@carrier, {:atom_lit, value}]}
 
   # λ(A : Type0). λ(p : Packed A). A
   defp unpack_motive do
-    {:lam, @g, {:type, 0}, {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, {:var, 1}}}
+    {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+     {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, {:var, 1}}}
   end
 
   test "preceding fields instantiate later field types and the result index", %{ctx: ctx} do
@@ -89,17 +132,20 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
 
   test "the first field remains available separately from the dependent value", %{ctx: ctx} do
     motive =
-      {:lam, @g, {:type, 0}, {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, {:type, 0}}}
+      {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}
 
     program = {:case, packed(:payload), motive, [{:FramePack, 2, {:var, 1}}]}
 
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx, program)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} = Kernel.infer(ctx, program)
     assert {:vatom_type} = Eval.eval(program, [])
   end
 
   test "a lambda keeps its own binder while capturing the last branch field", %{ctx: ctx} do
     motive =
-      {:lam, @g, {:type, 0}, {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, {:pi, @g, @carrier, {:var, 2}}}}
+      {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, {:pi, @g, @carrier, {:var, 2}}}}
 
     body = {:lam, @g, @carrier, {:var, 1}}
     program = {:case, packed(:payload), motive, [{:FramePack, 2, body}]}
@@ -109,7 +155,10 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
   end
 
   test "an ambient value remains outside both field slots", %{ctx: ctx} do
-    motive = {:lam, @g, {:type, 0}, {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, @carrier}}
+    motive =
+      {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, @g, {:data, :FramePacked, [], [{:var, 0}]}, @carrier}}
+
     branch = {:FramePack, 2, {:var, 2}}
     program = {:let, @g, @carrier, {:atom_lit, :ambient}, {:case, packed(:payload), motive, [branch]}}
 

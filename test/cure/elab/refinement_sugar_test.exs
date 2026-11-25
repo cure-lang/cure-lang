@@ -71,7 +71,9 @@ defmodule Cure.Elab.RefinementSugarTest do
       mod SugarNamed
         use Std.Bool
         use Std.Proof.IntMath
-        fn ident(x: {n: Int | is_positive(n)}) -> Int = 0
+        type NamedPredicate indices (n: Int)
+          PredicateWitness : NamedPredicate(n)
+        fn ident(x: {n: Int | NamedPredicate(n)}) -> Int = 0
       end
       """)
 
@@ -80,7 +82,8 @@ defmodule Cure.Elab.RefinementSugarTest do
     assert {:data, :"Std.Sigma#Sigma",
             [{:data, :"Std.Int#Int", [], []}, {:lam, _g, {:data, :"Std.Int#Int", [], []}, body}], []} = domain
 
-    # The predicate body is the applied global `is_positive`, NOT `IsTrue(is_positive(...))`.
+    assert {:data, :"SugarNamed#NamedPredicate", [], [{:var, 0}]} = body
+    # A Type-valued predicate remains itself, not IsTrue applied to a type.
     refute match?({:data, :"Std.Proof.IntMath#IsTrue", [], _}, body)
   end
 end

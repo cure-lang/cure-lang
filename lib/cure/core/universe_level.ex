@@ -4,9 +4,8 @@ defmodule Cure.Core.UniverseLevel do
   `Agda.Syntax.Internal.Level'` (`Max Integer [PlusLevel]`).
 
   **Authority:** `docs/superpowers/specs/types/2026-07-20-agda-style-universe-polymorphism-design.md`
-  §6. This module is **phase U1** of that spec's §18 sequence. Its gate is
-  "focused UniverseLevel tests and property tests green; **no kernel semantics
-  changed**" — so nothing here is wired into `Term`, `Kernel` or `Conv` yet.
+  §6. Structural canonicalization is distinct from contextual atom typing and
+  certified conversion. Constructing a level is never evidence of admission.
 
   ## Representation
 
@@ -32,23 +31,11 @@ defmodule Cure.Core.UniverseLevel do
   lists** (§6.3). Every constructor here returns canonical form; `validate/2`
   re-checks a value that crossed an untrusted boundary.
 
-  ## Atom ordering (the U1 → U2 follow-up)
+  ## Atom ordering
 
-  §6.2 says atoms are "sorted by canonical serialized term order". The
-  canonical serializer (`Cure.Core.Serialize`) has no version tag yet — the
-  spec places that work in U2 (§15). Until it lands, this module sorts by
-  `:erlang.term_to_binary/1`, which is:
-
-    * **total** on every Core term (terms are plain tuples/lists/atoms/integers);
-    * **deterministic** within a release (it depends only on the term);
-    * **stable** across the two sides of a comparison, which is all
-      canonicalization needs to make `equal?/3` and `max/2` agree.
-
-  It is *not* a portable cross-release order, so it must be replaced by the
-  versioned serializer order in U2. `atom_order_key/1` is the single seam: it is
-  the only place the ordering is decided, so the U2 change is one function body
-  plus a corpus regeneration. This substitution is recorded in
-  `docs/LEAN4_PHASE5_U0_INVENTORY.md` §8.
+  Core atoms are ordered by the portable unframed term bytes owned by the
+  versioned `Cure.Core.UniverseCodec`. Private semantic NbE atoms never cross
+  this boundary; they are quoted to Core at the actual binder depth first.
 
   ## What is deliberately absent
 
@@ -102,6 +89,15 @@ defmodule Cure.Core.UniverseLevel do
     raise ArgumentError, "a closed universe level must be a non-negative integer, got: #{inspect(n)}"
   end
 
+  @doc "Map Core atom terms without introducing a binder, then restore canonical form."
+  @spec map(t(), (Cure.Core.Term.t() -> Cure.Core.Term.t())) :: t()
+  def map(%__MODULE__{} = level, transform) do
+    normalize(%__MODULE__{
+      constant: level.constant,
+      atoms: Enum.map(level.atoms, fn {term, offset} -> {transform.(term), offset} end)
+    })
+  end
+
   @doc """
   A single atom: a neutral Core term checked at `UniverseLevel`, at offset zero.
 
@@ -112,7 +108,7 @@ defmodule Cure.Core.UniverseLevel do
   boundary.
   """
   @spec atom(Cure.Core.Term.t()) :: t()
-  def atom(term), do: %__MODULE__{constant: 0, atoms: [{term, 0}]}
+  def atom(term), do: normalize(%__MODULE__{constant: 0, atoms: [{term, 0}]})
 
   @doc """
   Successor. Distributes over `max` (§3.2): `succ(max(c, a+k, …))` is
@@ -120,10 +116,10 @@ defmodule Cure.Core.UniverseLevel do
   """
   @spec succ(t()) :: t()
   def succ(%__MODULE__{constant: c, atoms: atoms}) do
-    %__MODULE__{
+    normalize(%__MODULE__{
       constant: c + 1,
       atoms: Enum.map(atoms, fn {term, offset} -> {term, offset + 1} end)
-    }
+    })
   end
 
   @doc """
@@ -145,10 +141,15 @@ defmodule Cure.Core.UniverseLevel do
   through it, so no caller can assemble a non-canonical form.
   """
   @spec normalize(t()) :: t()
-  def normalize(%__MODULE__{constant: c, atoms: atoms}) when is_integer(c) and c >= 0 do
+  def normalize(%__MODULE__{constant: c, atoms: atoms}) when is_integer(c) and c >= 0 and is_list(atoms) do
+    {c, atoms} =
+      Enum.reduce(atoms, {c, []}, fn entry, acc ->
+        {term, offset} = check_atom!(entry)
+        flatten_atom(term, offset, acc)
+      end)
+
     merged =
       atoms
-      |> Enum.map(&check_atom!/1)
       # Step 2: merge equal atoms, retaining the greatest offset.
       |> Enum.reduce(%{}, fn {term, offset}, acc ->
         Map.update(acc, term, offset, &Kernel.max(&1, offset))
@@ -159,7 +160,7 @@ defmodule Cure.Core.UniverseLevel do
 
     # Step 4: a constant already subsumed by an atom offset is dropped. Every
     # atom contributes at least its offset, so the effective floor is
-    # `max(c, min_offset)`, and storing the larger of the two in `constant`
+    # `max(c, max_offset)`, and storing the larger of the two in `constant`
     # would be redundant. We keep the constant only when it strictly exceeds
     # every atom offset.
     effective_constant = if merged == [], do: c, else: max_constant(c, merged)
@@ -170,6 +171,15 @@ defmodule Cure.Core.UniverseLevel do
   def normalize(other) do
     raise ArgumentError, "not a universe level: #{inspect(other)}"
   end
+
+  defp flatten_atom({:level_value, %__MODULE__{} = inner}, offset, {constant, atoms}) do
+    inner = normalize(inner)
+
+    {Kernel.max(constant, inner.constant + offset),
+     Enum.map(inner.atoms, fn {term, inner_offset} -> {term, inner_offset + offset} end) ++ atoms}
+  end
+
+  defp flatten_atom(term, offset, {constant, atoms}), do: {constant, [{term, offset} | atoms]}
 
   # The constant survives only if it exceeds EVERY atom offset; otherwise the
   # atoms already guarantee at least that much and the constant is redundant.
@@ -320,6 +330,9 @@ defmodule Cure.Core.UniverseLevel do
       Enum.flat_map(branches, fn {_ctor, arity, body} -> term_free_vars(body, depth + arity) end)
   end
 
+  defp term_free_vars(%__MODULE__{atoms: atoms}, depth),
+    do: Enum.flat_map(atoms, fn {term, _offset} -> term_free_vars(term, depth) end)
+
   defp term_free_vars(term, depth) when is_tuple(term),
     do: term |> Tuple.to_list() |> Enum.flat_map(&term_free_vars(&1, depth))
 
@@ -376,8 +389,42 @@ defmodule Cure.Core.UniverseLevel do
     end)
   end
 
-  defp atom_term?(term, _context) when is_tuple(term), do: Cure.Core.Term.term?(term)
+  defp atom_term?(term, context) when is_tuple(term),
+    do:
+      neutral_term?(term) and Cure.Core.Term.term?(term) and not hidden_hole?(term) and
+        atom_typed?(term, context)
+
   defp atom_term?(_term, _context), do: false
+
+  defp atom_typed?(_term, nil), do: true
+
+  defp atom_typed?(term, context) do
+    case Cure.Core.Kernel.infer(context, term) do
+      {:ok, type} ->
+        Cure.Core.Normalise.whnf_value(type, Cure.Core.Context.signature(context)) == {:vlevel_type}
+
+      {:error, _} ->
+        false
+    end
+  end
+
+  defp neutral_term?({:var, _}), do: true
+  defp neutral_term?({:global, _}), do: true
+  defp neutral_term?({:app, head, _}), do: neutral_term?(head)
+  defp neutral_term?({:case, scrutinee, _, _}), do: neutral_term?(scrutinee)
+  defp neutral_term?(_), do: false
+
+  defp hidden_hole?({:hole, _}), do: true
+  defp hidden_hole?({:meta, _}), do: true
+
+  defp hidden_hole?(%__MODULE__{atoms: atoms}),
+    do: Enum.any?(atoms, fn {term, _offset} -> hidden_hole?(term) end)
+
+  defp hidden_hole?(term) when is_tuple(term),
+    do: term |> Tuple.to_list() |> Enum.any?(&hidden_hole?/1)
+
+  defp hidden_hole?(terms) when is_list(terms), do: Enum.any?(terms, &hidden_hole?/1)
+  defp hidden_hole?(_), do: false
 
   # A canonical form must be a fixed point of `normalize/1`. That single check
   # covers duplicate atoms, unsorted atoms and a subsumed constant at once,
@@ -400,33 +447,50 @@ defmodule Cure.Core.UniverseLevel do
   that distinction explains the failure". `to_string/1` is the source-notation
   side; `inspect/1` (the struct) is the normalized side.
   """
-  @spec to_string(t()) :: String.t()
-  def to_string(%__MODULE__{constant: 0, atoms: []}), do: "universe_zero"
+  @spec to_string(t(), [String.t()]) :: String.t()
+  def to_string(level, names \\ [])
 
-  def to_string(%__MODULE__{constant: c, atoms: []}), do: Integer.to_string(c)
+  def to_string(%__MODULE__{constant: 0, atoms: []}, _names), do: "universe_zero"
 
-  def to_string(%__MODULE__{constant: c, atoms: atoms}) do
+  def to_string(%__MODULE__{constant: c, atoms: []}, _names), do: render_integer(c)
+
+  def to_string(%__MODULE__{constant: c, atoms: atoms}, names) do
     # Each atom renders as `atom` at offset 0, or as the `offset`-fold successor
     # of the atom. The constant is a SEPARATE operand only when it is not
     # already implied by an atom — canonical form guarantees that (a nonzero
     # constant exceeds every atom offset), so it is safe to emit it first.
     parts =
-      Enum.map(atoms, fn {term, offset} -> render_atom(term, offset) end)
+      Enum.map(Enum.take(atoms, 16), fn {term, offset} -> render_atom(term, offset, names) end)
 
-    constant_part = if c > 0, do: [Integer.to_string(c)], else: []
-    Enum.reduce(constant_part ++ parts, fn part, acc -> "universe_max(#{acc}, #{part})" end)
+    constant_part = if c > 0, do: [render_integer(c)], else: []
+    suffix = if length(atoms) > 16, do: ["…"], else: []
+    Enum.reduce(constant_part ++ parts ++ suffix, fn part, acc -> "universe_max(#{acc}, #{part})" end)
   end
 
   # An atom at offset `n` is `n`-fold `universe_succ` of the atom. Rendering it
   # as `universe_max(atom, n)` would be WRONG — that is `max(atom, n)`, a level
   # floored by the numeral `n`, not `atom + n`. Successor is the operation the
   # offset actually denotes (§3.2: `succ(a + k) = a + (k+1)`).
-  defp render_atom(term, 0), do: Cure.Core.Printer.print(term)
+  defp render_atom(term, 0, names), do: render_term(term, names)
 
-  defp render_atom(term, offset) when is_integer(offset) and offset > 0 do
-    Enum.reduce(1..offset, Cure.Core.Printer.print(term), fn _step, acc ->
+  defp render_atom(term, offset, names) when is_integer(offset) and offset > 0 and offset <= 16 do
+    Enum.reduce(1..offset, render_term(term, names), fn _step, acc ->
       "universe_succ(#{acc})"
     end)
+  end
+
+  defp render_atom(term, offset, names), do: "#{render_term(term, names)} + #{render_integer(offset)}"
+
+  defp render_integer(integer) do
+    if :erlang.external_size(integer) <= 128,
+      do: Integer.to_string(integer),
+      else: "<large level>"
+  end
+
+  defp render_term(term, names) do
+    if :erlang.external_size(term) <= 2048,
+      do: term |> Cure.Core.Printer.print(names) |> String.slice(0, 512),
+      else: "<level atom>"
   end
 
   # ---------------------------------------------------------------------------
@@ -436,14 +500,10 @@ defmodule Cure.Core.UniverseLevel do
   @doc """
   The deterministic ordering key for a level atom.
 
-  §6.2 requires "canonical serialized term order". The versioned serializer is
-  U2 work (§15), so U1 uses `:erlang.term_to_binary/1` — total and deterministic
-  on every Core term, which is all canonicalization needs. **This is the only
-  place the ordering is decided**, so replacing it in U2 is a one-function
-  change plus a corpus regeneration.
+  §6.2 requires canonical serialized term order, not host ETF order.
   """
   @spec atom_order_key(Cure.Core.Term.t()) :: binary()
-  def atom_order_key(term), do: :erlang.term_to_binary(term)
+  def atom_order_key(term), do: Cure.Core.UniverseCodec.atom_order_key(term)
 
   # ---------------------------------------------------------------------------
   # Erasure (§13)

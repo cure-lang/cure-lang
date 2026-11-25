@@ -1,11 +1,12 @@
 defmodule Cure.Test.ProofCheckingFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Grade, ProofRecipe}
   alias Cure.Test.ProofBundleFixture
 
   def request do
-    beta_type = {:app, {:lam, Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:atom_type}}
+    beta_type = {:app, {:lam, Grade.unrestricted(), {:type, @u0}, {:var, 0}}, {:atom_type}}
 
     {:checking, {:atom_lit, :payload}, :r_leaf, :r_leaf, beta_type, {:r_app, {:r_lam, :r_leaf, :r_leaf}, :r_leaf}}
   end

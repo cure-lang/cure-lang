@@ -29,19 +29,28 @@ defmodule Cure.Core.PositivityNestedTest do
 
   # Lst(a) = LNil | LCons(a, Lst(a)) — a genuinely positive parametric list.
   defp with_lst(env) do
-    Inductive.declare(env, Inductive.family(:Lst, [a: {:type, 0}], [], 0), [
-      Inductive.ctor(:LNil, [], []),
-      Inductive.ctor(
-        :LCons,
-        [{:x, {:var, 0}}, {:xs, {:data, :Lst, [{:var, 1}], []}}],
-        []
-      )
-    ])
+    Inductive.declare(
+      env,
+      Inductive.family(
+        :Lst,
+        [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+        [],
+        Cure.Core.Sort.finite_closed(0)
+      ),
+      [
+        Inductive.ctor(:LNil, [], []),
+        Inductive.ctor(
+          :LCons,
+          [{:x, {:var, 0}}, {:xs, {:data, :Lst, [{:var, 1}], []}}],
+          []
+        )
+      ]
+    )
   end
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Empty, [], [], 0), [])
+    |> Inductive.declare(Inductive.family(:Empty, [], [], Cure.Core.Sort.finite_closed(0)), [])
     |> with_lst()
   end
 
@@ -50,9 +59,18 @@ defmodule Cure.Core.PositivityNestedTest do
     rose_a = {:data, :Rose, [{:var, 0}], []}
 
     env =
-      Inductive.declare(base(), Inductive.family(:Rose, [a: {:type, 0}], [], 0), [
-        Inductive.ctor(:RNode, [{:t, {:data, :Lst, [rose_a], []}}], [])
-      ])
+      Inductive.declare(
+        base(),
+        Inductive.family(
+          :Rose,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        [
+          Inductive.ctor(:RNode, [{:t, {:data, :Lst, [rose_a], []}}], [])
+        ]
+      )
 
     assert :ok == Inductive.positive?(env, Inductive.get_family(env, :Rose))
   end
@@ -62,10 +80,18 @@ defmodule Cure.Core.PositivityNestedTest do
     # is the classic paradox constructor and MUST be rejected.
     env =
       base()
-      |> Inductive.declare(Inductive.family(:Neg, [t: {:type, 0}], [], 0), [
-        Inductive.ctor(:MkNeg, [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:var, 0}, @empty}}], [])
-      ])
-      |> Inductive.declare(Inductive.family(:Bad, [], [], 0), [
+      |> Inductive.declare(
+        Inductive.family(
+          :Neg,
+          [t: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        [
+          Inductive.ctor(:MkNeg, [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:var, 0}, @empty}}], [])
+        ]
+      )
+      |> Inductive.declare(Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:MkBad, [{:g, {:data, :Neg, [{:data, :Bad, [], []}], []}}], [])
       ])
 
@@ -78,8 +104,16 @@ defmodule Cure.Core.PositivityNestedTest do
     # the checker cannot issue a positive certificate.
     env =
       base()
-      |> Inductive.declare(Inductive.family(:Box, [a: {:type, 0}], [], 0), [])
-      |> Inductive.declare(Inductive.family(:Foo, [], [], 0), [
+      |> Inductive.declare(
+        Inductive.family(
+          :Box,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        []
+      )
+      |> Inductive.declare(Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:MkFoo, [{:b, {:data, :Box, [{:data, :Foo, [], []}], []}}], [])
       ])
 
@@ -98,21 +132,47 @@ defmodule Cure.Core.PositivityNestedTest do
 
     env =
       base()
-      |> Inductive.declare(Inductive.family(:Tok, [], [], 0), [Inductive.ctor(:MkTok, [], [])])
-      |> Inductive.declare(Inductive.family(:Option, [a: {:type, 0}], [], 0), [
-        Inductive.ctor(:ONone, [], []),
-        Inductive.ctor(:OSome, [{:v, {:var, 0}}], [])
+      |> Inductive.declare(Inductive.family(:Tok, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:MkTok, [], [])
       ])
-      |> Inductive.declare(Inductive.family(:Iter, [a: {:type, 0}], [], 0), [
-        Inductive.ctor(
-          :MkIter,
-          [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:data, :Tok, [], []}, {:data, :Option, [iterstep_a], []}}}],
-          []
-        )
-      ])
-      |> Inductive.declare(Inductive.family(:IterStep, [a: {:type, 0}], [], 0), [
-        Inductive.ctor(:Yield, [{:hd, {:var, 0}}, {:tl, iter_a}], [])
-      ])
+      |> Inductive.declare(
+        Inductive.family(
+          :Option,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        [
+          Inductive.ctor(:ONone, [], []),
+          Inductive.ctor(:OSome, [{:v, {:var, 0}}], [])
+        ]
+      )
+      |> Inductive.declare(
+        Inductive.family(
+          :Iter,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        [
+          Inductive.ctor(
+            :MkIter,
+            [{:f, {:pi, Cure.Core.Grade.unrestricted(), {:data, :Tok, [], []}, {:data, :Option, [iterstep_a], []}}}],
+            []
+          )
+        ]
+      )
+      |> Inductive.declare(
+        Inductive.family(
+          :IterStep,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
+        [
+          Inductive.ctor(:Yield, [{:hd, {:var, 0}}, {:tl, iter_a}], [])
+        ]
+      )
 
     assert :ok == Inductive.positive?(env, Inductive.get_family(env, :IterStep))
     assert :ok == Inductive.positive?(env, Inductive.get_family(env, :Iter))

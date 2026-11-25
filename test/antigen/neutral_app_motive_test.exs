@@ -17,7 +17,11 @@ defmodule Antigen.NeutralAppMotiveTest do
   # ctx: [ b : (Nat) -> Type ]  (level 0)
   defp ctx_with_type_family(env) do
     pi =
-      Eval.eval({:pi, Cure.Core.Grade.unrestricted(), {:data, :"P#Nat", [], []}, {:type, 0}}, [])
+      Eval.eval(
+        {:pi, Cure.Core.Grade.unrestricted(), {:data, :"P#Nat", [], []},
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+        []
+      )
 
     Context.extend(Context.empty(env), pi)
   end

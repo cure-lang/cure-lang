@@ -216,7 +216,8 @@ defmodule Cure.Core.Builtins do
   # erased, and the emitter lowers the call to its sole present argument.
   defp seed_run(env) do
     ty =
-      {:pi, :erased, {:type, 0}, {:pi, Grade.unrestricted(), {:effect_type, {:var, 0}}, {:var, 1}}}
+      {:pi, :erased, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, Grade.unrestricted(), {:effect_type, {:var, 0}}, {:var, 1}}}
 
     env
     |> Env.add_def(:run, ty, nil, [:erased, :unrestricted])
@@ -265,7 +266,10 @@ defmodule Cure.Core.Builtins do
   # argument, so the emitted spine is the two value operands.
   defp seed_struct_ops(env, bool_ty) do
     w = Grade.unrestricted()
-    ty = {:pi, w, {:type, 0}, {:pi, w, {:var, 0}, {:pi, w, {:var, 1}, bool_ty}}}
+
+    ty =
+      {:pi, w, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, w, {:var, 0}, {:pi, w, {:var, 1}, bool_ty}}}
 
     Enum.reduce(@struct_ops, env, fn {name, op_key}, acc ->
       acc
@@ -392,10 +396,10 @@ defmodule Cure.Core.Builtins do
   # `Any` is an opaque top type: every value can be checked at it through the
   # kernel's subtyping rule, but it has no eliminator and therefore cannot be
   # abused as an empty inductive after widening.
-  defp any_family(env), do: Inductive.opaque_family(Env.owned_name(env, :Any), [], 0)
+  defp any_family(env), do: Inductive.opaque_family(Env.owned_name(env, :Any), [], Cure.Core.Sort.finite_closed(0))
 
   # Bool : Type0 = False | True  (both nullary)
-  defp bool_family(env), do: Inductive.family(Env.owned_name(env, :Bool), [], [], 0)
+  defp bool_family(env), do: Inductive.family(Env.owned_name(env, :Bool), [], [], Cure.Core.Sort.finite_closed(0))
 
   defp bool_ctors(env),
     do: [
@@ -404,7 +408,7 @@ defmodule Cure.Core.Builtins do
     ]
 
   # Nat : Type0 = Z | S(Nat)  (S's field references the Nat family)
-  defp nat_family(env), do: Inductive.family(Env.owned_name(env, :Nat), [], [], 0)
+  defp nat_family(env), do: Inductive.family(Env.owned_name(env, :Nat), [], [], Cure.Core.Sort.finite_closed(0))
 
   defp nat_ctors(env),
     do: [
@@ -416,7 +420,7 @@ defmodule Cure.Core.Builtins do
   # Nat family (like S's field references Nat). Source of truth is the
   # @builtin(:int) decl in Std.Int (lib/std/int.cure); this seed is its
   # byte-for-byte mirror, pinned by the conformance drift harness.
-  defp int_family(env), do: Inductive.family(Env.owned_name(env, :Int), [], [], 0)
+  defp int_family(env), do: Inductive.family(Env.owned_name(env, :Int), [], [], Cure.Core.Sort.finite_closed(0))
 
   # FromNat / NegativeSuccessor belong to Std.Int (so the ctor NAMES are owned by
   # this env), but their single field is a *canonical* Nat — it must point at the
@@ -444,7 +448,13 @@ defmodule Cure.Core.Builtins do
   # still supplies it explicitly at construction (`reflexive(x)`). K/UIP is
   # inherited from the existing index unifier — operator-signed-off 2026-07-04.
   defp eq_family(env),
-    do: Inductive.family(Env.owned_name(env, :Equivalent), [a: {:type, 0}], [x: {:var, 0}, y: {:var, 1}], 0)
+    do:
+      Inductive.family(
+        Env.owned_name(env, :Equivalent),
+        [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+        [x: {:var, 0}, y: {:var, 1}],
+        Cure.Core.Sort.finite_closed(0)
+      )
 
   defp eq_ctors(env),
     do: [
@@ -461,9 +471,13 @@ defmodule Cure.Core.Builtins do
     do:
       Inductive.family(
         Env.owned_name(env, :Sigma),
-        [a: {:type, 0}, b: {:pi, Grade.unrestricted(), {:var, 0}, {:type, 0}}],
+        [
+          a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          b:
+            {:pi, Grade.unrestricted(), {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+        ],
         [],
-        0
+        Cure.Core.Sort.finite_closed(0)
       )
 
   defp sigma_ctors(env),
@@ -486,7 +500,14 @@ defmodule Cure.Core.Builtins do
   # references List itself, like nat's S). Source of truth is the @builtin(:list)
   # decl in Std.List; this seed is its byte-for-byte mirror, pinned by
   # builtin_list_drift_test.exs.
-  defp list_family(env), do: Inductive.family(Env.owned_name(env, :List), [a: {:type, 0}], [], 0)
+  defp list_family(env),
+    do:
+      Inductive.family(
+        Env.owned_name(env, :List),
+        [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+        [],
+        Cure.Core.Sort.finite_closed(0)
+      )
 
   # Field names auto-generated positionally by the elaborator (`_a0`/`_a1`); the
   # result-param term is the family's own param `a` reindexed under the ctor's

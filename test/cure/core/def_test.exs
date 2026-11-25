@@ -9,7 +9,7 @@ defmodule Cure.Core.DefTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
@@ -40,7 +40,8 @@ defmodule Cure.Core.DefTest do
         base(),
         :bad,
         {:pi, Cure.Core.Grade.unrestricted(), @dec, @dec},
-        {:lam, Cure.Core.Grade.unrestricted(), @dec, {:type, 0}}
+        {:lam, Cure.Core.Grade.unrestricted(), @dec,
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
       )
 
     assert {:error, {:conversion_failure, _, _}} = Kernel.check_def(env, :bad)

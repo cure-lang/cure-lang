@@ -62,8 +62,12 @@ defmodule Antigen.BuiltinEquivalentDriftTest do
   # (the challenge env is rebuilt from Env.empty, which has no builtins).
   defp antigen_eq_family,
     do:
-      {Inductive.family(:Equivalent, [a: {:type, 0}], [x: {:var, 0}, y: {:var, 1}], 0),
-       [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
+      {Inductive.family(
+         :Equivalent,
+         [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+         [x: {:var, 0}, y: {:var, 1}],
+         Cure.Core.Sort.finite_closed(0)
+       ), [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
 
   defp strip_owner(name) when is_atom(name), do: String.to_atom(Cure.Elab.Name.base(name))
 

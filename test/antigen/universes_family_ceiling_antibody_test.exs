@@ -1,40 +1,98 @@
-defmodule Antigen.UniversesFamilyCeilingAntibodyTest do
+defmodule Antigen.UniversesFamilyFormationAntibodyTest do
   @moduledoc """
-  Antigen antibody for the family-level universe ceiling: `Kernel.check_family`
-  must reject a family declared at `Type k > ceiling`, not only validate its
-  parameter/index telescopes. The pre-fix `check_family` skipped the level
-  range-check entirely, so an over-ceiling family was admitted.
-
-  Antigen missed this because the universes vertical exercised the ceiling only
-  through def-shaped probes (`ceiling(:ill_typed)` → `check_def`); no family-shaped
-  probe declared a family above the ceiling, so the `check_family` range-check had
-  zero coverage. `family_ceiling(:ill_typed)` closes that gap.
-
-  Obligations:
-    * ORACLE/DISCRIMINATION — `check_family` rejects at `ceiling + 1`
-      (`:universe_ceiling`) and accepts at `ceiling`. The two arms are the
-      discrimination: a check that never inspected the level would accept both.
-    * ASSAY — the universes `:family` assay replays the probe to `:ok` (the kernel
-      correctly rejects the `:ill_typed` family).
+  The historical ceiling antibody is replaced by genuine family formation.
+  A scoped dependent index must name a type, not a value; arbitrary finite
+  result sorts remain accepted. Constructor predicativity is checked separately.
   """
   use ExUnit.Case, async: true
+
+  alias Antigen.{Corpus, Challenge}
   alias Antigen.Assays.Universes, as: Assay
   alias Antigen.Generators.Universes, as: Gen
-  alias Cure.Core.{Env, Inductive, Kernel, Universe}
+  alias Cure.Core.{Env, Inductive, Kernel, Sort}
 
-  defp check_at(level) do
-    Kernel.check_family(Env.empty(), Inductive.family(:Over, [], [], level))
+  @levels [0, 37, 10 ** 40]
+
+  defmodule ObservedAssay do
+    def run(challenge) do
+      send(self(), {:formation_assay_called, challenge.label})
+      Antigen.Assays.Universes.run(challenge)
+    end
   end
 
-  test "check_family rejects above the ceiling and accepts at it (the discrimination)" do
-    assert {:error, :universe_ceiling} == check_at(Universe.ceiling() + 1)
-    assert :ok == check_at(Universe.ceiling())
+  test "dependent family formation discriminates a type from its inhabitant at any finite level" do
+    for level <- @levels do
+      good = Gen.family_formation(:well_typed, level)
+      bad = Gen.family_formation(:ill_typed, level)
+      assert [] = good.payload.ctors
+      assert [] = bad.payload.ctors
+      assert Sort.finite_closed(level) == good.payload.family.sort
+      assert :ok = Kernel.check_family(Env.empty(), good.payload.family)
+      assert {:error, :not_a_type} = Kernel.check_family(Env.empty(), bad.payload.family)
+
+      for challenge <- [good, bad] do
+        assert :ok = Assay.run(challenge)
+        assert {:ok, replayed} = challenge |> Corpus.encode_record() |> Corpus.decode_record()
+        assert replayed.payload == challenge.payload
+        assert :ok = Assay.run(replayed)
+      end
+    end
   end
 
-  test "the family_ceiling antibody is labeled :ill_typed and replays :ok" do
-    c = Gen.family_ceiling(:ill_typed)
-    assert c.label == :ill_typed
-    assert c.payload.family.level == Universe.ceiling() + 1
-    assert :ok == Assay.run(c)
+  test "omitting check_family is detected without a constructor recheck masking it" do
+    operations = %{
+      check_family: fn _, _ -> :ok end,
+      check_ctor: fn _, _, _ -> flunk("the formation probe must have no constructors") end
+    }
+
+    for level <- @levels do
+      assert :ok = Assay.run(Gen.family_formation(:well_typed, level), operations)
+
+      assert {:violation, {:wrongly_accepted, :Over}} =
+               Assay.run(Gen.family_formation(:ill_typed, level), operations)
+    end
+  end
+
+  @tag :tmp_dir
+  test "both formation labels reach the live runner assay without structural discards", %{tmp_dir: root} do
+    result =
+      Antigen.Runner.explore(
+        challenges: [Gen.family_formation(:well_typed), Gen.family_formation(:ill_typed)],
+        count: 2,
+        assay: ObservedAssay,
+        corpus_path: Path.join(root, "corpus.sexp"),
+        seeds_path: Path.join(root, "seeds.sexp"),
+        report_dir: Path.join(root, "reports")
+      )
+
+    assert result.infections == 0
+    assert result.health.discard_rate == 0.0
+    assert_received {:formation_assay_called, :well_typed}
+    assert_received {:formation_assay_called, :ill_typed}
+  end
+
+  test "canonical families above the historical ceiling are accepted independently" do
+    for level <- @levels do
+      family = Inductive.family(:Over, [], [], Sort.finite_closed(level))
+      assert :ok = Kernel.check_family(Env.empty(), family)
+    end
+  end
+
+  test "the live kernel probe advertises and replays the replacement formation judgment" do
+    assert {"kernel/probe", :family_formation} in Antigen.Generators.KernelProbe.cover_cells()
+    refute {"kernel/probe", :family_ceiling} in Antigen.Generators.KernelProbe.cover_cells()
+
+    challenge =
+      Challenge.new(
+        kind: :kernel_probe,
+        assay: "kernel/probe",
+        label: :probe,
+        payload: %{probe: :family_formation},
+        cover_tag: :family_formation
+      )
+
+    assert :ok = Antigen.Assays.KernelProbe.run(challenge)
+    assert {:ok, ^challenge} = challenge |> Corpus.encode_record() |> Corpus.decode_record()
+    assert :ok = Antigen.Assays.KernelProbe.run(challenge)
   end
 end

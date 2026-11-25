@@ -1,19 +1,21 @@
 defmodule Cure.Test.ProofSnapshotFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Env, Grade, Inductive}
 
   def environment do
-    family = Inductive.family(:Packed, [], [{:A, {:type, 0}}], 1)
-    args = [{:A, {:type, 0}}, {:x, {:var, 0}}]
+    family = Inductive.family(:Packed, [], [{:A, {:type, @u0}}], @u1)
+    args = [{:A, {:type, @u0}}, {:x, {:var, 0}}]
     pack = Inductive.ctor(:Pack, args, [{:var, 1}])
-    computed = {:app, {:lam, Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:var, 1}}
+    computed = {:app, {:lam, Grade.unrestricted(), {:type, @u0}, {:var, 0}}, {:var, 1}}
     alternate = Inductive.ctor(:Alternate, args, [computed])
     goal = {:data, :"Boundary#Packed", [], [{:atom_type}]}
     value = {:ctor, :"Boundary#Pack", [{:atom_type}, {:atom_lit, :payload}]}
 
     motive =
-      {:lam, Grade.unrestricted(), {:type, 0},
+      {:lam, Grade.unrestricted(), {:type, @u0},
        {:lam, Grade.unrestricted(), {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:var, 1}}}
 
     program =

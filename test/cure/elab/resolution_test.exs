@@ -9,7 +9,7 @@ defmodule Cure.Elab.ResolutionTest do
 
     env =
       env
-      |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Z, [], []),
         Inductive.ctor(:S, [{:n, {:data, :Nat, [], []}}], [])
       ])
@@ -29,7 +29,7 @@ defmodule Cure.Elab.ResolutionTest do
   test "qualified type and value paths resolve exact canonical keys" do
     env =
       Env.with_owner(Env.empty(), "Std.Nat")
-      |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [Inductive.ctor(:Z, [], [])])
+      |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [Inductive.ctor(:Z, [], [])])
 
     assert Resolution.resolve_qualified(env, "Std.Nat.Z", :value) == {:ok, :"Std.Nat#Z"}
     assert Resolution.resolve_qualified(env, "Std.Nat", :type) == {:ok, :"Std.Nat#Nat"}
@@ -40,7 +40,9 @@ defmodule Cure.Elab.ResolutionTest do
   test "qualified lookup never falls back to an unrelated bare key" do
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Bool, [], [], 0), [Inductive.ctor(:True, [], [])])
+      |> Inductive.declare(Inductive.family(:Bool, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:True, [], [])
+      ])
 
     assert Resolution.resolve_qualified(env, "Std.Bool.True", :value) == :error
   end
@@ -52,7 +54,11 @@ defmodule Cure.Elab.ResolutionTest do
         | bare_modules: MapSet.new(),
           qualified_modules: MapSet.new(["Std.Regex"])
       }
-      |> Env.add_def(:"Std.Regex#same", {:type, 0}, {:type, 0})
+      |> Env.add_def(
+        :"Std.Regex#same",
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+      )
 
     assert Resolution.resolve_qualified(env, "Std.Regex.same", :value) ==
              {:ok, :"Std.Regex#same"}
@@ -68,8 +74,16 @@ defmodule Cure.Elab.ResolutionTest do
           bare_modules: MapSet.new(["Direct"]),
           qualified_modules: MapSet.new(["Direct", "Transitive"])
       }
-      |> Env.add_def(:"Direct#open_name", {:type, 0}, {:type, 0})
-      |> Env.add_def(:"Transitive#hidden_name", {:type, 0}, {:type, 0})
+      |> Env.add_def(
+        :"Direct#open_name",
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+      )
+      |> Env.add_def(
+        :"Transitive#hidden_name",
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+      )
 
     assert Resolution.resolve_bare(env, :open_name) == {:ok, :"Direct#open_name"}
     assert Resolution.resolve_bare(env, :hidden_name) == :none
@@ -81,10 +95,10 @@ defmodule Cure.Elab.ResolutionTest do
   test "bare lookup resolves one canonical provider and reports direct ambiguity" do
     env =
       %Env{import_modules: MapSet.new(["Std.Foo", "Std.Bar"])}
-      |> Inductive.declare(Inductive.family(:"Std.Foo#Nat", [], [], 0), [
+      |> Inductive.declare(Inductive.family(:"Std.Foo#Nat", [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:"Std.Foo#Z", [], [])
       ])
-      |> Inductive.declare(Inductive.family(:"Std.Bar#Nat", [], [], 0), [
+      |> Inductive.declare(Inductive.family(:"Std.Bar#Nat", [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:"Std.Bar#Z", [], [])
       ])
 
@@ -101,8 +115,16 @@ defmodule Cure.Elab.ResolutionTest do
           bare_modules: MapSet.new(["Direct", "Prelude"]),
           qualified_modules: MapSet.new(["Direct", "Prelude"])
       }
-      |> Env.add_def(:"Direct#same", {:type, 0}, {:type, 0})
-      |> Env.add_def(:"Prelude#same", {:type, 0}, {:type, 0})
+      |> Env.add_def(
+        :"Direct#same",
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+      )
+      |> Env.add_def(
+        :"Prelude#same",
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+      )
 
     assert Resolution.resolve_bare(env, :same) == {:ok, :"Direct#same"}
     assert Resolution.resolve_qualified(env, "Prelude.same", :value) == {:ok, :"Prelude#same"}
@@ -111,8 +133,8 @@ defmodule Cure.Elab.ResolutionTest do
   test "the current module's canonical declaration wins a bare lookup" do
     env =
       Env.with_owner(Env.empty(), "Main")
-      |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [])
-      |> Inductive.declare(Inductive.family(:"Std.Nat#Nat", [], [], 0), [])
+      |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [])
+      |> Inductive.declare(Inductive.family(:"Std.Nat#Nat", [], [], Cure.Core.Sort.finite_closed(0)), [])
 
     assert Resolution.resolve_bare(env, :Nat) == {:ok, :"Main#Nat"}
     assert Resolution.ambiguous_modules(env, :Nat) == []
@@ -121,7 +143,7 @@ defmodule Cure.Elab.ResolutionTest do
   test "shadowed_origin reports canonical owner metadata" do
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:"Std.Nat#Nat", [], [], 0), [
+      |> Inductive.declare(Inductive.family(:"Std.Nat#Nat", [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:"Std.Nat#Z", [], [])
       ])
 

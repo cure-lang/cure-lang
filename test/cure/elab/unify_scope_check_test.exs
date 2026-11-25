@@ -27,7 +27,7 @@ defmodule Cure.Elab.UnifyScopeCheckTest do
 
   alias Cure.Elab.{MetaCtx, Unify}
 
-  @dom {:type, 0}
+  @dom {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
 
   test "a metavariable solved against a :case whose branch references a crossed binder is rejected" do
     {ctx, id} = MetaCtx.fresh(MetaCtx.new())
@@ -47,7 +47,9 @@ defmodule Cure.Elab.UnifyScopeCheckTest do
   test "the scope check also fires on a :case scrutinee referencing a crossed binder" do
     {ctx, id} = MetaCtx.fresh(MetaCtx.new())
 
-    case_term = {:case, {:var, 0}, {:type, 0}, [{:some_ctor, 0, {:var, 0}}]}
+    case_term =
+      {:case, {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       [{:some_ctor, 0, {:var, 0}}]}
 
     assert {:error, {:escaping_variable, ^id}} =
              Unify.unify(

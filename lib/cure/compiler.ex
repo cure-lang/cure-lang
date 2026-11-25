@@ -422,6 +422,7 @@ defmodule Cure.Compiler do
         |> Map.new()
         |> Map.merge(%{
           format: 1,
+          universe_identity: Cure.Core.UniverseCodec.identity(),
           module: module |> Atom.to_string() |> String.replace_prefix("Cure.", ""),
           source_path: Path.expand(file),
           source_hash: :crypto.hash(:sha256, source),

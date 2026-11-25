@@ -99,6 +99,9 @@ defmodule Cure.Compiler.ModulePipeline.Closure do
     |> Enum.uniq()
   end
 
+  defp collect(acc, {tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &collect(&2, &1))
+
   defp collect(acc, {:global, key}) when is_atom(key), do: [key | acc]
   defp collect(acc, term) when is_tuple(term), do: term |> Tuple.to_list() |> then(&collect(acc, &1))
   defp collect(acc, terms) when is_list(terms), do: Enum.reduce(terms, acc, &collect(&2, &1))

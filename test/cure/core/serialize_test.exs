@@ -6,14 +6,14 @@ defmodule Cure.Core.SerializeTest do
   same kernel verdict as the original.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Context, Kernel, Serialize}
+  alias Cure.Core.{Context, Kernel, Serialize, Sort, UniverseCodec}
+
+  @type0 {:type, Sort.finite_zero()}
 
   @terms [
-    {:type, 0},
-    # `Universe.ceiling()` is 2, and `Term.term?/1` bounds a universe level by it. This row
-    # used to read `{:type, 3}` — a term the Core's own grammar rejects, which round-tripped
-    # only because `decode/1` never checked the shape it rebuilt.
-    {:type, 2},
+    @type0,
+    {:type, Sort.finite_closed(2)},
+    {:type, Sort.finite_closed(37)},
     {:var, 5},
     {:absurd},
     {:global, :compose},
@@ -26,21 +26,21 @@ defmodule Cure.Core.SerializeTest do
     {:ctor, :True, []},
     {:ctor, :False, []},
     {:hole, "body"},
-    {:pi, Cure.Core.Grade.unrestricted(), {:int_type}, {:type, 0}},
+    {:pi, Cure.Core.Grade.unrestricted(), {:int_type}, @type0},
     {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, {:var, 0}},
     {:app, {:global, :f}, {:int_lit, 3}},
     # Inductive Sigma (D2): the dependent pair round-trips as `{:data, :Sigma}` /
     # `{:ctor, :mk_pair}` / projection-`:case` (covered by the data/ctor/case rows).
     # Primitive sigma/pair/fst/snd nodes no longer encode; their *rejection* on
     # decode is pinned as a negative test once the codec clauses are stripped.
-    {:data, :Sigma, [{:int_type}, {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, {:type, 0}}], []},
+    {:data, :Sigma, [{:int_type}, {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, @type0}], []},
     {:ctor, :mk_pair, [{:int_lit, 1}, {:ctor, :True, []}]},
     # K2: arithmetic round-trips as builtin-op GLOBAL spines (ordinary app
     # chains); the {:prim} wire tag no longer decodes (negative test below).
     {:app, {:app, {:global, :int_add}, {:int_lit, 3}}, {:int_lit, 5}},
     {:ctor, :seq, [{:global, :l}, {:global, :r}]},
     {:data, :SF, [{:global, :a}], [{:global, :b}, {:global, :c}]},
-    {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, {:type, 0}},
+    {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, @type0},
      [{:prim, 2, {:ctor, :True, []}}, {:seq, 7, {:global, :x}}]}
   ]
 
@@ -51,6 +51,8 @@ defmodule Cure.Core.SerializeTest do
       assert {:ok, ^term} = Serialize.decode(encoded), "round-trip failed for #{inspect(term)}"
     end
   end
+
+  defp current(node), do: "(cure-core #{UniverseCodec.version()} #{node})"
 
   test "encoding is deterministic" do
     for term <- @terms, do: assert(Serialize.encode(term) == Serialize.encode(term))
@@ -64,15 +66,26 @@ defmodule Cure.Core.SerializeTest do
     assert Kernel.infer(ctx, decoded) == Kernel.infer(ctx, well_typed)
     assert {:ok, {:vdata, :"Std.Int#Int", []}} = Kernel.infer(ctx, decoded)
 
-    ill_typed = {:app, {:app, {:global, :int_add}, {:int_lit, 1}}, {:type, 0}}
+    ill_typed = {:app, {:app, {:global, :int_add}, {:int_lit, 1}}, @type0}
     {:ok, decoded_bad} = Serialize.decode(Serialize.encode(ill_typed))
     assert {:error, _} = Kernel.infer(ctx, decoded_bad)
   end
 
   test "decode rejects malformed input" do
-    assert {:error, _} = Serialize.decode("(type")
-    assert {:error, _} = Serialize.decode("(nonsense 1 2)")
-    assert {:error, _} = Serialize.decode("")
+    assert {:error, :unterminated_list} = Serialize.decode(current("(type"))
+    assert {:error, :unknown_node} = Serialize.decode(current("(nonsense 1 2)"))
+    assert {:error, :unexpected_eof} = Serialize.decode("")
+  end
+
+  test "raw integer universes are rejected rather than silently imported" do
+    for level <- [0, 2, 3] do
+      assert_raise ArgumentError, "ill-formed Core term", fn ->
+        Serialize.encode({:type, level})
+      end
+
+      assert {:error, {:noncanonical_level_encoding, :invalid_sort}} =
+               Serialize.decode(current("(type #{level})"))
+    end
   end
 
   # D2: the primitive Sigma nodes are retired from the codec. Their wire tags no
@@ -80,8 +93,8 @@ defmodule Cure.Core.SerializeTest do
   # K2: the {:prim} node is retired from the codec — its wire tag no longer
   # decodes (mirrors the D2 Sigma precedent below).
   test "decode rejects the retired (prim ...) tag" do
-    assert {:error, :unknown_node} = Serialize.decode("(prim add (int 3) (int 5))")
-    assert {:error, :unknown_node} = Serialize.decode("(prim not (ctor True))")
+    assert {:error, :unknown_node} = Serialize.decode(current("(prim add (int 3) (int 5))"))
+    assert {:error, :unknown_node} = Serialize.decode(current("(prim not (ctor True))"))
   end
 
   test "decode rejects the retired primitive Sigma tags" do
@@ -91,7 +104,7 @@ defmodule Cure.Core.SerializeTest do
           "(fst (var 0))",
           "(snd (var 0))"
         ] do
-      assert {:error, :unknown_node} = Serialize.decode(wire)
+      assert {:error, :unknown_node} = Serialize.decode(current(wire))
     end
   end
 end

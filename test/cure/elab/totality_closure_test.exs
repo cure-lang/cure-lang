@@ -38,11 +38,11 @@ defmodule Cure.Elab.TotalityClosureTest do
         [{:var, 6}, {:var, 4}, and_term]
       )
 
-    sf = Inductive.family(:SF, [], [{:as, @svdesc}, {:bs, @svdesc}, {:d, @dec}], 0)
+    sf = Inductive.family(:SF, [], [{:as, @svdesc}, {:bs, @svdesc}, {:d, @dec}], Cure.Core.Sort.finite_closed(0))
 
     Env.empty()
-    |> Inductive.declare(Inductive.family(:SVDesc, [], [], 0), [])
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:SVDesc, [], [], Cure.Core.Sort.finite_closed(0)), [])
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])

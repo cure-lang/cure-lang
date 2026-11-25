@@ -39,8 +39,15 @@ defmodule Cure.Elab.Program do
 
   @loader_state_key {__MODULE__, :module_loader_state}
   @public_reexport_cache_key {__MODULE__, :public_reexport_modules}
-  @module_interface_cache_version 3
-  @macro_home_cache_version 3
+  @module_interface_cache_version 6
+  @macro_home_cache_version 6
+
+  @doc false
+  def module_interface_cache_identity,
+    do: {@module_interface_cache_version, Cure.Core.UniverseCodec.identity()}
+
+  defp macro_home_cache_identity,
+    do: {@macro_home_cache_version, Cure.Core.UniverseCodec.identity()}
 
   @spec elaborate(String.t(), keyword()) :: {:ok, Env.t()} | {:error, term()}
   def elaborate(source, opts \\ []) when is_binary(source) and is_list(opts) do
@@ -225,7 +232,8 @@ defmodule Cure.Elab.Program do
          :ok <- MacroValidate.check_program(ast, checked),
          {:ok, certified} <- certify_type_level_with_source(ast, checked, source_opts),
          :ok <- enforce_total_requirements(ast, certified, source_opts),
-         {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast) do
+         {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast),
+         :ok <- validate_owned_definitions(certified, owner) do
       {:ok, mark_inline_hints(certified, owner)}
     end
   end
@@ -930,12 +938,53 @@ defmodule Cure.Elab.Program do
          :ok <- MacroValidate.check_program(ast, env),
          {:ok, certified} <- certify_type_level_with_source(ast, env, source_opts),
          :ok <- enforce_total_requirements(ast, certified, source_opts),
-         {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast) do
+         {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast),
+         :ok <- validate_owned_definitions(certified, owner) do
       # Self-compilation of a hinted module (Std.Bool/Std.Sigma) marks its own
       # defs so their intra-module uses keep inlining; any other module name
       # is a no-op here (its hinted imports were marked slice-side).
       {:ok, mark_inline_hints(certified, find_module_name(ast))}
     end
+  end
+
+  # Check only completed definitions owned by this source module, after mutual
+  # bodies, required certification and generated equations have stabilized.
+  # Imported interfaces may intentionally hide bodies; they are not new source
+  # definitions to re-admit here. Header and SCC skeleton construction never
+  # enters this final boundary.
+  #
+  # Body checking under an elaborator-built context does not establish that its
+  # parameter annotations are types. Reconstruct both the full Pi sort and the
+  # complete body judgment independently. Kernel.check_def retains the existing
+  # development-hole policy; the emitter still owns strict release-hole refusal.
+  defp validate_owned_definitions(%Env{} = env, owner) do
+    env.defs
+    |> Enum.filter(fn {name, _definition} -> Cure.Elab.Name.owner(name) == owner end)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.reduce_while(:ok, fn {name, definition}, :ok ->
+      result =
+        case definition do
+          %{body: {:extern, _target}} ->
+            Cure.Core.Kernel.check_def_type(env, name)
+
+          %{body: nil, builtin_op: op} when not is_nil(op) ->
+            Cure.Core.Kernel.check_def_type(env, name)
+
+          %{body: nil} ->
+            {:error, {:incomplete_owned_definition, name}}
+
+          %{body: {:hole, "__pending__"}} ->
+            {:error, {:incomplete_owned_definition, name}}
+
+          _completed ->
+            Cure.Core.Kernel.check_def(env, name)
+        end
+
+      case result do
+        :ok -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
   end
 
   # A `fsm`/`actor`/`sup`/nested `mod` inside this unit is compiled to its own
@@ -1343,7 +1392,7 @@ defmodule Cure.Elab.Program do
 
       Inductive.declare(
         seeded,
-        Inductive.family(Env.owned_name(unit_env, :Unit), [], [], 0),
+        Inductive.family(Env.owned_name(unit_env, :Unit), [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(Env.owned_name(unit_env, :unit), [], [])]
       )
     end
@@ -1631,7 +1680,8 @@ defmodule Cure.Elab.Program do
   # `{:global, g}` references in each def's `type` and `body`. Only globals that
   # resolve to a def IN `defs` are followed; unresolved names are ignored here — a
   # genuinely missing global surfaces at kernel re-check, not by silent inclusion.
-  defp reachable_global_closure(defs, seed_keys) do
+  @doc false
+  def reachable_global_closure(defs, seed_keys) do
     seen = MapSet.new(seed_keys)
     do_reachable_closure(defs, seen, seed_keys)
   end
@@ -1659,9 +1709,12 @@ defmodule Cure.Elab.Program do
     end
   end
 
-  # Collect every `{:global, g}` atom mentioned anywhere in a Core term (generic
-  # tuple/list walk — Core terms are plain tuples and lists).
+  # Level payloads are structs, not tuple/list children. They still contribute
+  # compile-time dependencies even though runtime dependency projection erases them.
   defp gather_def_globals(acc, {:global, g}), do: MapSet.put(acc, g)
+
+  defp gather_def_globals(acc, {tag, _payload} = term) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &gather_def_globals(&2, &1))
 
   defp gather_def_globals(acc, t) when is_tuple(t),
     do: t |> Tuple.to_list() |> Enum.reduce(acc, &gather_def_globals(&2, &1))
@@ -2183,6 +2236,9 @@ defmodule Cure.Elab.Program do
 
   # Semantic dependency scans (currently type-alias ordering) need globals from
   # every Core position, unlike runtime reachability above.
+  defp global_refs({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.flat_map(Cure.Core.Term.level_atoms(term), &global_refs/1)
+
   defp global_refs({:global, name}), do: [name]
 
   defp global_refs(term) when is_tuple(term),
@@ -2663,7 +2719,7 @@ defmodule Cure.Elab.Program do
   end
 
   defp cached_stdlib_macro_home_env(path) do
-    key = {__MODULE__, :macro_home_env, path}
+    key = {__MODULE__, :macro_home_env, path, macro_home_cache_identity()}
 
     case :persistent_term.get(key, :missing) do
       :missing ->
@@ -2993,8 +3049,9 @@ defmodule Cure.Elab.Program do
   @doc """
   Return the canonical module interface for `module_name` at `path`.
 
-  The interface map carries the elaborated `:export_env` a consumer merges in
-  when it imports this module, plus its `:source_hash`. This is the exact
+  The interface carries canonical declarations and certified unfolding
+  metadata, plus its `:source_hash`; consumers reconstruct the environment
+  through `ModulePipeline.Interface.to_env/1`. This is the exact
   artifact incremental compilation hashes to decide whether a change to this
   module can affect its dependents. Semantics match the internal loader cache:
   `:persistent_term`-cached for stdlib paths, recomputed otherwise.
@@ -3028,8 +3085,8 @@ defmodule Cure.Elab.Program do
   @spec invalidate_module_interface(String.t()) :: :ok
   def invalidate_module_interface(path) when is_binary(path) do
     path = Path.expand(path)
-    :persistent_term.erase({__MODULE__, :module_interface, path})
-    :persistent_term.erase({__MODULE__, :macro_home_env, path})
+    :persistent_term.erase({__MODULE__, :module_interface, path, module_interface_cache_identity()})
+    :persistent_term.erase({__MODULE__, :macro_home_env, path, macro_home_cache_identity()})
     :persistent_term.erase(macro_home_cache_fingerprint_key())
     File.rm(module_interface_cache_path(path))
     File.rm(macro_home_cache_path(path))
@@ -3068,11 +3125,11 @@ defmodule Cure.Elab.Program do
     # one also erased the global interface fingerprint, forcing a rescan of
     # every compiler BEAM and every stdlib source.
     if source_hash == current_source_hash(path) do
-      :persistent_term.erase({__MODULE__, :macro_home_env, path})
+      :persistent_term.erase({__MODULE__, :macro_home_env, path, macro_home_cache_identity()})
       File.rm(macro_home_cache_path(path))
 
       if stdlib_source_path?(path) do
-        cache_key = {__MODULE__, :module_interface, path}
+        cache_key = {__MODULE__, :module_interface, path, module_interface_cache_identity()}
 
         case :persistent_term.get(cache_key, :missing) do
           {:cached, previous_hash, _result} when previous_hash != source_hash ->
@@ -3236,7 +3293,7 @@ defmodule Cure.Elab.Program do
 
   defp cached_module_interface(module_name, path) do
     if stdlib_source_path?(path) do
-      key = {__MODULE__, :module_interface, path}
+      key = {__MODULE__, :module_interface, path, module_interface_cache_identity()}
       source_hash = current_source_hash(path)
 
       case canonical_published_interface(module_name, source_hash) do
@@ -3419,6 +3476,7 @@ defmodule Cure.Elab.Program do
       Enum.uniq(injected_prelude_sources(ast) ++ prelude_sources_for(interface_ast))
 
     export_env = canonical_export_env(env, module_name, interface_ast, ambient_preludes)
+    payload = PipelineInterface.canonical_payload(export_env, module_name)
 
     {:ok,
      ModuleInterface.new(%{
@@ -3428,12 +3486,12 @@ defmodule Cure.Elab.Program do
        dependency_interface_hashes: loaded_dependency_interface_hashes(dependency_names),
        dependency_names: dependency_names,
        direct_edges: module_interface_edges(interface_ast),
-       canonical_declarations: owned_declarations(export_env, module_name),
-       canonical_externs: owned_externs(export_env, module_name),
-       extension_payloads: interface_extensions(export_env, module_name),
+       canonical_declarations: payload.canonical_declarations,
+       canonical_externs: payload.canonical_externs,
+       extension_payloads: payload.extension_payloads,
        source_metadata: %{dependency_source_hashes: dependency_source_hashes(dependency_names)},
-       owned_env: env,
-       export_env: export_env,
+       owned_env: nil,
+       export_env: nil,
        direct_import_names: direct_import_ids(imports(interface_ast))
      })}
   end

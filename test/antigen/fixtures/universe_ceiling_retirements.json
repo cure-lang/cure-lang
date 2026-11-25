@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "retired_kernel_probe": {
+    "tag": "family_ceiling",
+    "replacement_tag": "family_formation",
+    "reason": "The old zero-piece probe demanded rejection of a canonical Type3 family. A distinct tag now checks positive and negative dependent family formation; the old recipe is not silently repurposed."
+  },
+  "universe": "cure_universe/1/max_plus_finite_omega",
+  "retirements": [
+    {
+      "id": "def_ceiling",
+      "base_line": 51,
+      "sha256": "d43c016afcbf97e01fff050b9adf28e434f0bcf65ed3a50a4dca65abaf956bf2",
+      "record": "antigen-record\tformat=2\tuniverse=cure_universe/1/max_plus_finite_omega\tkind=indexed_case\tassay=universes\tlabel=ill_typed\tseed=-\tnote=ceiling: Type 2 has no sort — a def cannot be annotated AT Type 2\tscaffold=g3QAAAACbQAAAAhkZWZfbmFtZW0AAAABdW0AAAAIZmFtaWxpZXNq\tkey=YW50aWdlbi8yfGN1cmVfdW5pdmVyc2UvMS9tYXhfcGx1c19maW5pdGVfb21lZ2F8dW5pdmVyc2VzfGRlZl90eXBlKGN1cmUtY29yZSAyICh0eXBlIChmaW5pdGUgKGxldmVsLW5mIDIpKSkpfGRlZl9ib2R5KGN1cmUtY29yZSAyICh0eXBlIChmaW5pdGUgKGxldmVsLW5mIDEpKSkp\tpieces64=W1siZGVmX3R5cGUiLCIoY3VyZS1jb3JlIDIgKHR5cGUgKGZpbml0ZSAobGV2ZWwtbmYgMikpKSkiXSxbImRlZl9ib2R5IiwiKGN1cmUtY29yZSAyICh0eXBlIChmaW5pdGUgKGxldmVsLW5mIDEpKSkpIl1d",
+      "reason": "The fixed finite ceiling was removed. This exact canonical input is well-typed in the current unbounded hierarchy; new formation and predicativity antibodies replace the obsolete negative claim."
+    },
+    {
+      "id": "family_ceiling",
+      "base_line": 54,
+      "sha256": "3c3a8a98266f89a9d2024799d35930c9f1842d15f2e68d38633595c7cf22ae10",
+      "record": "antigen-record\tformat=2\tuniverse=cure_universe/1/max_plus_finite_omega\tkind=family\tassay=universes\tlabel=ill_typed\tseed=-\tnote=family declared at Type 3 (above the ceiling) must reject\tscaffold=g3QAAAAEbQAAAAVjdG9yc2wAAAABdAAAAAVtAAAACWFyZ19uYW1lc2ptAAAABG5hbWVtAAAABk1rT3Zlcm0AAAAKcXVhbnRpdGllc2ptAAAACnJpZHhfY291bnRhAG0AAAAMcnBhcmFtX2NvdW50YQBqbQAAAA9mYW1faW5kZXhfbmFtZXNqbQAAAAhmYW1fbmFtZW0AAAAET3Zlcm0AAAAPZmFtX3BhcmFtX25hbWVzag==\tkey=YW50aWdlbi8yfGN1cmVfdW5pdmVyc2UvMS9tYXhfcGx1c19maW5pdGVfb21lZ2F8dW5pdmVyc2VzfGZhbV9zb3J0KGN1cmUtY29yZSAyICh0eXBlIChmaW5pdGUgKGxldmVsLW5mIDMpKSkp\tpieces64=W1siZmFtX3NvcnQiLCIoY3VyZS1jb3JlIDIgKHR5cGUgKGZpbml0ZSAobGV2ZWwtbmYgMykpKSkiXV0=",
+      "reason": "The fixed finite ceiling was removed. This exact canonical input is well-typed in the current unbounded hierarchy; new formation and predicativity antibodies replace the obsolete negative claim."
+    }
+  ],
+  "historical_records_sha256": "ffb3554a4c2c8b1db8318b31a1ce494a1b9981568b5bd86574e90f3dab78a939",
+  "historical_record_count": 49,
+  "replacement_antibody_keys": [
+    "antigen/2|cure_universe/1/max_plus_finite_omega|universes|def_type(cure-core 2 (type (finite (level-nf 37))))|def_body(cure-core 2 (type (finite (level-nf 37))))",
+    "antigen/2|cure_universe/1/max_plus_finite_omega|universes|fam_sort(cure-core 2 (type (finite (level-nf 37))))|fam_param:0(cure-core 2 (type (finite (level-nf 37))))|fam_param:1(cure-core 2 (var 0))|fam_index:0(cure-core 2 (var 0))"
+  ],
+  "replacement_levels": [
+    0,
+    37,
+    10000000000000000000000000000000000000000
+  ]
+}

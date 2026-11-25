@@ -10,12 +10,12 @@ defmodule Cure.Elab.LemmaUnifyFailureRegressionProbeTest do
   # ambiguity.
   defp env_with_mismatched_lemma do
     env = Env.empty()
-    idx_family = Inductive.family(:Idx, [], [], 0)
+    idx_family = Inductive.family(:Idx, [], [], Cure.Core.Sort.finite_closed(0))
     a_ctor = Inductive.ctor(:A, [], [])
     b_ctor = Inductive.ctor(:B, [], [])
     env = Inductive.declare(env, idx_family, [a_ctor, b_ctor])
 
-    q_family = Inductive.family(:Q, [], [{:explicit, {:data, :Idx, [], []}}], 0)
+    q_family = Inductive.family(:Q, [], [{:explicit, {:data, :Idx, [], []}}], Cure.Core.Sort.finite_closed(0))
     q_ctor = Inductive.ctor(:mkQ, [], [{:ctor, :A, []}])
     env = Inductive.declare(env, q_family, [q_ctor])
 

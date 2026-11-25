@@ -51,8 +51,8 @@ defmodule Antigen.Generators.MutationTest do
           assert heads_differ?(f.expected_head, f.injected_head)
 
         :level ->
-          {:type, req} = f.expected_head
-          {:type, act} = f.injected_head
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: req, atoms: []}}} = f.expected_head
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: act, atoms: []}}} = f.injected_head
           assert act > req, "#{kind}: injected level must exceed required (predicativity)"
 
         :scope ->

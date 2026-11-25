@@ -16,15 +16,14 @@ defmodule Cure.Core.Kernel do
   definitions + certificates (M7).
   """
 
-  alias Cure.Core.{Certificate, Context, Conv, Env, Eval, Inductive, Normalise, Quote, Term, Universe}
+  alias Cure.Core.{Certificate, Context, Conv, Env, Eval, Inductive, Normalise, Quote, Sort, Term}
 
   @type result :: {:ok, Cure.Core.Value.t()} | {:error, term()}
 
   @certificate_timing_sink_key {__MODULE__, :certificate_timing_sink}
 
-  # The fixed predicative ceiling (`Universe.ceiling()`), mirrored into a compile
-  # constant so it is usable in guards. Single source of truth stays `Universe`.
-  @universe_ceiling Universe.ceiling()
+  # The universe representation is `Cure.Core.Sort`; there is no ceiling to
+  # mirror into guards any more (§8: the hierarchy is infinite).
 
   @doc false
   @spec with_certificate_timing_sink((term() -> any()), (-> result)) :: result when result: term()
@@ -40,6 +39,23 @@ defmodule Cure.Core.Kernel do
       else
         Process.put(@certificate_timing_sink_key, previous)
       end
+    end
+  end
+
+  # Sort operations consume Core indices at the current context depth; only
+  # Eval constructs semantic sorts. Normalize through the existing certified
+  # path before classifying dependence or comparing levels.
+  defp quote_sort(ctx, {:vtype, _} = value) do
+    term = Quote.reify(value, Context.length(ctx), Context.signature(ctx))
+    {:type, sort} = Normalise.nf(ctx, term)
+    sort
+  end
+
+  defp pi_sort(domain_sort, codomain_sort) do
+    if 0 in Sort.free_vars(codomain_sort) do
+      Sort.pi_sort(domain_sort, codomain_sort, true)
+    else
+      Sort.pi_sort(domain_sort, Sort.shift(codomain_sort, -1, 1), false)
     end
   end
 
@@ -59,15 +75,28 @@ defmodule Cure.Core.Kernel do
   @doc "Normalize `term` in `ctx` via the shared trusted Core normalizer, with options."
   @spec normalize(Context.t(), Cure.Core.Term.t(), Normalise.opts()) :: Cure.Core.Term.t() | :fuel_exhausted
   def normalize(ctx, term, opts), do: Normalise.nf(ctx, term, opts)
-  @doc "Synthesise the type value of `term` in `ctx`."
-  @spec infer(Context.t(), Cure.Core.Term.t()) :: result()
-  def infer(_ctx, {:type, level}) do
-    case Universe.succ(level) do
-      {:ok, l1} -> {:ok, {:vtype, l1}}
-      {:error, reason} -> {:error, reason}
+  # §8.2: `Type(u) : Type(universe_succ(u))`. There is no ceiling, so this
+  # always succeeds — `successor/1` is total and strictly increasing, which is
+  # what makes `Type : Type` unrepresentable (§21.2).
+  def infer(ctx, {:type, sort}) do
+    with :ok <- Sort.validate(sort, ctx) do
+      {:ok, Eval.eval({:type, Sort.successor(sort)}, Context.env(ctx))}
     end
   end
 
+  # §8.1 primitive universe rules. `UniverseLevel` is itself a small type; the
+  # level operations are total and produce `UniverseLevel`. They are
+  # compile-time-only and erase (§13).
+  def infer(_ctx, {:level_type}), do: {:ok, Eval.eval({:type, Sort.finite_zero()}, [])}
+
+  def infer(ctx, {:level_value, level}) do
+    with :ok <- Cure.Core.UniverseLevel.validate(level, ctx) do
+      {:ok, {:vlevel_type}}
+    end
+  end
+
+  @doc "Synthesise the type value of `term` in `ctx`."
+  @spec infer(Context.t(), Cure.Core.Term.t()) :: result()
   def infer(ctx, {:var, k}) do
     case Context.lookup(ctx, k) do
       nil -> {:error, {:unbound_var, k}}
@@ -82,7 +111,7 @@ defmodule Cure.Core.Kernel do
   # NOTE(int-facade): `{:int_type}` is retired from surface production (spec
   # 2026-07-18 §3a — `Int` is the inductive family); this clause stays so
   # `infer` remains total on a legacy/deserialized term still carrying it.
-  def infer(_ctx, {:int_type}), do: {:ok, {:vtype, 0}}
+  def infer(_ctx, {:int_type}), do: {:ok, Eval.eval({:type, Sort.finite_zero()}, [])}
 
   # A compact `Int` literal inhabits the canonical `Int` inductive family — its type
   # is the family value `{:vdata, :Int, []}`, exactly as a `{:nat_lit}` inhabits `Nat`.
@@ -111,10 +140,10 @@ defmodule Cure.Core.Kernel do
     end
   end
 
-  def infer(_ctx, {:float_type}), do: {:ok, {:vtype, 0}}
+  def infer(_ctx, {:float_type}), do: {:ok, Eval.eval({:type, Sort.finite_zero()}, [])}
   def infer(_ctx, {:float_lit, _f}), do: {:ok, {:vfloat_type}}
-  def infer(_ctx, {:binary_type}), do: {:ok, {:vtype, 0}}
-  def infer(_ctx, {:atom_type}), do: {:ok, {:vtype, 0}}
+  def infer(_ctx, {:binary_type}), do: {:ok, Eval.eval({:type, Sort.finite_zero()}, [])}
+  def infer(_ctx, {:atom_type}), do: {:ok, Eval.eval({:type, Sort.finite_zero()}, [])}
   def infer(_ctx, {:atom_lit, a}) when is_atom(a), do: {:ok, {:vatom_type}}
 
   # {:absurd} is an elaborator-only marker sitting in a discharged (unreachable)
@@ -130,12 +159,16 @@ defmodule Cure.Core.Kernel do
   # whose `case`/`else` cannot catch a raise — crashed on a legitimate mid-development term.
   def infer(_ctx, {:hole, name}), do: {:error, {:hole_in_inference_position, name}}
 
+  # §8.3/§8.4: the sort of `Pi(x:A).B` is `pi_sort(dom_sort, cod_sort, rigid?)`.
+  # When the codomain sort does not mention the binder, that is the join; when it
+  # does rigidly, no finite sort bounds it and the result is `TypeLimit`.
   def infer(ctx, {:pi, _g, dom, cod}) do
-    with {:ok, l1} <- infer_sort(ctx, dom),
+    with {:ok, dom_sort} <- infer_sort(ctx, dom),
          dom_value = Eval.eval(dom, Context.env(ctx)),
          ctx2 = Context.extend(ctx, dom_value),
-         {:ok, l2} <- infer_sort(ctx2, cod) do
-      {:ok, {:vtype, Universe.max(l1, l2)}}
+         {:ok, cod_sort} <- infer_sort(ctx2, cod) do
+      result_sort = pi_sort(dom_sort, cod_sort)
+      {:ok, Eval.eval({:type, result_sort}, Context.env(ctx))}
     end
   end
 
@@ -168,7 +201,7 @@ defmodule Cure.Core.Kernel do
 
       with {:ok, cod_value} <- infer(ctx2, body) do
         # Reify the body's type into a codomain family over the binder.
-        cod_term = Quote.reify(cod_value, Context.length(ctx2))
+        cod_term = Quote.reify(cod_value, Context.length(ctx2), Context.signature(ctx2))
         {:ok, {:vpi, g, dom_value, {:closure, Context.env(ctx), cod_term}}}
       end
     end
@@ -205,7 +238,7 @@ defmodule Cure.Core.Kernel do
   # structural congruence, and nothing else.
   def infer(ctx, {:effect_type, t}) do
     with {:ok, level} <- infer_sort(ctx, t) do
-      {:ok, {:vtype, level}}
+      {:ok, Eval.eval({:type, level}, Context.env(ctx))}
     end
   end
 
@@ -243,10 +276,10 @@ defmodule Cure.Core.Kernel do
       nil ->
         {:error, {:unknown_family, name}}
 
-      %{params: ptele, indices: itele, level: level} ->
+      %{params: ptele, indices: itele, sort: sort} ->
         with {:ok, pvals} <- check_spine(ctx, params, ptele, []),
-             {:ok, _ivals} <- check_spine(ctx, indices, itele, pvals) do
-          {:ok, {:vtype, level}}
+             {:ok, ivals} <- check_spine(ctx, indices, itele, pvals) do
+          {:ok, Eval.eval({:type, sort}, ivals)}
         end
     end
   end
@@ -329,10 +362,10 @@ defmodule Cure.Core.Kernel do
     # unifier range over indices only, so split the params off up front.
     pc = Inductive.param_count(sig, dname)
     {scrut_params, scrut_idx} = Enum.split(scrut_args, pc)
-    motive_value = Eval.eval(motive, Context.env(ctx))
-    scrut_value = Eval.eval(scrut, Context.env(ctx))
 
-    with :ok <- check_motive_wf(ctx, motive_value, family, scrut_params),
+    with :ok <- check_motive_wf(ctx, motive, family, scrut_params),
+         motive_value = Eval.eval(motive, Context.env(ctx)),
+         scrut_value = Eval.eval(scrut, Context.env(ctx)),
          :ok <- check_coverage(ctx, sig, dname, branches, scrut_idx, scrut_params, scrut_value),
          :ok <-
            check_case_branches(
@@ -382,19 +415,21 @@ defmodule Cure.Core.Kernel do
   # (see `Conv`), so a mismatch is a type error, not a usage error — the usage
   # check never runs in the kernel. Compared by equality, never by `Grade.leq/2`.
   def check(ctx, {:lam, g, dom, body}, {:vpi, exp_g, exp_dom, cod_closure}) do
-    dom_value = Eval.eval(dom, Context.env(ctx))
+    with {:ok, _sort} <- infer_sort(ctx, dom) do
+      dom_value = Eval.eval(dom, Context.env(ctx))
 
-    cond do
-      g != exp_g ->
-        {:error, {:grade_mismatch, %{lam: g, pi: exp_g}}}
+      cond do
+        g != exp_g ->
+          {:error, {:grade_mismatch, %{lam: g, pi: exp_g}}}
 
-      not Conv.conv_values?(dom_value, exp_dom, Context.length(ctx), Context.signature(ctx)) ->
-        {:error, :domain_mismatch}
+        not Conv.conv_values?(dom_value, exp_dom, Context.length(ctx), Context.signature(ctx)) ->
+          {:error, :domain_mismatch}
 
-      true ->
-        fresh = {:vneutral, {:nvar, Context.length(ctx)}}
-        cod_value = Eval.apply_closure(cod_closure, fresh)
-        check(Context.extend(ctx, exp_dom), body, cod_value)
+        true ->
+          fresh = {:vneutral, {:nvar, Context.length(ctx)}}
+          cod_value = Eval.apply_closure(cod_closure, fresh)
+          check(Context.extend(ctx, exp_dom), body, cod_value)
+      end
     end
   end
 
@@ -1056,24 +1091,17 @@ defmodule Cure.Core.Kernel do
   index telescope (in the context of the parameters), each entry a valid type.
   """
   @spec check_family(Cure.Core.Env.t(), Inductive.family()) :: :ok | {:error, term()}
-  def check_family(env, %{params: params, indices: indices} = family) do
+  def check_family(env, %{params: params, indices: indices, sort: sort}) do
     base = Context.empty(env)
 
-    with :ok <- check_family_level(Map.get(family, :level, 0)),
-         {:ok, ctx_params} <- check_telescope(base, params),
-         {:ok, _ctx} <- check_telescope(ctx_params, indices) do
+    with {:ok, ctx_params} <- check_telescope(base, params),
+         {:ok, ctx} <- check_telescope(ctx_params, indices),
+         :ok <- Sort.validate(sort, ctx) do
       :ok
     end
   end
 
-  # The family's declared universe must lie within the fixed predicative ceiling
-  # (`Type0 : Type1 : Type2`); a family at `Type k > ceiling` contradicts the
-  # hierarchy the rest of the kernel enforces (`Universe.succ`, `subtype?`).
-  defp check_family_level(level)
-       when is_integer(level) and level >= 0 and level <= @universe_ceiling,
-       do: :ok
-
-  defp check_family_level(_level), do: {:error, :universe_ceiling}
+  def check_family(_env, _family), do: {:error, :invalid_family_sort}
 
   @doc """
   Check a constructor well-formed against its family (§4.4): argument telescope
@@ -1083,17 +1111,21 @@ defmodule Cure.Core.Kernel do
   """
   @spec check_ctor(Cure.Core.Env.t(), Inductive.family(), Inductive.ctor()) ::
           :ok | {:error, term()}
-  def check_ctor(env, %{name: fname, params: params, indices: index_tele, level: fam_level}, ctor) do
+  def check_ctor(env, %{name: fname, params: params, indices: index_tele, sort: fam_sort} = family, ctor) do
     %{args: args, result_indices: result_indices} = ctor
     result_params = Map.get(ctor, :result_params, [])
 
-    with {:ok, ctx_params} <- check_telescope(Context.empty(env), params),
+    with :ok <- check_family(env, family),
+         {:ok, ctx_params} <- check_telescope(Context.empty(env), params),
          {:ok, ctx_full, field_levels} <- check_ctor_args(ctx_params, args),
-         :ok <- check_field_levels(field_levels, fam_level),
          :ok <-
            check_uniform_params(fname, ctor.name, result_params, length(params), length(args)),
          :ok <-
-           check_result_indices(ctx_full, Context.env(ctx_params), result_indices, index_tele) do
+           check_result_indices(ctx_full, Context.env(ctx_params), result_indices, index_tele),
+         index_values = Enum.map(result_indices, &Eval.eval(&1, Context.env(ctx_full))),
+         family_values = Enum.reverse(index_values) ++ Context.env(ctx_params),
+         family_sort_value = Eval.eval({:type, fam_sort}, family_values),
+         :ok <- check_field_levels(field_levels, family_sort_value, ctx_full) do
       :ok
     end
   end
@@ -1127,8 +1159,8 @@ defmodule Cure.Core.Kernel do
   # Infer `term` and require its type to be a universe; return that level.
   defp infer_sort(ctx, term) do
     with {:ok, type_value} <- infer(ctx, term) do
-      case type_value do
-        {:vtype, level} -> {:ok, level}
+      case Normalise.whnf_value(type_value, Context.signature(ctx)) do
+        {:vtype, _} = value -> {:ok, quote_sort(ctx, value)}
         _ -> {:error, :not_a_type}
       end
     end
@@ -1203,8 +1235,9 @@ defmodule Cure.Core.Kernel do
     Enum.reduce_while(args, {:ok, ctx, []}, fn {_name, type_term}, {:ok, c, levels} ->
       case infer_sort(c, type_term) do
         {:ok, level} ->
+          sort_value = Eval.eval({:type, level}, Context.env(c))
           c2 = Context.extend(c, Eval.eval(type_term, Context.env(c)))
-          {:cont, {:ok, c2, [level | levels]}}
+          {:cont, {:ok, c2, [sort_value | levels]}}
 
         err ->
           {:halt, err}
@@ -1212,8 +1245,15 @@ defmodule Cure.Core.Kernel do
     end)
   end
 
-  defp check_field_levels(levels, fam_level) do
-    if Enum.all?(levels, &(&1 <= fam_level)), do: :ok, else: {:error, :universe_level}
+  # §11.2: every constructor field's sort must be no greater than the family's
+  # result sort, decided by the cumulative sort inclusion (§8.5) — never by a
+  # direct integer comparison.
+  defp check_field_levels(levels, family_sort_value, ctx) do
+    family_sort = quote_sort(ctx, family_sort_value)
+
+    if Enum.all?(levels, &Sort.leq?(quote_sort(ctx, &1), family_sort, ctx)),
+      do: :ok,
+      else: {:error, :universe_level}
   end
 
   # Check a constructor application's args against its telescope (dependent),
@@ -1281,23 +1321,9 @@ defmodule Cure.Core.Kernel do
   # -- dependent case (§4.4) --------------------------------------------------
 
   # Apply a (curried) motive value to a list of argument values. Callers below
-  # use this only AFTER `check_motive_wf` has validated the motive is a function
-  # of the right shape (`apply_motive_checked` is the validating gate).
+  # use this only AFTER `check_motive_wf` has checked the ORIGINAL application
+  # through the ordinary kernel typing and sorting judgments.
   defp apply_motive(motive_value, args), do: Eval.apply_spine(motive_value, args)
-
-  # Like `apply_motive`, but on the UNvalidated motive supplied by the (untrusted)
-  # elaborator: if some prefix reduces to a non-function while arguments remain,
-  # the motive is ill-formed — return `{:error, :bad_motive}` rather than crashing
-  # `Eval.apply` on a non-function value.
-  defp apply_motive_checked(motive_value, args) do
-    Enum.reduce_while(args, {:ok, motive_value}, fn arg, {:ok, acc} ->
-      case acc do
-        {:vlam, _, _, _} -> {:cont, {:ok, Eval.apply(acc, arg)}}
-        {:vneutral, _} -> {:cont, {:ok, Eval.apply(acc, arg)}}
-        _ -> {:halt, {:error, :bad_motive}}
-      end
-    end)
-  end
 
   # Extend `ctx` by a (dependent) telescope; return the new context and the fresh
   # neutral values bound for each telescope variable, in declaration order.
@@ -1328,125 +1354,26 @@ defmodule Cure.Core.Kernel do
   # parameter) and fill the parameter slots of the scrutinee's data value. Values
   # in this NbE representation reference free variables by absolute de Bruijn
   # LEVEL, so `scrut_params` need no shift as more binders are added.
-  defp check_motive_wf(ctx, motive_value, %{name: dname, indices: index_tele}, scrut_params) do
-    {ctx_indices, index_vals} = extend_with_telescope(ctx, index_tele, scrut_params)
-    scrut_level = Context.length(ctx_indices)
-    data_value = {:vdata, dname, scrut_params ++ index_vals}
-    ctx_motive = Context.extend(ctx_indices, data_value)
-    x_value = {:vneutral, {:nvar, scrut_level}}
+  defp check_motive_wf(ctx, motive_term, %{name: name, indices: index_tele}, scrut_params) do
+    {ctx_indices, index_values} = extend_with_telescope(ctx, index_tele, scrut_params)
+    ctx_motive = Context.extend(ctx_indices, {:vdata, name, scrut_params ++ index_values})
+    count = length(index_tele) + 1
+    arguments = for index <- (count - 1)..0//-1, do: {:var, index}
 
-    with {:ok, body_value} <- apply_motive_checked(motive_value, index_vals ++ [x_value]),
-         {:ok, _level} <- infer_type_value_sort(ctx_motive, body_value) do
-      :ok
-    else
-      _ -> {:error, :bad_motive}
+    # Check ORIGINAL syntax, not a value whose evaluation/quotation may have
+    # discarded an annotation or an erased constructor index. Ordinary Pi
+    # application validates every domain and fresh typed argument, then the
+    # same sort judgment used everywhere else validates the result.
+    application =
+      Enum.reduce(arguments, Term.shift(motive_term, count, 0), fn argument, function ->
+        {:app, function, argument}
+      end)
+
+    case infer_sort(ctx_motive, application) do
+      {:ok, _sort} -> :ok
+      {:error, _reason} -> {:error, :bad_motive}
     end
   end
-
-  defp infer_type_value_sort(_ctx, {:vtype, level}), do: Universe.succ(level)
-
-  # A neutral is a valid type of sort `sublevel` iff its own declared type in
-  # `ctx` is itself `{:vtype, sublevel}` — i.e. the variable it stands for was
-  # bound at a universe (e.g. a parameter `a : Type` used polymorphically as the
-  # case result type). de Bruijn index of a level-`level` neutral is
-  # `Context.length(ctx) - 1 - level`.
-  defp infer_type_value_sort(ctx, {:vneutral, {:nvar, level}}) do
-    idx = Context.length(ctx) - 1 - level
-
-    case Context.lookup(ctx, idx) do
-      {:vtype, sublevel} -> {:ok, sublevel}
-      _ -> {:error, :not_a_type_value}
-    end
-  end
-
-  # A neutral APPLICATION is a valid type iff the kernel's own term-level
-  # judgement says so: reify the spine back to a term (signature-aware, so a
-  # {:vdata,…} argument keeps its param/index split — quote.ex split_data_args)
-  # and infer it. infer/2's {:app, f, a} rule resolves the head's type (ctx var
-  # or signature global), CHECKS each argument against the instantiated Pi
-  # domain, and returns the codomain — full validation, nothing trusted from
-  # the (untrusted) elaborator that assembled the motive. Accept only a
-  # {:vtype, l} result: `b(first(p))` with `b : (a) -> Type` sorts at l; a
-  # non-type codomain stays :not_a_type_value.
-  defp infer_type_value_sort(ctx, {:vneutral, {:napp, _, _} = neutral}) do
-    term = Quote.reify({:vneutral, neutral}, Context.length(ctx), Context.signature(ctx))
-
-    case infer(ctx, term) do
-      {:ok, {:vtype, level}} -> {:ok, level}
-      _ -> {:error, :not_a_type_value}
-    end
-  end
-
-  # A bare neutral GLOBAL used in type position — e.g. a `typealias String =
-  # List(Char)` appearing as a `match`/dispatch result type — is a valid type of
-  # sort `level` iff the kernel's own term-level judgement says so. Same trust
-  # discipline as the `{:napp}` clause above: reify the neutral back to a
-  # `{:global, g}` term and `infer` it, resolving `g`'s declared type from the
-  # signature; accept only a `{:vtype, l}` result. A typealias is a nullary def
-  # `g : Type := RHS`, so its declared type is a universe and this admits it as a
-  # motive body — without this clause a constant motive `λ_. String` (and every
-  # abstract interface method returning an aliased type) is a spurious
-  # `:bad_motive`, since `infer_type_value_sort` had no clause for `{:nglobal, _}`.
-  defp infer_type_value_sort(ctx, {:vneutral, {:nglobal, _} = neutral}) do
-    term = Quote.reify({:vneutral, neutral}, Context.length(ctx), Context.signature(ctx))
-
-    case infer(ctx, term) do
-      {:ok, {:vtype, level}} -> {:ok, level}
-      _ -> {:error, :not_a_type_value}
-    end
-  end
-
-  # NOTE(int-facade): kept for totality on a legacy/deserialized `{:vint_type}`
-  # value; fresh elaboration never produces one (spec 2026-07-18 §3a).
-  defp infer_type_value_sort(_ctx, {:vint_type}), do: {:ok, 0}
-  defp infer_type_value_sort(_ctx, {:vfloat_type}), do: {:ok, 0}
-  defp infer_type_value_sort(_ctx, {:vbinary_type}), do: {:ok, 0}
-  defp infer_type_value_sort(_ctx, {:vatom_type}), do: {:ok, 0}
-
-  defp infer_type_value_sort(ctx, {:vdata, name, _args}) do
-    case Inductive.get_family(Context.signature(ctx), name) do
-      nil -> {:error, {:unknown_family, name}}
-      %{level: level} -> {:ok, level}
-    end
-  end
-
-  # Π/Σ/Eq value clauses recurse on the sub-VALUES directly, mirroring `infer/2`'s
-  # type-formation rules for the corresponding terms, instead of reifying and
-  # re-inferring. `Quote.reify` collapses `{:vdata, name, args}` → `{:data, name,
-  # args, []}` (it has no inductive signature to recover the param/index split), so
-  # reifying a Π/Σ/Eq whose domain (or Eq carrier) is an INDEXED family loses the
-  # split and re-inference fails with `:arg_arity` — a false `:bad_motive`. The
-  # value-recursion is a faithful mirror: it bottoms out in the same
-  # `infer_type_value_sort` clauses (including the direct `{:vdata,…}` clause that
-  # already classifies bare indexed-family motive RESULTS), so acceptance is
-  # exactly what a non-lossy reify+infer would decide, and a non-type domain still
-  # falls through to `:not_a_type_value` (rejected, no false positives).
-  defp infer_type_value_sort(ctx, {:vpi, _g, dom, cod_closure}) do
-    with {:ok, l1} <- infer_type_value_sort(ctx, dom) do
-      fresh = {:vneutral, {:nvar, Context.length(ctx)}}
-      cod_value = Eval.apply_closure(cod_closure, fresh)
-
-      with {:ok, l2} <- infer_type_value_sort(Context.extend(ctx, dom), cod_value) do
-        {:ok, Universe.max(l1, l2)}
-      end
-    end
-  end
-
-  # `Effect(t)` in type position — a `case`/`match` whose result type is a callback's
-  # effect contract. Mirrors `infer/2`'s formation rule (`Effect : Type ℓ → Type ℓ`,
-  # level-preserving): the head contributes nothing, so the sort is the payload's own.
-  # Recursing on the sub-VALUE rather than reifying is deliberate, for the same reason
-  # the `{:vpi}` clause does it: `Quote.reify` collapses `{:vdata, name, args}` →
-  # `{:data, name, args, []}`, losing the param/index split, so reify+re-infer would
-  # turn an indexed payload like `Effect(SNat s)` into a false `:arg_arity` →
-  # `:bad_motive`. Bottoming out in the existing clauses keeps acceptance exactly what
-  # a non-lossy reify+infer would decide: a payload that is not a type still falls to
-  # `:not_a_type_value`, so an `Effect` head cannot launder a non-type.
-  defp infer_type_value_sort(ctx, {:veffect_type, payload}) do
-    infer_type_value_sort(ctx, payload)
-  end
-
-  defp infer_type_value_sort(_ctx, _value), do: {:error, :not_a_type_value}
 
   # Coverage (§7 / §E.2): every declared constructor must either HAVE a branch or
   # be provably IMPOSSIBLE at the scrutinee's actual indices (index-unification
@@ -1529,7 +1456,7 @@ defmodule Cure.Core.Kernel do
                         :trivial -> %{}
                       end
 
-                    subst = merge_known_branch_args(subst, scrut_value, cname, arity, Context.length(ctx))
+                    subst = merge_known_branch_args(subst, scrut_value, cname, arity, ctx)
 
                     ctx_branch = specialize_branch_context(ctx_branch, subst)
                     # Result indices are written over the ctor frame `params(outer) ++
@@ -1603,12 +1530,14 @@ defmodule Cure.Core.Kernel do
     end
   end
 
-  defp merge_known_branch_args(subst, {:vctor, cname, args}, cname, arity, depth)
+  defp merge_known_branch_args(subst, {:vctor, cname, args}, cname, arity, ctx)
        when length(args) == arity do
+    depth = Context.length(ctx)
+
     args
     |> Enum.with_index()
     |> Enum.reduce(subst, fn {value, p}, acc ->
-      term = value |> Quote.reify(depth) |> Term.shift(arity, 0)
+      term = value |> Quote.reify(depth, Context.signature(ctx)) |> Term.shift(arity, 0)
       ctor_key = arity - 1 - p
 
       case term do
@@ -1618,7 +1547,7 @@ defmodule Cure.Core.Kernel do
     end)
   end
 
-  defp merge_known_branch_args(subst, _value, _cname, _arity, _depth), do: subst
+  defp merge_known_branch_args(subst, _value, _cname, _arity, _ctx), do: subst
 
   @doc """
   Public branch-refinement query (spec §3). Given the caller's `ctx`, the
@@ -1782,7 +1711,7 @@ defmodule Cure.Core.Kernel do
       # params removes every bare param var, restoring the "r-side unknowns <
       # arity, everything else outer" disjointness the unifier relies on.
       result_indices
-      |> instantiate_branch_result_indices(arity, scrut_params, outer_depth)
+      |> instantiate_branch_result_indices(arity, scrut_params, ctx)
       |> Enum.zip(scrut_indices)
       |> Enum.map(fn {r, s_val} ->
         # Coverage/branch-typing is up to DEFINITIONAL EQUALITY: unify the ctor's
@@ -1796,7 +1725,7 @@ defmodule Cure.Core.Kernel do
         # index gains its constructor head) and never weakens it (an already-nf
         # or genuinely-stuck index is unchanged). `nf` in the outer frame, then
         # shift into the ctor frame. Fail-safe on fuel exhaustion.
-        s_term = Quote.reify(s_val, outer_depth)
+        s_term = Quote.reify(s_val, outer_depth, sig)
 
         s_norm =
           case Normalise.nf(ctx, s_term) do
@@ -1815,16 +1744,17 @@ defmodule Cure.Core.Kernel do
           [Cure.Core.Term.t()],
           non_neg_integer(),
           [Cure.Core.Value.t()],
-          non_neg_integer()
+          Context.t()
         ) :: [Cure.Core.Term.t()]
-  def instantiate_branch_result_indices(result_indices, arity, scrut_params, outer_depth) do
+  def instantiate_branch_result_indices(result_indices, arity, scrut_params, ctx) do
+    outer_depth = Context.length(ctx)
     pc = length(scrut_params)
 
     pmap =
       scrut_params
       |> Enum.with_index()
       |> Map.new(fn {pval, p} ->
-        {arity + pc - 1 - p, pval |> Quote.reify(outer_depth) |> Term.shift(arity, 0)}
+        {arity + pc - 1 - p, pval |> Quote.reify(outer_depth, Context.signature(ctx)) |> Term.shift(arity, 0)}
       end)
 
     Enum.map(result_indices, &subst_params(&1, pmap, 0))
@@ -1900,6 +1830,23 @@ defmodule Cure.Core.Kernel do
     do:
       {:case, subst_params(s, pmap, depth), subst_params(m, pmap, depth),
        Enum.map(brs, fn {c, ar, b} -> {c, ar, subst_params(b, pmap, depth + ar)} end)}
+
+  defp subst_params({:type, sort}, pmap, depth),
+    do: {:type, Sort.map(sort, &subst_params(&1, pmap, depth))}
+
+  defp subst_params({:level_value, level}, pmap, depth),
+    do: {:level_value, Cure.Core.UniverseLevel.map(level, &subst_params(&1, pmap, depth))}
+
+  defp subst_params({:let, grade, type, value, body}, pmap, depth),
+    do:
+      {:let, grade, subst_params(type, pmap, depth), subst_params(value, pmap, depth),
+       subst_params(body, pmap, depth + 1)}
+
+  defp subst_params({tag, inner}, pmap, depth) when tag in [:effect_type, :effect_pure],
+    do: {tag, subst_params(inner, pmap, depth)}
+
+  defp subst_params({:effect_bind, effect, continuation}, pmap, depth),
+    do: {:effect_bind, subst_params(effect, pmap, depth), subst_params(continuation, pmap, depth)}
 
   defp subst_params(other, _pmap, _depth), do: other
 
@@ -2209,6 +2156,9 @@ defmodule Cure.Core.Kernel do
   # only the shifted FREE occurrence (`key + depth`) blocks a binding.
   defp occurs_index?(key, term), do: occurs_index?(key, term, 0)
 
+  defp occurs_index?(key, {tag, _} = term, depth) when tag in [:type, :level_value],
+    do: Enum.any?(Term.level_atoms(term), &occurs_index?(key, &1, depth))
+
   defp occurs_index?(key, {:var, k}, depth), do: k == key + depth
 
   defp occurs_index?(key, {:pi, _grade, domain, codomain}, depth),
@@ -2304,6 +2254,12 @@ defmodule Cure.Core.Kernel do
     |> Eval.eval(Context.env(ctx))
   end
 
+  defp replace_branch_vars({:type, sort}, subst),
+    do: {:type, Sort.map(sort, &replace_branch_vars(&1, subst))}
+
+  defp replace_branch_vars({:level_value, level}, subst),
+    do: {:level_value, Cure.Core.UniverseLevel.map(level, &replace_branch_vars(&1, subst))}
+
   defp replace_branch_vars({:var, i}, subst), do: replace_branch_var(i, subst, 0)
 
   defp replace_branch_vars({:pi, g, d, c}, subst),
@@ -2325,6 +2281,17 @@ defmodule Cure.Core.Kernel do
     do:
       {:case, replace_branch_vars(scr, subst), replace_branch_vars(m, subst),
        Enum.map(brs, fn {c, ar, b} -> {c, ar, replace_branch_vars(b, shift_subst(subst, ar))} end)}
+
+  defp replace_branch_vars({:let, grade, type, value, body}, subst),
+    do:
+      {:let, grade, replace_branch_vars(type, subst), replace_branch_vars(value, subst),
+       replace_branch_vars(body, shift_subst(subst, 1))}
+
+  defp replace_branch_vars({tag, inner}, subst) when tag in [:effect_type, :effect_pure],
+    do: {tag, replace_branch_vars(inner, subst)}
+
+  defp replace_branch_vars({:effect_bind, effect, continuation}, subst),
+    do: {:effect_bind, replace_branch_vars(effect, subst), replace_branch_vars(continuation, subst)}
 
   defp replace_branch_vars(other, _subst), do: other
 
@@ -2404,7 +2371,8 @@ defmodule Cure.Core.Kernel do
     {:vdata, fid, []}
   end
 
-  defp subtype?({:vtype, l1}, {:vtype, l2}, _ctx), do: Universe.le?(l1, l2)
+  defp subtype?({:vtype, _} = left, {:vtype, _} = right, ctx),
+    do: Sort.leq?(quote_sort(ctx, left), quote_sort(ctx, right), ctx)
 
   defp subtype?(inferred, {:vdata, expected, []} = expected_value, ctx) do
     sig = Context.signature(ctx)

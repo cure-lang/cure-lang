@@ -9,20 +9,25 @@ defmodule Antigen.Assays.Universes do
   alias Antigen.{Challenge, Generators}
   alias Cure.Core.{Env, Inductive, Kernel}
 
-  # Real kernel op, the byte-identical default for the `:indexed_case` `run/1`
-  # clause (the def-shaped path checked by `Kernel.check_def`).
-  @real_kernel %{check_def: &Kernel.check_def/2}
+  # The ordinary paths and sensitivity seams use precisely the same operations.
+  @real_kernel %{
+    check_def: &Kernel.check_def/2,
+    check_family: &Kernel.check_family/2,
+    check_ctor: &Kernel.check_ctor/3
+  }
 
   @spec run(Challenge.t()) :: :ok | {:violation, term()}
   def run(%Challenge{kind: :indexed_case} = c), do: run(c, @real_kernel)
+  def run(%Challenge{kind: :family} = c), do: run(c, @real_kernel)
 
-  def run(%Challenge{kind: :family, label: label, payload: %{family: fam, ctors: ctors}}) do
+  @doc "The real definition/family paths with injectable kernel operations for sensitivity checks."
+  def run(%Challenge{kind: :family, label: label, payload: %{family: fam, ctors: ctors}}, k) do
     env = Inductive.declare(base_env(), fam, ctors)
 
     verdict =
-      with :ok <- Kernel.check_family(env, fam) do
+      with :ok <- k.check_family.(env, fam) do
         Enum.reduce_while(ctors, :ok, fn ctor, :ok ->
-          case Kernel.check_ctor(env, fam, ctor) do
+          case k.check_ctor.(env, fam, ctor) do
             :ok -> {:cont, :ok}
             {:error, _} = err -> {:halt, err}
           end
@@ -32,7 +37,6 @@ defmodule Antigen.Assays.Universes do
     judge(label, verdict, fam.name)
   end
 
-  @doc "Same as the `:indexed_case` `run/1` clause but with an injectable kernel-op map (sensitivity test seam)."
   def run(%Challenge{kind: :indexed_case, label: label, payload: %{def_name: dn}} = c, k) do
     env = Generators.Universes.env_of(c)
     judge(label, k.check_def.(env, dn), dn)

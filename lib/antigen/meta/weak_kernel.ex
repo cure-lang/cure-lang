@@ -24,7 +24,12 @@ defmodule Antigen.Meta.WeakKernel do
 
   @spec weaken(atom()) :: map()
   def weaken(:infer_accepts_all),
-    do: %{real() | infer: fn _ctx, _t -> {:ok, Eval.eval({:type, 0}, [])} end}
+    do: %{
+      real()
+      | infer: fn _ctx, _t ->
+          {:ok, Eval.eval({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [])}
+        end
+    }
 
   # real infer, but on success return a type value distinct from any well-typed
   # term's real type in the catalog fixture (Type 0 ≠ Nat), so a real `check`
@@ -34,7 +39,7 @@ defmodule Antigen.Meta.WeakKernel do
       real()
       | infer: fn ctx, t ->
           case Kernel.infer(ctx, t) do
-            {:ok, _v} -> {:ok, Eval.eval({:type, 0}, [])}
+            {:ok, _v} -> {:ok, Eval.eval({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [])}
             err -> err
           end
         end

@@ -92,7 +92,7 @@ defmodule Antigen.Generators.Term do
 
     vec_var_goals =
       for k <- if(depth == 0, do: [], else: Enum.to_list(0..(depth - 1))),
-          ty = Normalise.quote(Context.lookup(ctx, k), depth),
+          ty = Normalise.quote(Context.lookup(ctx, k), depth, Context.signature(ctx)),
           match?({:data, :Vec, _, _}, ty),
           do: {1, Gen.return(ty)}
 
@@ -153,9 +153,7 @@ defmodule Antigen.Generators.Term do
     ]
   end
 
-  # The kernel's reified data normal form places Vec's sole (index) argument in
-  # the *params* slot with an empty *indices* slot (see SigMenu.vec_index/2), so
-  # match position-agnostically over `params ++ indices`.
+  # Signature-aware readback preserves Vec's sole argument in its index spine.
   defp intro_rules(ctx, _goal, {:data, :Vec, p, idx}, size) do
     [i] = p ++ idx
     ctor_rules_for_vec(ctx, i, size)
@@ -375,7 +373,7 @@ defmodule Antigen.Generators.Term do
     depth = Context.length(ctx)
 
     Enum.flat_map(if(depth == 0, do: [], else: Enum.to_list(0..(depth - 1))), fn k ->
-      case whnf(ctx, Normalise.quote(Context.lookup(ctx, k), depth)) do
+      case whnf(ctx, Normalise.quote(Context.lookup(ctx, k), depth, Context.signature(ctx))) do
         {:data, :Sigma, [a, {:lam, _g, _a, b}], []} = st ->
           fst_t = {:case, {:var, k}, {:lam, Cure.Core.Grade.unrestricted(), st, a}, [{:mk_pair, 2, {:var, 1}}]}
           snd_t = {:case, {:var, k}, {:lam, Cure.Core.Grade.unrestricted(), st, b}, [{:mk_pair, 2, {:var, 0}}]}
@@ -423,7 +421,7 @@ defmodule Antigen.Generators.Term do
   # cod is a Term with de Bruijn 0 = the just-bound arg; substitute `a` for it.
   defp subst_cod(cod, a, ctx) do
     env = Context.env(ctx)
-    Normalise.quote(Eval.eval(cod, [Eval.eval(a, env) | env]), Context.length(ctx))
+    Normalise.quote(Eval.eval(cod, [Eval.eval(a, env) | env]), Context.length(ctx), Context.signature(ctx))
   end
 
   # Branch bodies for a `case` on `fam` at (constant-motive) goal. The Nat
@@ -454,7 +452,7 @@ defmodule Antigen.Generators.Term do
     case Cure.Core.Kernel.infer(ctx, term) do
       {:ok, inferred_val} ->
         depth = Context.length(ctx)
-        inferred_term = Normalise.quote(inferred_val, depth)
+        inferred_term = Normalise.quote(inferred_val, depth, Context.signature(ctx))
 
         case Cure.Core.Conv.conv_within?(
                inferred_term,

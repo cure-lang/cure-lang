@@ -13,7 +13,16 @@ defmodule Cure.Elab.ResolutionOverloadTest do
   end
 
   defp put_def(env, key) do
-    %{env | defs: Map.put(env.defs, key, %{name: key, type: {:type, 0}, body: {:hole, "x"}, quantities: nil})}
+    %{
+      env
+      | defs:
+          Map.put(env.defs, key, %{
+            name: key,
+            type: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+            body: {:hole, "x"},
+            quantities: nil
+          })
+    }
   end
 
   test "overload_candidates returns every member of a set, most-specific-owner first" do

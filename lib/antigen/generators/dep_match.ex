@@ -4,7 +4,7 @@ defmodule Antigen.Generators.DepMatch do
   `case` over the indexed family `Vec`, with an index-refining branch structure
   and (optionally) a dependent type-former motive. This is the reachability lever
   for the kernel's dependent-matching core, which no value-term generator reaches:
-  `check_motive_wf` → `infer_type_value_sort` (dependent motive), `check_case_branches`,
+  `check_motive_wf` → ordinary inference of the original motive, `check_case_branches`,
   `unify_indices` (`bind_index` / `unify_one` / `unify_spine` / `rigid_index?`,
   including the `:impossible` unreachable-branch path), `specialize_branch_context`,
   `check_result_indices`, and `replace_branch_vars`.
@@ -17,7 +17,7 @@ defmodule Antigen.Generators.DepMatch do
     * **closed `Vec (S Z)`** — the `vnil` branch is `:impossible` (unify `Z` ~ `S Z`).
 
   Motives: constant (`λm.λv. Nat|Bd`) or dependent (`λm.λv. Vec m`, whose body is
-  a type-former over the bound index — the `infer_type_value_sort` driver). Branch
+  a type-former over the bound index). Branch
   bodies inhabit the motive at the refined index. The claimed `type` is exactly
   what `infer` returns (verified in the soundness test).
   """
@@ -34,11 +34,11 @@ defmodule Antigen.Generators.DepMatch do
   @ty_indices [
     @nat,
     @bd,
-    {:int_type},
+    {:data, :Int, [], []},
     {:float_type},
     {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat},
     {:data, :Sigma, [@nat, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}], []},
-    {:data, :Vec, [@z], []}
+    {:data, :Vec, [], [@z]}
   ]
   @ty_branches [
     {:tnat, 0, @z},
@@ -69,19 +69,22 @@ defmodule Antigen.Generators.DepMatch do
     end)
   end
 
-  defp case_challenge do
-    Gen.frequency([
+  defp case_challenge, do: Gen.frequency(case_variants())
+
+  @doc false
+  def case_variants do
+    [
       # variable index, both branches reachable — constant-motive flavours whose
-      # result type drives a distinct infer_type_value_sort clause via check_motive_wf
+      # result type exercises ordinary typing of the original motive
       {3, var_const(@nat, numeral())},
       {2, var_const(@bd, bd_lit())},
-      {2, var_const({:type, 0}, small_type())},
+      {2, var_const({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, small_type())},
       {2, var_const({:data, :Int, [], []}, int_lit())},
       {2, var_const({:float_type}, float_lit())},
       # dependent motives: Vec m (type-former) and Eq Nat m m (propositional)
       {3, var_index(:vec)},
       {2, var_index(:eq)},
-      # D1 neutral-application motive λm.λv. b(m) — the napp sort clause
+      # D1 neutral-application motive λm.λv. b(m) — ordinary application typing
       {2, neutral_app_motive_case()},
       # closed indices — force an :impossible branch (constant Nat motive)
       {2, closed_index(@z)},
@@ -163,11 +166,11 @@ defmodule Antigen.Generators.DepMatch do
       {2, var_index_extra2(stuck_case_helper(), {:data, :Equivalent, [@nat], [stuck_case(), stuck_case()]})},
       # POLYMORPHIC motive: Γ = [n:Nat, x:a, a:Type0]; case n of Z→x | S→x with
       # motive λv:Nat. a — the result type is the Type-parameter VARIABLE a, so
-      # check_motive_wf's infer_type_value_sort takes its neutral-var (nvar) clause
-      # (a bound-at-a-universe motive result), distinct from the data/Π/Σ/Eq arms.
+      # ordinary variable inference recovers its universe from the context,
+      # distinct from a syntactically exposed data/Π/Σ/Equivalent result.
       {2, tyvar_motive_case()},
-      # motive returns Eq Type0 (List Nat) (List Nat) — a propositional equality
-      # between PARAMETER-BEARING family TYPES. check_motive_wf's veq clause reifies
+      # motive returns Equivalent (List Nat) Nil Nil. Its carrier is itself a
+      # PARAMETER-BEARING family type. Original-motive inference reads
       # the endpoints signature-aware, so Quote.split_data_args splits List's param
       # off the (empty) index list — the dependent param/index read-back split.
       {2, eqtype_motive_case()},
@@ -183,7 +186,7 @@ defmodule Antigen.Generators.DepMatch do
       {2, ty_var()},
       # Ty with a Vec (S Z) index that matches NO ctor — unifying against tvec's
       # Vec Z index drives unify_spine to :impossible on a differing element.
-      {1, ty_scrutinee({:data, :Vec, [{:ctor, :S, [@z]}], []})},
+      {1, ty_scrutinee({:data, :Vec, [], [{:ctor, :S, [@z]}]})},
       # Int/Float-value-indexed families Tg/Tgf — literal indices unified at match
       # time (rigid_index? int_lit/float_lit).
       {2, tg_closed(:int)},
@@ -202,7 +205,7 @@ defmodule Antigen.Generators.DepMatch do
       # the merge clash in `bind_index` compares the two rigid result-index terms
       # and calls `rigid_index?` on the (unpeeled) `{:nat_lit, _}` side.
       {1, sq_closed({:nat_lit, 4}, {:ctor, :S, [@z]})}
-    ])
+    ]
   end
 
   # A `case` directly on a compact Nat literal scrutinee (0-index family Nat
@@ -310,14 +313,16 @@ defmodule Antigen.Generators.DepMatch do
   defp ty_var do
     Gen.bind(numeral(), fn body ->
       term = mk_case({:var, 0}, ty_motive(), replace_first_body(@ty_branches, body))
-      Gen.return({[ty({:var, 0}), {:type, 0}], term, @nat})
+      Gen.return({[ty({:var, 0}), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}], term, @nat})
     end)
   end
 
   defp ty(a), do: {:data, :Ty, [], [a]}
   # λa. λv:Ty a. Nat
   defp ty_motive,
-    do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:lam, Cure.Core.Grade.unrestricted(), ty({:var, 0}), @nat}}
+    do:
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, Cure.Core.Grade.unrestricted(), ty({:var, 0}), @nat}}
 
   # vary the reachable-branch body without disturbing the fixed ctor set
   defp replace_first_body([{c, ar, _} | rest], body), do: [{c, ar, body} | rest]
@@ -340,12 +345,13 @@ defmodule Antigen.Generators.DepMatch do
   end
 
   defp sq(i, j), do: {:data, :Sq, [], [i, j]}
-  # λi.λj.λv:Sq i j. Nat  (v's frame: i = var 2, j = var 1)
+  # λi.λj.λv:Sq i j. Nat. The major's DOMAIN precedes its own binder:
+  # under only i,j, their indices are 1,0 (not the body's 2,1).
   defp sq_motive,
     do:
       {:lam, Cure.Core.Grade.unrestricted(), @nat,
        {:lam, Cure.Core.Grade.unrestricted(), @nat,
-        {:lam, Cure.Core.Grade.unrestricted(), sq({:var, 2}, {:var, 1}), @nat}}}
+        {:lam, Cure.Core.Grade.unrestricted(), sq({:var, 1}, {:var, 0}), @nat}}}
 
   # Γ = [ p : extra_ty (idx 0), xs : Vec n (idx 1), n : Nat (idx 2) ] where
   # extra_ty mentions n (var 1 from p's frame). Scrutinee is xs (var 1). When a
@@ -373,13 +379,13 @@ defmodule Antigen.Generators.DepMatch do
   defp stuck_case,
     do:
       {:case, {:var, 1}, {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, @nat},
-       [{:False, 0, @z}, {:True, 0, @z}]}
+       [{:"Std.Bool#False", 0, @z}, {:"Std.Bool#True", 0, @z}]}
 
   # Γ = [n:Nat (idx0), x:a (idx1), a:Type0 (idx2)]; case n of Z→x | S→x with a
   # constant motive λv:Nat. a. Result type is the Type-var a (var 2). Fixed shape.
   defp tyvar_motive_case do
     Gen.return(
-      {[@nat, {:var, 0}, {:type, 0}],
+      {[@nat, {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
        {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), @nat, {:var, 3}},
         [{:Z, 0, {:var, 1}}, {:S, 1, {:var, 2}}]}, {:var, 2}}
     )
@@ -397,29 +403,30 @@ defmodule Antigen.Generators.DepMatch do
   defp eqtype_motive_case do
     eqty = {:data, :Equivalent, [@list_nat], [@nil_ln, @nil_ln]}
     refl_ln = {:ctor, :reflexive, [@nil_ln]}
-    # claimed type in FLAT params++indices form (reify has no signature to
-    # recover the split, so the inferred type reads back flat)
-    eqty_flat = {:data, :Equivalent, [@list_nat, @nil_ln, @nil_ln], []}
 
     Gen.return(
-      {[], {:case, @z, {:lam, Cure.Core.Grade.unrestricted(), @nat, eqty}, [{:Z, 0, refl_ln}, {:S, 1, refl_ln}]},
-       eqty_flat}
+      {[], {:case, @z, {:lam, Cure.Core.Grade.unrestricted(), @nat, eqty}, [{:Z, 0, refl_ln}, {:S, 1, refl_ln}]}, eqty}
     )
   end
 
   defp var_index_extra2(helper_ty, extra_ty) do
+    # Catalog expressions use the final [p, helper, xs, n] frame. A binder's
+    # domain is authored BEFORE p is introduced; strengthen that one slot with
+    # the ordinary binder-aware shift, preserving local lambda/case binders.
+    extra_domain = Cure.Core.Term.shift(extra_ty, -1, 0)
+
     Gen.bind(numeral(), fn zbody ->
       Gen.bind(numeral(), fn sbody ->
         term = mk_case({:var, 2}, motive(@nat), [{:vnil, 0, zbody}, {:vcons, 3, sbody}])
-        Gen.return({[extra_ty, helper_ty, vec({:var, 0}), @nat], term, @nat})
+        Gen.return({[extra_domain, helper_ty, vec({:var, 0}), @nat], term, @nat})
       end)
     end)
   end
 
   # Γ = [ xs : Vec n (idx 0), n : Nat (idx 1) ]; case xs of vnil | vcons, with a
-  # CONSTANT motive λm.λv. result_ty — both branch bodies inhabit result_ty. The
-  # motive body's shape (universe / Int / Float / data) selects the
-  # infer_type_value_sort clause exercised.
+  # CONSTANT motive λm.λv. result_ty — both branch bodies inhabit result_ty.
+  # All motive-body shapes (universe / Int / Float / data) must independently
+  # type-check under the authored index and major binders.
   defp var_const(result_ty, body_gen) do
     Gen.bind(body_gen, fn zbody ->
       Gen.bind(body_gen, fn sbody ->
@@ -434,8 +441,6 @@ defmodule Antigen.Generators.DepMatch do
   # Equivalent Nat (S n) (S n) → reflexive (S n)).
   defp var_index(:eq) do
     eq_ty = fn m -> {:data, :Equivalent, [@nat], [m, m]} end
-    # claimed type in FLAT params++indices form (reify reads back flat)
-    eq_ty_flat = fn m -> {:data, :Equivalent, [@nat, m, m], []} end
 
     motive_eq =
       {:lam, Cure.Core.Grade.unrestricted(), @nat,
@@ -444,7 +449,7 @@ defmodule Antigen.Generators.DepMatch do
     nil_body = {:ctor, :reflexive, [@z]}
     cons_body = {:ctor, :reflexive, [{:ctor, :S, [{:var, 2}]}]}
     term = mk_case({:var, 0}, motive_eq, [{:vnil, 0, nil_body}, {:vcons, 3, cons_body}])
-    Gen.return({[vec({:var, 0}), @nat], term, eq_ty_flat.({:var, 1})})
+    Gen.return({[vec({:var, 0}), @nat], term, eq_ty.({:var, 1})})
   end
 
   # Dependent motive λm.λv. Vec m — branch bodies must inhabit Vec at the refined
@@ -453,14 +458,13 @@ defmodule Antigen.Generators.DepMatch do
     nil_body = {:ctor, :vnil, []}
     cons_body = {:ctor, :vcons, [{:var, 2}, {:var, 1}, {:var, 0}]}
     term = mk_case({:var, 0}, dep_motive(), [{:vnil, 0, nil_body}, {:vcons, 3, cons_body}])
-    # infer normalizes Vec's sole argument into the PARAMS slot (empty indices) —
-    # the claimed type must match that reified normal form (see Generators.Term).
-    Gen.return({[vec({:var, 0}), @nat], term, {:data, :Vec, [{:var, 1}], []}})
+    # Signature-aware readback preserves Vec's zero-param, one-index spine.
+    Gen.return({[vec({:var, 0}), @nat], term, vec({:var, 1})})
   end
 
   # D1 neutral-application motive: λm. λv:Vec(m). b(m) — the NEW napp shape
   # (b is a free context variable of type (Nat) -> Type; b(m) reifies to
-  # {:app, <b>, <m>} and must sort via the new infer_type_value_sort clause).
+  # {:app, <b>, <m>} and is typed through ordinary application inference).
   # Closed to Vec(Z) so the vcons branch is :impossible (unify S k ~ Z fails,
   # mirroring closed_index/1) — only vnil needs a real inhabitant, supplied by
   # context witness w : b(Z).
@@ -471,7 +475,9 @@ defmodule Antigen.Generators.DepMatch do
   #                             the only var already bound at that point)
   #   2 = b  : (Nat) -> Type
   defp neutral_app_motive_case do
-    b_ty = {:pi, Cure.Core.Grade.unrestricted(), @nat, {:type, 0}}
+    b_ty =
+      {:pi, Cure.Core.Grade.unrestricted(), @nat, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
     w_ty = {:app, {:var, 0}, @z}
     # under the motive's 2 own binders (m, v), ambient var k reads as {:var, 2+k}:
     # b is ambient index 2 -> {:var, 4}; m is the motive's own outer binder -> {:var, 1}.
@@ -514,7 +520,7 @@ defmodule Antigen.Generators.DepMatch do
   defp bd_lit, do: Gen.member_of([{:ctor, :T, []}, {:ctor, :F, []}])
 
   # A closed type inhabiting Type 0 (for a λm.λv.Type0 motive's branch bodies).
-  defp small_type, do: Gen.member_of([@nat, @bd, {:int_type}, {:float_type}])
+  defp small_type, do: Gen.member_of([@nat, @bd, {:data, :Int, [], []}, {:float_type}])
   defp int_lit, do: Gen.bind(Gen.int(-9, 9), fn n -> Gen.return({:int_lit, n}) end)
   defp float_lit, do: Gen.bind(Gen.int(-9, 9), fn n -> Gen.return({:float_lit, n / 2}) end)
 end

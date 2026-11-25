@@ -3,7 +3,7 @@ defmodule Cure.Core.BuiltinsSchemaTest do
   alias Cure.Core.{Env, Inductive, Builtins}
 
   defp declare_family(env, fname, ctors) do
-    family = %{name: fname, params: [], indices: [], level: 0}
+    family = %{name: fname, params: [], indices: [], sort: Cure.Core.Sort.finite_zero()}
 
     ctor_maps =
       Enum.map(ctors, fn {cname, arg_types} ->

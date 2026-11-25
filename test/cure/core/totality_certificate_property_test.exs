@@ -2,7 +2,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Cure.Core.{Certificate, Env, SizeChange, TotalityCertificate}
+  alias Cure.Core.{Certificate, Env, SizeChange, TotalityCertificate, UniverseCodec}
   alias Cure.Elab.TotalityCertificate, as: Candidate
   alias Cure.Elab.TotalityGraph
 
@@ -41,10 +41,14 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
       env =
         Env.empty()
         |> Env.with_owner("Property")
-        |> Env.add_def(:leaf, {:type, 0}, {:type, 0})
+        |> Env.add_def(
+          :leaf,
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+        )
 
       body = nested_calls(depth)
-      env = Env.add_def(env, :root, {:type, 0}, body)
+      env = Env.add_def(env, :root, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body)
       fresh = Certificate.direct_summary(:root, body, env)
 
       assert Certificate.cached_summary_valid?(fresh, :root, body, env)
@@ -101,10 +105,14 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
       env =
         Env.empty()
         |> Env.with_owner("Property")
-        |> Env.add_def(:leaf, {:type, 0}, {:type, 0})
+        |> Env.add_def(
+          :leaf,
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+        )
 
       body = {:ctor, :Root, [Enum.reduce(path, {:global, :"Property#leaf"}, &wrap_global_position/2)]}
-      env = Env.add_def(env, :root, {:type, 0}, body)
+      env = Env.add_def(env, :root, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body)
       summary = Certificate.direct_summary(:root, body, env)
 
       assert Enum.map(summary.calls, & &1.callee) == [:"Property#leaf"]
@@ -130,7 +138,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
     |> Enum.with_index()
     |> Enum.reduce(Env.empty(), fn {name, index}, env ->
       callee = Enum.at(names, rem(index + 1, length(names)))
-      Env.add_def(env, name, {:type, 0}, {:global, callee})
+      Env.add_def(env, name, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, callee})
     end)
     |> then(fn env ->
       Enum.reduce(names, env, fn name, acc ->
@@ -145,7 +153,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
     |> Enum.with_index()
     |> Enum.reduce(Env.empty(), fn {name, index}, env ->
       callee = Enum.at(names, rem(index + 1, length(names)))
-      Env.add_def(env, name, {:type, 0}, {:global, callee})
+      Env.add_def(env, name, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, callee})
     end)
     |> then(fn env ->
       names
@@ -156,7 +164,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
         matrix = SizeChange.from_dense([[relation]])
 
         call = %{
-          id: :crypto.hash(:sha256, :erlang.term_to_binary({name, callee, matrix}, [:deterministic])),
+          id: UniverseCodec.semantic_hash({name, callee, 1, matrix, %{caller: name, core_path: 0}}),
           callee: callee,
           callee_arity: 1,
           matrix: matrix,
@@ -165,6 +173,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
 
         summary = %{
           version: Certificate.summary_version(),
+          universe_identity: UniverseCodec.identity(),
           caller: name,
           body_hash: Certificate.body_hash({:global, callee}),
           caller_arity: 1,
@@ -172,7 +181,7 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
         }
 
         summary =
-          Map.put(summary, :summary_hash, :crypto.hash(:sha256, :erlang.term_to_binary(summary, [:deterministic])))
+          Map.put(summary, :summary_hash, UniverseCodec.semantic_hash(Certificate.semantic_summary(summary)))
 
         Env.put_direct_call_summary(acc, name, summary)
       end)
@@ -211,37 +220,54 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
   defp wrap_global_position(:app_argument, term), do: {:app, {:ctor, :F, []}, term}
   defp wrap_global_position(:constructor_argument, term), do: {:ctor, :Box, [term]}
   defp wrap_global_position(:lambda_domain, term), do: {:lam, Cure.Core.Grade.unrestricted(), term, {:var, 0}}
-  defp wrap_global_position(:lambda_body, term), do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, term}
+
+  defp wrap_global_position(:lambda_body, term),
+    do:
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, term}
 
   defp wrap_global_position(:let_type, term),
     do: {:let, Cure.Core.Grade.unrestricted(), term, {:nat_lit, 0}, {:var, 0}}
 
   defp wrap_global_position(:let_value, term),
-    do: {:let, Cure.Core.Grade.unrestricted(), {:type, 0}, term, {:var, 0}}
+    do:
+      {:let, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, term,
+       {:var, 0}}
 
   defp wrap_global_position(:let_body, term),
-    do: {:let, Cure.Core.Grade.unrestricted(), {:type, 0}, {:nat_lit, 0}, term}
+    do:
+      {:let, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:nat_lit, 0}, term}
 
-  defp wrap_global_position(:pi_domain, term), do: {:pi, Cure.Core.Grade.unrestricted(), term, {:type, 0}}
-  defp wrap_global_position(:pi_codomain, term), do: {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, term}
+  defp wrap_global_position(:pi_domain, term),
+    do:
+      {:pi, Cure.Core.Grade.unrestricted(), term, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
+  defp wrap_global_position(:pi_codomain, term),
+    do:
+      {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, term}
+
   defp wrap_global_position(:data_parameter, term), do: {:data, :D, [term], []}
   defp wrap_global_position(:data_index, term), do: {:data, :D, [], [term]}
 
   defp wrap_global_position(:case_scrutinee, term),
-    do: {:case, term, {:type, 0}, [{:Unit, 0, {:ctor, :Unit, []}}]}
+    do:
+      {:case, term, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       [{:Unit, 0, {:ctor, :Unit, []}}]}
 
   defp wrap_global_position(:case_motive, term),
     do: {:case, {:ctor, :Unit, []}, term, [{:Unit, 0, {:ctor, :Unit, []}}]}
 
   defp wrap_global_position(:case_branch, term),
-    do: {:case, {:ctor, :Unit, []}, {:type, 0}, [{:Unit, 0, term}]}
+    do:
+      {:case, {:ctor, :Unit, []}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       [{:Unit, 0, term}]}
 
   defp wrap_global_position(:effect_type, term), do: {:effect_type, term}
   defp wrap_global_position(:effect_pure, term), do: {:effect_pure, term}
   defp wrap_global_position(:effect_bind_effect, term), do: {:effect_bind, term, {:ctor, :K, []}}
   defp wrap_global_position(:effect_bind_continuation, term), do: {:effect_bind, {:effect_pure, {:nat_lit, 0}}, term}
 
-  defp nested_calls(0), do: {:type, 0}
+  defp nested_calls(0), do: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
 
   defp nested_calls(depth),
     do: {:app, {:global, :leaf}, nested_calls(depth - 1)}

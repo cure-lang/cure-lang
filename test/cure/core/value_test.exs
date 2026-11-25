@@ -4,17 +4,41 @@ defmodule Cure.Core.ValueTest do
 
   test "recognises each value shape" do
     cl = {:closure, [], {:var, 0}}
-    assert Value.value?({:vtype, 0})
-    assert Value.value?({:vpi, Cure.Core.Grade.unrestricted(), {:vtype, 0}, cl})
-    assert Value.value?({:vlam, Cure.Core.Grade.unrestricted(), {:vtype, 0}, cl})
+    assert Value.value?({:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
+
+    assert Value.value?(
+             {:vpi, Cure.Core.Grade.unrestricted(), {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}},
+              cl}
+           )
+
+    assert Value.value?(
+             {:vlam, Cure.Core.Grade.unrestricted(), {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}},
+              cl}
+           )
+
     assert Value.value?({:vneutral, {:nvar, 0}})
     # Inductive Sigma (D2): the dependent pair value is an ordinary `{:vdata,
     # :Sigma}` former and `{:vctor, :mk_pair}` intro — the `{:vdata}`/`{:vctor}`
     # rows below cover it; no `{:vsigma}`/`{:vpair}` value shapes remain.
-    assert Value.value?({:vdata, :Sigma, [{:vtype, 0}, {:vlam, Cure.Core.Grade.unrestricted(), {:vtype, 0}, cl}]})
-    assert Value.value?({:vctor, :mk_pair, [{:vtype, 0}, {:vtype, 1}]})
-    assert Value.value?({:vdata, :SF, [{:vtype, 0}]})
-    assert Value.value?({:vctor, :seq, [{:vtype, 0}]})
+    assert Value.value?(
+             {:vdata, :Sigma,
+              [
+                {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}},
+                {:vlam, Cure.Core.Grade.unrestricted(),
+                 {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}, cl}
+              ]}
+           )
+
+    assert Value.value?(
+             {:vctor, :mk_pair,
+              [
+                {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}},
+                {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}
+              ]}
+           )
+
+    assert Value.value?({:vdata, :SF, [{:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}]})
+    assert Value.value?({:vctor, :seq, [{:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}]})
     refute Value.value?({:vtype, 3})
     refute Value.value?(:nope)
   end
@@ -22,11 +46,14 @@ defmodule Cure.Core.ValueTest do
   test "recognises each neutral shape" do
     assert Value.neutral?({:nvar, 0})
     assert Value.neutral?({:nglobal, :and})
-    assert Value.neutral?({:napp, {:nvar, 0}, {:vtype, 0}})
+    assert Value.neutral?({:napp, {:nvar, 0}, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}})
     # Inductive Sigma (D2): a stuck projection is a stuck `{:ncase}` over the
     # neutral pair (covered by the `{:ncase}` row below) — no `{:nfst}`/`{:nsnd}`.
 
-    assert Value.neutral?({:ncase, {:nvar, 0}, {:closure, [], {:type, 0}}, [{:prim, 0, {:closure, [], {:type, 0}}}]})
+    assert Value.neutral?(
+             {:ncase, {:nvar, 0}, {:closure, [], {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+              [{:prim, 0, {:closure, [], {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}]}
+           )
 
     refute Value.neutral?({:nvar, -1})
     refute Value.neutral?(:nope)
@@ -37,7 +64,7 @@ defmodule Cure.Core.ValueTest do
 
   test "a closure carries an env (list of values) and a term" do
     assert Value.closure?({:closure, [], {:var, 0}})
-    assert Value.closure?({:closure, [{:vtype, 0}], {:var, 0}})
+    assert Value.closure?({:closure, [{:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}], {:var, 0}})
     refute Value.closure?({:closure, :not_a_list, {:var, 0}})
     refute Value.closure?({:closure, [], :not_a_term})
   end

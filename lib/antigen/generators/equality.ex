@@ -100,7 +100,9 @@ defmodule Antigen.Generators.Equality do
   # proposition, true or false)
   defp eq_type_term do
     Gen.bind(typed_pair(), fn {a, b, ty} ->
-      Gen.return({{:data, :Equivalent, [ty], [a, b]}, {:type, 0}, []})
+      Gen.return(
+        {{:data, :Equivalent, [ty], [a, b]}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, []}
+      )
     end)
   end
 
@@ -172,7 +174,11 @@ defmodule Antigen.Generators.Equality do
   end
 
   defp neutral_eq_prop(subject, ty, ctx),
-    do: Gen.return({{:data, :Equivalent, [ty], [subject, subject]}, {:type, 0}, ctx})
+    do:
+      Gen.return(
+        {{:data, :Equivalent, [ty], [subject, subject]},
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, ctx}
+      )
 
   defp neutral_case_eq_prop do
     Gen.bind(nat_numeral(), fn a ->
@@ -204,7 +210,10 @@ defmodule Antigen.Generators.Equality do
       {2, Gen.bind(int_lit(), fn n -> Gen.return({n, {:data, :Int, [], []}}) end)},
       {2, Gen.bind(float_lit(), fn f -> Gen.return({f, {:float_type}}) end)},
       {1, Gen.bind(Gen.member_of([{:ctor, :T, []}, {:ctor, :F, []}]), fn t -> Gen.return({t, @bd}) end)},
-      {1, Gen.bind(Gen.member_of([{:ctor, :False, []}, {:ctor, :True, []}]), fn t -> Gen.return({t, @bool}) end)}
+      {1,
+       Gen.bind(Gen.member_of([{:ctor, :"Std.Bool#False", []}, {:ctor, :"Std.Bool#True", []}]), fn t ->
+         Gen.return({t, @bool})
+       end)}
     ])
   end
 
@@ -215,7 +224,7 @@ defmodule Antigen.Generators.Equality do
       {2, both(int_lit(), {:data, :Int, [], []})},
       {2, both(float_lit(), {:float_type})},
       {1, both(Gen.member_of([{:ctor, :T, []}, {:ctor, :F, []}]), @bd)},
-      {1, both(Gen.member_of([{:ctor, :False, []}, {:ctor, :True, []}]), @bool)}
+      {1, both(Gen.member_of([{:ctor, :"Std.Bool#False", []}, {:ctor, :"Std.Bool#True", []}]), @bool)}
     ])
   end
 

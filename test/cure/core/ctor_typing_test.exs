@@ -7,7 +7,7 @@ defmodule Cure.Core.CtorTypingTest do
   @causal {:ctor, :Causal, []}
 
   defp build_env do
-    sf = Inductive.family(:SF, [], [{:as, @svdesc}, {:bs, @svdesc}, {:d, @dec}], 0)
+    sf = Inductive.family(:SF, [], [{:as, @svdesc}, {:bs, @svdesc}, {:d, @dec}], Cure.Core.Sort.finite_closed(0))
 
     # seq result index d := d1 (direct). The computed `and(d1,d2)` form requires
     # δ (M7) / case-ι (M4); it is exercised end-to-end in the M10 acceptance test.
@@ -27,8 +27,8 @@ defmodule Cure.Core.CtorTypingTest do
       )
 
     Env.empty()
-    |> Inductive.declare(Inductive.family(:SVDesc, [], [], 0), [])
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:SVDesc, [], [], Cure.Core.Sort.finite_closed(0)), [])
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])

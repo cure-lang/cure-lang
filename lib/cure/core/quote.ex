@@ -39,7 +39,14 @@ defmodule Cure.Core.Quote do
           Cure.Core.Term.t()
   def reify(value, depth \\ 0, sig \\ nil)
 
-  def reify({:vtype, level}, _depth, _sig), do: {:type, level}
+  def reify({:vtype, {:finite, level}}, depth, sig),
+    do: {:type, {:finite, Cure.Core.LevelValue.to_core(level, &reify(&1, depth, sig))}}
+
+  def reify({:vtype, {:omega, n}}, _depth, _sig), do: {:type, {:omega, n}}
+  def reify({:vlevel_type}, _depth, _sig), do: {:level_type}
+
+  def reify({:vlevel, level}, depth, sig),
+    do: {:level_value, Cure.Core.LevelValue.to_core(level, &reify(&1, depth, sig))}
 
   def reify({:vpi, g, dom, {:closure, env, cod}}, depth, sig) do
     body = Eval.eval(cod, [{:vneutral, {:nvar, depth}} | env])

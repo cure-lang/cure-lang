@@ -115,7 +115,14 @@ defmodule Antigen.Assays.ElabSoundnessTest do
       #      below (0-length actual spine vs 1-length expected) — the "sound"
       #      test would falsely report a `{:core_ill_typed, ...}}` violation
       #      instead of `:ok`.
-      fam = Cure.Core.Inductive.family(:F, [{:a, {:type, 0}}], [], 0)
+      fam =
+        Cure.Core.Inductive.family(
+          :F,
+          [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        )
+
       ctor = Cure.Core.Inductive.ctor(:Mk, [{:x, {:var, 0}}], [], [:unrestricted], [{:var, 1}])
       seeded() |> Cure.Core.Inductive.declare(fam, [ctor])
     end
@@ -155,9 +162,17 @@ defmodule Antigen.Assays.ElabSoundnessTest do
     # (whnf(alias) is definitionally the alias, so no distinct normal forms are equated).
     defp aliased_option_env do
       option_env()
-      |> Env.add_def(:FNatAlias, {:type, 0}, {:data, :F, [@nat], []})
+      |> Env.add_def(
+        :FNatAlias,
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:data, :F, [@nat], []}
+      )
       |> Env.certify(:FNatAlias)
-      |> Env.add_def(:FBoolAlias, {:type, 0}, {:data, :F, [@bool], []})
+      |> Env.add_def(
+        :FBoolAlias,
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:data, :F, [@bool], []}
+      )
       |> Env.certify(:FBoolAlias)
     end
 

@@ -59,10 +59,14 @@ defmodule Cure.Core.IntPrimTest do
   test "kernel infers Int for literals and arithmetic spines, and Int : Type0" do
     assert {:ok, {:vdata, :"Std.Int#Int", []}} = Kernel.infer(ctx(), {:int_lit, 42})
     assert {:ok, {:vdata, :"Std.Int#Int", []}} = Kernel.infer(ctx(), app2(:int_add, {:int_lit, 1}, {:int_lit, 2}))
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx(), {:int_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} = Kernel.infer(ctx(), {:int_type})
   end
 
   test "kernel rejects arithmetic on a non-Int argument (app-argument check, R5)" do
-    assert {:error, _} = Kernel.infer(ctx(), app2(:int_add, {:int_lit, 1}, {:type, 0}))
+    assert {:error, _} =
+             Kernel.infer(
+               ctx(),
+               app2(:int_add, {:int_lit, 1}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
+             )
   end
 end

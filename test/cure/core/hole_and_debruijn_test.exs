@@ -54,8 +54,14 @@ defmodule Cure.Core.HoleAndDeBruijnTest do
     end
 
     test "shift descends through :app and :case into a nested hole without crashing" do
-      branch = {:reflexive, 1, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}}
-      term = {:app, {:case, {:hole, "p"}, {:type, 0}, [branch]}, {:int_lit, 0}}
+      branch =
+        {:reflexive, 1,
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:var, 0}}}
+
+      term =
+        {:app, {:case, {:hole, "p"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [branch]},
+         {:int_lit, 0}}
 
       assert Term.shift(term, 1, 0) == term
     end
@@ -79,7 +85,11 @@ defmodule Cure.Core.HoleAndDeBruijnTest do
 
   describe "negative de Bruijn indices" do
     setup do
-      ctx = Context.empty() |> Context.extend({:vint_type}) |> Context.extend({:vtype, 0})
+      ctx =
+        Context.empty()
+        |> Context.extend({:vint_type})
+        |> Context.extend({:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
+
       {:ok, ctx: ctx}
     end
 
@@ -88,7 +98,7 @@ defmodule Cure.Core.HoleAndDeBruijnTest do
     end
 
     test "lookup fails on a negative index, like an out-of-range one", %{ctx: ctx} do
-      assert Context.lookup(ctx, 0) == {:vtype, 0}
+      assert Context.lookup(ctx, 0) == {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}
       assert Context.lookup(ctx, 1) == {:vint_type}
       assert Context.lookup(ctx, 2) == nil
       assert Context.lookup(ctx, -1) == nil
@@ -100,7 +110,7 @@ defmodule Cure.Core.HoleAndDeBruijnTest do
 
     test "eval raises rather than returning the oldest binding's value" do
       assert_raise RuntimeError, ~r/negative de Bruijn index/, fn ->
-        Eval.eval({:var, -1}, [{:vint_type}, {:vtype, 0}])
+        Eval.eval({:var, -1}, [{:vint_type}, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}])
       end
     end
 

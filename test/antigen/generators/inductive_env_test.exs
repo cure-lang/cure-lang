@@ -21,9 +21,9 @@ defmodule Antigen.Generators.InductiveEnvTest do
     for %Challenge{payload: %{family: fam, ctors: [ctor]}} <-
           B.interp(InductiveEnv.gen()) |> Enum.take(20) do
       assert fam.name == :AntigenEnv
-      assert fam.params == [{:a, {:type, 0}}]
+      assert fam.params == [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]
       assert fam.indices == [{:n, {:data, :Int, [], []}}]
-      assert fam.level == 0
+      assert fam.sort == Cure.Core.Sort.finite_zero()
 
       assert ctor.name == :antigenA
       assert ctor.args == [{:x, {:var, 0}}, {:y, {:var, 1}}]

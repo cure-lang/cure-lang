@@ -74,21 +74,28 @@ defmodule Antigen.Generators.Rewrite do
 
   # -- shared families (duplicated from Generators.Indexed; those are defp) ----
   defp dec_family,
-    do: {Inductive.family(:Dec, [], [], 0), [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
+    do:
+      {Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
 
-  defp foo_family, do: {Inductive.family(:Foo, [], [], 0), [Inductive.ctor(:MkFoo, [], [])]}
+  defp foo_family,
+    do: {Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [Inductive.ctor(:MkFoo, [], [])]}
 
   # P : Dec -> Type, an empty (constructor-free) index family; `P a` is a valid
   # type whose inhabitants are only ever hypotheses (Pi domains). Used as the
   # transport motive family in 4.3/4.4.
-  defp p_family, do: {Inductive.family(:P, [], [{:n, @dec}], 0), []}
+  defp p_family, do: {Inductive.family(:P, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)), []}
 
   # Equivalent itself — byte-mirror of core/builtins.ex's eq_family/eq_ctors
   # (the challenge env is rebuilt from Env.empty, which has no builtins).
   defp eq_family,
     do:
-      {Inductive.family(:Equivalent, [a: {:type, 0}], [x: {:var, 0}, y: {:var, 1}], 0),
-       [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
+      {Inductive.family(
+         :Equivalent,
+         [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+         [x: {:var, 0}, y: {:var, 1}],
+         Cure.Core.Sort.finite_closed(0)
+       ), [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
 
   @doc "Rebuild the Env: declare every family, then add the def under test."
   @spec env_of(Challenge.t()) :: Env.t()

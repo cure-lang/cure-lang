@@ -1,4 +1,6 @@
 defmodule Cure.Test.ProofDataSpineFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Env, Eval, Grade, Inductive, ProofRecipe, ProofSnapshot, ProofWire, Quote}
@@ -6,7 +8,7 @@ defmodule Cure.Test.ProofDataSpineFixture do
   def table, do: ["", "Spine#Indexed", "Spine#Unknown", "A", "x", "payload"]
 
   def environment do
-    family = Inductive.family(:Indexed, [{:A, {:type, 0}}], [{:x, {:var, 0}}], 1)
+    family = Inductive.family(:Indexed, [{:A, {:type, @u0}}], [{:x, {:var, 0}}], @u1)
     Env.empty() |> Env.with_owner("Spine") |> Inductive.declare(family, [])
   end
 
@@ -22,7 +24,7 @@ defmodule Cure.Test.ProofDataSpineFixture do
     [
       {:canonical, {:data, :"Spine#Indexed", [atom], [payload]}, [], 0},
       {:redex, {:data, :"Spine#Indexed", [atom], [{:let, g, atom, {:app, identity, payload}, {:var, 0}}]}, [], 0},
-      {:parameter, {:data, :"Spine#Indexed", [{:app, {:lam, g, {:type, 0}, {:var, 0}}, atom}], [payload]}, [], 0},
+      {:parameter, {:data, :"Spine#Indexed", [{:app, {:lam, g, {:type, @u0}, {:var, 0}}, atom}], [payload]}, [], 0},
       {:closure, {:data, :"Spine#Indexed", [pi], [{:lam, g, atom, {:app, identity, {:var, 0}}}]}, [], 0},
       {:open, {:data, :"Spine#Indexed", [atom], [{:var, 0}]}, [{:vneutral, {:nvar, 0}}], 1},
       {:short, {:data, :"Spine#Indexed", [atom], []}, [], 0},

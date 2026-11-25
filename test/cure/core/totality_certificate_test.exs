@@ -1,35 +1,62 @@
 defmodule Cure.Core.TotalityCertificateTest do
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Env, TotalityCertificate}
+  alias Cure.Core.{Certificate, Env, SizeChange, TotalityCertificate, UniverseCodec}
   alias Cure.Elab.TotalityCertificate, as: Candidate
 
   defp summary(caller, calls) do
+    [{callee, _matrix}] = calls
+
     core = %{
-      version: 1,
+      version: Certificate.summary_version(),
+      universe_identity: UniverseCodec.identity(),
       caller: caller,
-      body_hash: :crypto.hash(:sha256, Atom.to_string(caller)),
+      body_hash: Certificate.body_hash({:global, callee}),
       caller_arity: 1,
       calls:
-        Enum.map(calls, fn {callee, matrix} ->
+        calls
+        |> Enum.with_index()
+        |> Enum.map(fn {{callee, matrix}, ordinal} ->
+          matrix = SizeChange.sparse(matrix)
+          provenance = %{caller: caller, core_path: ordinal}
+
           %{
-            id: :crypto.hash(:sha256, :erlang.term_to_binary({caller, callee, matrix})),
+            id: UniverseCodec.semantic_hash({caller, callee, 1, matrix, provenance}),
             callee: callee,
             callee_arity: 1,
             matrix: matrix,
-            provenance: %{caller: caller}
+            provenance: provenance
           }
         end)
     }
 
-    Map.put(core, :summary_hash, :crypto.hash(:sha256, :erlang.term_to_binary(core, [:deterministic])))
+    Map.put(core, :summary_hash, UniverseCodec.semantic_hash(Certificate.semantic_summary(core)))
+  end
+
+  test "stale summary versions and universe identities are rejected before proof replay" do
+    env = env_with_cycle(:smaller)
+    candidate = Candidate.propose(env, [:f, :g])
+    summary = Env.direct_call_summary(env, :f)
+
+    for stale <- [
+          %{summary | version: Certificate.summary_version() - 1},
+          %{summary | universe_identity: {:stale_universe, 0}}
+        ] do
+      core = Map.delete(stale, :summary_hash)
+      stale = %{stale | summary_hash: UniverseCodec.semantic_hash(Certificate.semantic_summary(core))}
+      changed = Env.put_direct_call_summary(env, :f, stale)
+      forged = %{candidate | direct_summary_hashes: Map.put(candidate.direct_summary_hashes, :f, stale.summary_hash)}
+
+      assert {:error, {:totality_derivation_invalid, %{reason: :summary_checker_mismatch, definition: :f}}} =
+               TotalityCertificate.verify(changed, [:f, :g], forged)
+    end
   end
 
   defp env_with_cycle(relation) do
     env =
       Env.empty()
-      |> Env.add_def(:f, {:type, 0}, {:global, :g})
-      |> Env.add_def(:g, {:type, 0}, {:global, :f})
+      |> Env.add_def(:f, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, :g})
+      |> Env.add_def(:g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, :f})
 
     env
     |> Env.put_direct_call_summary(:f, summary(:f, [{:g, [[relation]]}]))

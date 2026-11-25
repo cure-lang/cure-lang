@@ -17,17 +17,18 @@ defmodule Cure.Core.SigmaTest do
 
   defp build_env do
     Builtins.seed(Env.empty())
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
-    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])
     ])
   end
 
   test "Sigma formation: the family application is a type at level 0" do
-    assert {:ok, {:vtype, 0}} == Kernel.infer(Context.empty(build_env()), @sigma)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} ==
+             Kernel.infer(Context.empty(build_env()), @sigma)
   end
 
   test "mk_pair intro checks against its Sigma type" do

@@ -37,6 +37,8 @@ defmodule Antigen.Generators.TypeFormerTest do
            "type-former Sigma never generated"
 
     # at least one term sits above Type 0 (a universe or a universe-codomain Pi)
-    assert Enum.any?(sample, fn c -> c.payload.type != {:type, 0} end)
+    assert Enum.any?(sample, fn c ->
+             c.payload.type != {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+           end)
   end
 end

@@ -11,6 +11,27 @@ defmodule Cure.Compiler.ArtifactsTest do
     %{root: root}
   end
 
+  test "an internally consistent old-universe set is refused rather than loaded", %{root: root} do
+    module = :"Cure.UniverseOldSet"
+    write_beam!(root, module, %{producer_snapshot: <<1>>})
+    {:ok, current} = Artifacts.record("Cure.UniverseOldSet.beam", root)
+    save_set!(root, :project, <<1>>, "UniverseOldSet", current)
+    assert {:ok, _set} = Artifacts.open_verified_set(root, verification: :full)
+
+    for old_identity <- [nil, :fixed_ceiling] do
+      write_beam!(root, module, %{producer_snapshot: <<1>>, universe_identity: old_identity})
+      {:ok, stale} = Artifacts.record("Cure.UniverseOldSet.beam", root, verification: :full)
+      save_set!(root, :project, <<1>>, "UniverseOldSet", stale)
+
+      assert {:error, {:artifact_set_invalid, %{modules: %{"UniverseOldSet" => reasons}}}} =
+               Artifacts.open_verified_set(root, verification: :full)
+
+      assert :universe_identity_mismatch in reasons
+      assert {:error, {:artifact_set_invalid, _}} = Artifacts.load_verified_set(root)
+      refute :code.is_loaded(module)
+    end
+  end
+
   test "records and verifies BEAM bytes, identity, exports, and provenance", %{root: root} do
     write_beam!(root, :"Cure.Sample", %{producer_snapshot: <<1>>})
 
@@ -74,18 +95,26 @@ defmodule Cure.Compiler.ArtifactsTest do
     original = File.read!(path)
     {:ok, expected} = Artifacts.record("Cure.Corruptible.beam", root)
 
-    for corrupt <- [<<>>, :crypto.strong_rand_bytes(32), binary_part(original, 0, div(byte_size(original), 2))] do
+    for corrupt <- [
+          <<>>,
+          :crypto.strong_rand_bytes(32),
+          binary_part(original, 0, div(byte_size(original), 2))
+        ] do
       File.write!(path, corrupt)
       assert Artifacts.verify_artifact(expected, root) == [:beam_unreadable]
     end
   end
 
-  test "same-size corruption with a restored mtime is not hidden by the sweep cache", %{root: root} do
+  test "same-size corruption with a restored mtime is not hidden by the sweep cache", %{
+    root: root
+  } do
     write_beam!(root, :"Cure.CacheProbe", %{producer_snapshot: <<1>>}, [{:old, 0}])
     path = Path.join(root, "Cure.CacheProbe.beam")
     original_mtime = File.stat!(path, time: :posix).mtime
 
-    {:ok, expected} = Artifacts.with_cache(fn -> Artifacts.record("Cure.CacheProbe.beam", root) end)
+    {:ok, expected} =
+      Artifacts.with_cache(fn -> Artifacts.record("Cure.CacheProbe.beam", root) end)
+
     write_beam!(root, :"Cure.CacheProbe", %{producer_snapshot: <<2>>}, [{:new, 0}])
     assert File.stat!(path).size == expected.size
     File.touch!(path, original_mtime)
@@ -246,7 +275,9 @@ defmodule Cure.Compiler.ArtifactsTest do
     assert manifest.artifact_root == Path.expand(valid)
   end
 
-  test "two valid candidate generations select the first complete set without mixing", %{root: root} do
+  test "two valid candidate generations select the first complete set without mixing", %{
+    root: root
+  } do
     first = Path.join(root, "first")
     second = Path.join(root, "second")
     File.mkdir_p!(first)
@@ -361,8 +392,13 @@ defmodule Cure.Compiler.ArtifactsTest do
 
     assert merged.kind == :release
     assert Enum.sort(Map.keys(merged.modules)) == ["Dep", "Main"]
-    assert get_in(merged.modules, ["Main", :artifacts, Access.at(0), :provenance, :compiler_hash]) == <<1>>
-    assert get_in(merged.modules, ["Dep", :artifacts, Access.at(0), :provenance, :compiler_hash]) == <<2>>
+
+    assert get_in(merged.modules, ["Main", :artifacts, Access.at(0), :provenance, :compiler_hash]) ==
+             <<1>>
+
+    assert get_in(merged.modules, ["Dep", :artifacts, Access.at(0), :provenance, :compiler_hash]) ==
+             <<2>>
+
     assert File.regular?(Path.join(release, "Cure.Dep.beam"))
   end
 
@@ -397,7 +433,9 @@ defmodule Cure.Compiler.ArtifactsTest do
   end
 
   @tag timeout: 20_000
-  test "a contender reports the owner and waits beyond the former ten-second cutoff", %{root: root} do
+  test "a contender reports the owner and waits beyond the former ten-second cutoff", %{
+    root: root
+  } do
     parent = self()
 
     owner =
@@ -477,7 +515,9 @@ defmodule Cure.Compiler.ArtifactsTest do
   end
 
   test "informative diagnostic on lock failure" do
-    diag = Cure.Diagnostic.Adapter.Operational.from_error({:artifact_lock_failed, :kernel_file_lock_unavailable})
+    diag =
+      Cure.Diagnostic.Adapter.Operational.from_error({:artifact_lock_failed, :kernel_file_lock_unavailable})
+
     assert diag.code == "E100"
     assert diag.title == "Artifact lock failed"
     assert Cure.Diagnostic.message(diag) =~ "No supported file lock utility was found"
@@ -547,6 +587,7 @@ defmodule Cure.Compiler.ArtifactsTest do
       Map.merge(
         %{
           module: Atom.to_string(module),
+          universe_identity: Cure.Core.UniverseCodec.identity(),
           source_hash: <<1>>,
           compiler_hash: <<1>>
         },

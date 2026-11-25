@@ -1,4 +1,5 @@
 defmodule Cure.Core.ProofContextTest do
+  @v0 {:finite, Cure.Core.LevelValue.closed(0)}
   @moduledoc """
   Bounded context observation controls, not universal semantic refinement.
   The generated artifact and native coherence are checked separately by Agda.
@@ -46,14 +47,17 @@ defmodule Cure.Core.ProofContextTest do
           %{ctx | types: [{:vatom_type} | :improper]},
           %{ctx | grades: [:unknown, :erased, :linear, :affine, :unrestricted, :unrestricted]}
         ] do
-      assert {:error, :malformed_context} = ProofContext.capture(changed, ProofBundleFixture.table())
+      assert {:error, :malformed_context} =
+               ProofContext.capture(changed, ProofBundleFixture.table())
     end
   end
 
   test "escaped levels never become negative indices or saturating zero" do
     assert {:error, {:escaped_level, _, 0}} = ProofContext.value({:vneutral, {:nvar, 0}}, 0)
     assert {:error, {:escaped_level, _, 1}} = ProofContext.value({:vneutral, {:nvar, 1}}, 1)
-    assert {:error, {:unsupported_context_value, _}} = ProofContext.value({:vneutral, {:nvar, -1}}, 1)
+
+    assert {:error, {:unsupported_context_value, _}} =
+             ProofContext.value({:vneutral, {:nvar, -1}}, 1)
 
     ctx = Context.extend_def(Context.empty(), {:vatom_type}, {:vneutral, {:nvar, 1}})
     assert {:error, {:escaped_level, _, 1}} = ProofContext.capture(ctx, [""])
@@ -80,7 +84,9 @@ defmodule Cure.Core.ProofContextTest do
 
     assert {:error, :malformed_context} = ProofContext.capture(%{}, [])
     assert {:error, %{reason: :malformed_environment}} = ProofContext.capture(%Context{}, [])
-    assert {:ok, %{size: 0, types: [], grades: [], environment: []}} = ProofContext.capture(Context.empty(), [])
+
+    assert {:ok, %{size: 0, types: [], grades: [], environment: []}} =
+             ProofContext.capture(Context.empty(), [])
   end
 
   test "missing literal names propagate as producer errors" do
@@ -92,7 +98,7 @@ defmodule Cure.Core.ProofContextTest do
     ctx =
       Env.empty()
       |> Context.empty()
-      |> Context.extend_def({:vtype, 0}, {:vatom_type})
+      |> Context.extend_def({:vtype, @v0}, {:vatom_type})
       |> Context.extend({:vneutral, {:nvar, 0}})
 
     # A scoped invented neutral at a defined slot is structurally readable.

@@ -64,6 +64,12 @@ defmodule Cure.Elab.Collapsible do
     MapSet.disjoint?(present, free_indices(body, 0))
   end
 
+  defp free_indices({tag, _} = term, depth) when tag in [:type, :level_value],
+    do:
+      Enum.reduce(Cure.Core.Term.level_atoms(term), MapSet.new(), fn atom, acc ->
+        MapSet.union(acc, free_indices(atom, depth))
+      end)
+
   defp free_indices({:var, index}, depth) when index >= depth, do: MapSet.new([index - depth])
   defp free_indices({:var, _index}, _depth), do: MapSet.new()
 

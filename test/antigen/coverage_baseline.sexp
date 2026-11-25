@@ -1,13 +1,14 @@
 ; Antigen kernel-coverage floor — per-module covered/total from a PURE REPLAY of
 ; corpus.sexp + seeds.sexp + reach.sexp + coverage.sexp (no generation). A drop
-; below any floor fails test/antigen/coverage_baseline_test.exs. Regenerate ONLY via:
+; below any floor fails test/antigen/coverage_baseline_test.exs. Explicit updates:
 ;   mix antigen cover --record-new-coverage-baseline
-(cover-floor Cure.Core.Certificate 186 205)
-(cover-floor Cure.Core.Conv 81 87)
-(cover-floor Cure.Core.Eval 100 109)
-(cover-floor Cure.Core.Inductive 108 141)
-(cover-floor Cure.Core.Kernel 555 684)
-(cover-floor Cure.Core.Normalise 115 120)
-(cover-floor Cure.Core.Quote 35 36)
-(cover-floor Cure.Core.Serialize 115 127)
-(cover-total 1295 1509)
+;   mix antigen cover --refresh-existing-coverage-baseline (no record changes or floor reductions)
+(cover-floor Cure.Core.Certificate 186 210)
+(cover-floor Cure.Core.Conv 81 93)
+(cover-floor Cure.Core.Eval 100 118)
+(cover-floor Cure.Core.Inductive 108 152)
+(cover-floor Cure.Core.Kernel 555 685)
+(cover-floor Cure.Core.Normalise 115 124)
+(cover-floor Cure.Core.Quote 35 41)
+(cover-floor Cure.Core.Serialize 115 188)
+(cover-total 1295 1611)

@@ -42,7 +42,7 @@ defmodule Antigen.HoleNeutralAntibodyTest do
 
   # Concrete (non-hole) canonical terms a hole must never converge with.
   @concrete [
-    {:type, 0},
+    {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
     {:int_type},
     {:int_lit, 0},
     {:atom_type},

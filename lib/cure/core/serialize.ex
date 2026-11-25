@@ -6,19 +6,41 @@ defmodule Cure.Core.Serialize do
   The point of C2 is *independent re-validation*: a kernel written in another
   language can parse this format, rebuild the Core term, and re-run
   `check`/`infer` on it. The grammar is therefore deliberately small and explicit
-  — every term is `(tag …)`, de Bruijn indices and universe levels are integers,
+  — every term is `(tag …)`, de Bruijn indices are integers,
   names are symbols, hole labels are quoted strings, and `case` branches are
   `(branch <ctor> <arity> <body>)`.
 
       encode({:app, {:app, {:global, :int_add}, {:int_lit, 3}}, {:int_lit, 5}})
-      #=> "(app (app (global int_add) (int 3)) (int 5))"
+      #=> "(cure-core 2 (app (app (global int_add) (int 3)) (int 5)))"
   """
 
-  @doc "Encode a Core term as a canonical S-expression string."
-  @spec encode(Cure.Core.Term.t()) :: binary()
-  def encode(term), do: term |> enc() |> IO.iodata_to_binary()
+  alias Cure.Core.{Term, UniverseCodec}
 
-  defp enc({:type, n}), do: ["(type ", Integer.to_string(n), ")"]
+  @version UniverseCodec.version()
+  @max_bytes UniverseCodec.max_bytes()
+  @max_nodes UniverseCodec.max_nodes()
+  @max_depth UniverseCodec.max_depth()
+  @max_digits UniverseCodec.max_digits()
+
+  @doc """
+  Encode current syntax in a versioned whole-term frame.
+
+  This representation is not typing evidence. Independent contextual kernel
+  admission remains necessary before a decoded artifact is trusted.
+  """
+  @spec encode(Cure.Core.Term.t()) :: binary()
+  def encode(term) do
+    if Term.term?(term),
+      do: IO.iodata_to_binary(["(cure-core ", Integer.to_string(@version), " ", enc(term), ")"]),
+      else: raise(ArgumentError, "ill-formed Core term")
+  end
+
+  @doc false
+  def encode_node(term), do: term |> enc() |> IO.iodata_to_binary()
+
+  defp enc({:level_type}), do: "(level-type)"
+  defp enc({:level_value, level}), do: ["(level-value ", enc_level(level), ")"]
+  defp enc({:type, sort}), do: ["(type ", enc_sort(sort), ")"]
   defp enc({:var, k}), do: ["(var ", Integer.to_string(k), ")"]
   defp enc({:global, name}), do: ["(global ", sym(name), ")"]
   # Binders carry a QTT grade, encoded as a leading symbol — the same convention
@@ -57,6 +79,22 @@ defmodule Cure.Core.Serialize do
 
   defp enc({:case, scrut, motive, branches}) do
     ["(case ", enc(scrut), " ", enc(motive), branches_iodata(branches), ")"]
+  end
+
+  defp enc_sort({:finite, level}), do: ["(finite ", enc_level(level), ")"]
+  defp enc_sort({:omega, n}), do: ["(omega ", Integer.to_string(n), ")"]
+
+  defp enc_level(level) do
+    {:level_nf, constant, atoms} = UniverseCodec.public_nf(level)
+
+    [
+      "(level-nf ",
+      Integer.to_string(constant),
+      Enum.map(atoms, fn {atom, offset} ->
+        [" (atom ", enc(atom), " ", Integer.to_string(offset), ")"]
+      end),
+      ")"
+    ]
   end
 
   defp node(tag, children),
@@ -111,9 +149,23 @@ defmodule Cure.Core.Serialize do
   # against clauses guarded `n >= 0` with no fallback. Checking the finished term against
   # `Term.term?/1` — one linear pass — closes all of those at once and cannot drift from the
   # grammar it is validating against.
-  def decode(string) when is_binary(string) do
-    with {:ok, tokens} <- tokenize(string, []),
+  def decode(string), do: decode_input(string, :current)
+
+  @doc """
+  Import an unframed historical fixed-ceiling S-expression explicitly.
+
+  Only historical levels 0..2 are translated. The result is current syntax,
+  not a revived certificate; contextual checking and fresh certification are
+  required. Current decoding never falls back to this function.
+  """
+  def decode_legacy(string), do: decode_input(string, :legacy)
+
+  defp decode_input(string, mode) when is_binary(string) and byte_size(string) <= @max_bytes do
+    with :ok <- input_budget(string),
+         {:ok, tokens} <- tokenize(string, []),
          {:ok, sexp, []} <- parse(tokens),
+         {:ok, sexp} <- unframe(sexp, mode),
+         {:ok, sexp} <- import_legacy(sexp, mode),
          {:ok, term} <- build(sexp),
          :ok <- well_formed(term) do
       {:ok, term}
@@ -121,7 +173,83 @@ defmodule Cure.Core.Serialize do
       {:ok, _sexp, _rest} -> {:error, :trailing_tokens}
       {:error, _} = err -> err
     end
+  rescue
+    ArgumentError -> {:error, :malformed}
   end
+
+  defp decode_input(_, _), do: {:error, :core_input_budget_exceeded}
+
+  defp unframe({:sexp, [{:atom, "cure-core"}, {:int, @version}, term]}, :current), do: {:ok, term}
+  defp unframe(_sexp, :current), do: {:error, :incompatible_core_format}
+  defp unframe(sexp, :legacy), do: {:ok, sexp}
+
+  defp import_legacy(sexp, :current), do: {:ok, sexp}
+
+  defp import_legacy({:sexp, [{:atom, "type"}, {:int, n}]}, :legacy) when n in 0..2 do
+    {:ok, {:sexp, [{:atom, "type"}, {:sexp, [{:atom, "finite"}, {:sexp, [{:atom, "level-nf"}, {:int, n}]}]}]}}
+  end
+
+  defp import_legacy({:sexp, [{:atom, tag} | _]}, :legacy)
+       when tag in [
+              "type",
+              "level-type",
+              "level-value",
+              "finite",
+              "omega",
+              "level-nf",
+              "cure-core"
+            ],
+       do: {:error, :invalid_legacy_universe_encoding}
+
+  defp import_legacy({:sexp, entries}, :legacy) do
+    Enum.reduce_while(entries, {:ok, []}, fn entry, {:ok, acc} ->
+      case import_legacy(entry, :legacy) do
+        {:ok, imported} -> {:cont, {:ok, [imported | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, reversed} -> {:ok, {:sexp, Enum.reverse(reversed)}}
+      error -> error
+    end
+  end
+
+  defp import_legacy(token, :legacy), do: {:ok, token}
+
+  # A byte-size cap alone does not bound recursive parser stack depth.
+  # Count syntax before allocating the token/AST lists; quoted data is inert.
+  defp input_budget(string), do: scan_budget(string, 0, 0, false, false, 0)
+
+  defp scan_budget(_rest, depth, nodes, _quoted, _escaped, digits)
+       when depth > @max_depth or nodes > @max_nodes or digits > @max_digits,
+       do: {:error, :core_input_budget_exceeded}
+
+  defp scan_budget(<<>>, _depth, _nodes, _quoted, _escaped, _digits), do: :ok
+
+  defp scan_budget(<<_byte, rest::binary>>, depth, nodes, true, true, _digits),
+    do: scan_budget(rest, depth, nodes, true, false, 0)
+
+  defp scan_budget(<<?\\, rest::binary>>, depth, nodes, true, false, _digits),
+    do: scan_budget(rest, depth, nodes, true, true, 0)
+
+  defp scan_budget(<<?", rest::binary>>, depth, nodes, quoted, false, _digits),
+    do: scan_budget(rest, depth, nodes + 1, not quoted, false, 0)
+
+  defp scan_budget(<<_byte, rest::binary>>, depth, nodes, true, false, _digits),
+    do: scan_budget(rest, depth, nodes, true, false, 0)
+
+  defp scan_budget(<<?(, rest::binary>>, depth, nodes, false, false, _digits),
+    do: scan_budget(rest, depth + 1, nodes + 1, false, false, 0)
+
+  defp scan_budget(<<?), rest::binary>>, depth, nodes, false, false, _digits),
+    do: scan_budget(rest, depth - 1, nodes + 1, false, false, 0)
+
+  defp scan_budget(<<byte, rest::binary>>, depth, nodes, false, false, digits)
+       when byte in ?0..?9,
+       do: scan_budget(rest, depth, nodes + 1, false, false, digits + 1)
+
+  defp scan_budget(<<_byte, rest::binary>>, depth, nodes, false, false, _digits),
+    do: scan_budget(rest, depth, nodes + 1, false, false, 0)
 
   defp well_formed(term) do
     if Cure.Core.Term.term?(term), do: :ok, else: {:error, {:ill_formed_term, term}}
@@ -197,7 +325,16 @@ defmodule Cure.Core.Serialize do
   defp build({:sexp, [{:atom, head} | args]}), do: build_node(head, args)
   defp build(_), do: {:error, :malformed}
 
-  defp build_node("type", [{:int, n}]), do: {:ok, {:type, n}}
+  defp build_node("level-type", []), do: {:ok, {:level_type}}
+
+  defp build_node("level-value", [wire]) do
+    with {:ok, level} <- build_level(wire), do: {:ok, {:level_value, level}}
+  end
+
+  defp build_node("type", [wire]) do
+    with {:ok, sort} <- build_sort(wire), do: {:ok, {:type, sort}}
+  end
+
   defp build_node("var", [{:int, k}]), do: {:ok, {:var, k}}
 
   defp build_node("global", [n]) do
@@ -244,11 +381,45 @@ defmodule Cure.Core.Serialize do
     end
   end
 
-  defp build_node("effect-type", [t]), do: with({:ok, ct} <- build(t), do: {:ok, {:effect_type, ct}})
-  defp build_node("effect-pure", [a]), do: with({:ok, ca} <- build(a), do: {:ok, {:effect_pure, ca}})
+  defp build_node("effect-type", [t]),
+    do: with({:ok, ct} <- build(t), do: {:ok, {:effect_type, ct}})
+
+  defp build_node("effect-pure", [a]),
+    do: with({:ok, ca} <- build(a), do: {:ok, {:effect_pure, ca}})
+
   defp build_node("effect-bind", [e, k]), do: binary(:effect_bind, e, k)
 
   defp build_node(_tag, _args), do: {:error, :unknown_node}
+
+  defp build_sort({:sexp, [{:atom, "finite"}, wire]}) do
+    with {:ok, level} <- build_level(wire), do: {:ok, {:finite, level}}
+  end
+
+  defp build_sort({:sexp, [{:atom, "omega"}, {:int, index}]}) do
+    with :ok <- UniverseCodec.natural(index), do: {:ok, {:omega, index}}
+  end
+
+  defp build_sort(_), do: {:error, {:noncanonical_level_encoding, :invalid_sort}}
+
+  defp build_level({:sexp, [{:atom, "level-nf"}, {:int, constant} | entries]}) do
+    with :ok <- UniverseCodec.natural(constant),
+         :ok <- UniverseCodec.bounded(entries, UniverseCodec.max_atoms()),
+         {:ok, atoms} <- build_atoms(entries, []),
+         {:ok, level} <- UniverseCodec.internal_nf({:level_nf, constant, atoms}) do
+      {:ok, level}
+    end
+  end
+
+  defp build_level(_), do: {:error, {:noncanonical_level_encoding, :invalid_level_nf}}
+  defp build_atoms([], acc), do: {:ok, Enum.reverse(acc)}
+
+  defp build_atoms([{:sexp, [{:atom, "atom"}, wire, {:int, offset}]} | rest], acc) do
+    with :ok <- UniverseCodec.natural(offset),
+         {:ok, term} <- build(wire),
+         do: build_atoms(rest, [{term, offset} | acc])
+  end
+
+  defp build_atoms(_, _), do: {:error, {:noncanonical_level_encoding, :invalid_atom_entry}}
 
   # Decode a grade symbol through the same bounded-interning path names use, then
   # verify it against the carrier. An unknown symbol fails the decode cleanly.
@@ -259,7 +430,10 @@ defmodule Cure.Core.Serialize do
   end
 
   defp graded2(tag, g, a, b) do
-    with {:ok, gg} <- decode_grade(g), {:ok, ta} <- build(a), {:ok, tb} <- build(b), do: {:ok, {tag, gg, ta, tb}}
+    with {:ok, gg} <- decode_grade(g),
+         {:ok, ta} <- build(a),
+         {:ok, tb} <- build(b),
+         do: {:ok, {tag, gg, ta, tb}}
   end
 
   defp graded3(tag, g, a, b, c) do
@@ -277,17 +451,18 @@ defmodule Cure.Core.Serialize do
   defp build_all(items) do
     Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
       case build(item) do
-        {:ok, t} -> {:cont, {:ok, acc ++ [t]}}
+        {:ok, t} -> {:cont, {:ok, [t | acc]}}
         {:error, _} = err -> {:halt, err}
       end
     end)
+    |> reverse_result()
   end
 
   defp build_branches(branches) do
     Enum.reduce_while(branches, {:ok, []}, fn
       {:sexp, [{:atom, "branch"}, ctor, {:int, arity}, body]}, {:ok, acc} ->
         with {:ok, a} <- sym_atom(ctor), {:ok, b} <- build(body) do
-          {:cont, {:ok, acc ++ [{a, arity, b}]}}
+          {:cont, {:ok, [{a, arity, b} | acc]}}
         else
           {:error, _} = err -> {:halt, err}
         end
@@ -295,7 +470,11 @@ defmodule Cure.Core.Serialize do
       _other, _acc ->
         {:halt, {:error, :malformed_branch}}
     end)
+    |> reverse_result()
   end
+
+  defp reverse_result({:ok, reversed}), do: {:ok, Enum.reverse(reversed)}
+  defp reverse_result(error), do: error
 
   # A symbol reads as a bareword, or as a quoted string when its name is not one (see `sym/1`).
   defp sym_atom({:atom, s}), do: intern(s)

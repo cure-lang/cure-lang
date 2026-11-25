@@ -30,7 +30,9 @@ defmodule Cure.Core.MotiveWfEffectTest do
   defp ctx do
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Foo, [], [], 0), [Inductive.ctor(:foo, [], [])])
+      |> Inductive.declare(Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:foo, [], [])
+      ])
       |> Env.add_def(:notType, @foo, {:ctor, :foo, []})
       |> Env.certify(:notType)
 
@@ -61,11 +63,11 @@ defmodule Cure.Core.MotiveWfEffectTest do
   defp indexed_env do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Dec, [], [], 0),
+      Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:SNat, [], [{:d, @dec}], 0),
+      Inductive.family(:SNat, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)),
       [
         Inductive.ctor(:snat0, [], [{:ctor, :Dcoupled, []}]),
         Inductive.ctor(:snat1, [], [{:ctor, :Causal, []}])

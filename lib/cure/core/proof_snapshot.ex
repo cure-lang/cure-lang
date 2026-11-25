@@ -2,6 +2,11 @@ defmodule Cure.Core.ProofSnapshot do
   @moduledoc """
   Capture a narrow canonical Core snapshot for independent proof replay.
 
+  This is explicitly the historical finite-0..2 projection. Current closed
+  finite sorts are projected by `HistoricalFinite3`; higher/open/limit sorts
+  and level nodes are exclusions, not restrictions on Cure source or current
+  artifacts. The historical Agda model does not establish the new hierarchy.
+
   This is an opt-in representation audit, not kernel admission, declaration
   validation, certificate verification, or a release gate. It never certifies
   a definition or changes the supplied environment. Every registered family,
@@ -18,10 +23,10 @@ defmodule Cure.Core.ProofSnapshot do
   visibility remains distinct. `to_agda/2` renders data, never proof callbacks.
   """
 
-  alias Cure.Core.{Env, Grade, Term}
+  alias Cure.Core.{Env, Grade, HistoricalFinite3, Term}
   alias Cure.Elab.Name
 
-  @family_keys [:name, :params, :indices, :level, :ctor_order, :opaque]
+  @family_keys [:name, :params, :indices, :sort, :ctor_order, :opaque]
   @ctor_keys [:name, :args, :result_params, :result_indices, :quantities, :plicities]
   @global_keys [:name, :type, :body, :quantities, :plicities]
 
@@ -34,7 +39,15 @@ defmodule Cure.Core.ProofSnapshot do
       validate_tables!(env)
       families = Enum.map(sorted(env.families), &family!(&1, env))
       globals = Enum.map(sorted(env.defs), &global!(&1, env))
-      {:ok, %{"version" => 1, "families" => families, "globals" => globals, "builtins" => []}}
+
+      {:ok,
+       %{
+         "version" => 2,
+         "universe_transport" => %{"format" => "cure-historical-finite3", "version" => 1},
+         "families" => families,
+         "globals" => globals,
+         "builtins" => []
+       }}
     catch
       {__MODULE__, reason, path} -> {:error, %{reason: reason, path: path}}
     end
@@ -71,7 +84,11 @@ defmodule Cure.Core.ProofSnapshot do
     ensure!(env.primitives == %{}, :unsupported_primitives, [:primitives])
     ensure!(env.qualified_aliases == %{}, :unsupported_aliases, [:qualified_aliases])
 
-    for {table, path} <- [{env.families, [:families]}, {env.ctors, [:constructors]}, {env.defs, [:globals]}],
+    for {table, path} <- [
+          {env.families, [:families]},
+          {env.ctors, [:constructors]},
+          {env.defs, [:globals]}
+        ],
         key <- Map.keys(table) do
       canonical!(key, path ++ [key])
     end
@@ -91,7 +108,12 @@ defmodule Cure.Core.ProofSnapshot do
           {env.totality_certified, [:totality_certified]}
         ] do
       ensure!(match?(%MapSet{}, set), :malformed_certificate_set, path)
-      ensure!(MapSet.subset?(set, MapSet.new(Map.keys(env.defs))), :unknown_certified_global, path)
+
+      ensure!(
+        MapSet.subset?(set, MapSet.new(Map.keys(env.defs))),
+        :unknown_certified_global,
+        path
+      )
     end
 
     ensure!(
@@ -105,9 +127,9 @@ defmodule Cure.Core.ProofSnapshot do
     path = [:families, key]
     ensure!(is_map(family) and not is_struct(family), :malformed_entry, path)
     ensure!(Map.get(family, :opaque, false) == false, :unsupported_opaque_family, path)
-    keys!(family, @family_keys, [:name, :params, :indices, :level, :ctor_order], path)
+    keys!(family, @family_keys, [:name, :params, :indices, :sort, :ctor_order], path)
     ensure!(family.name == key, :key_name_mismatch, path)
-    ensure!(is_integer(family.level) and family.level in 0..2, :invalid_universe, path ++ [:level])
+    level = finite3_sort!(family.sort, path ++ [:sort])
     parameters = telescope!(family.params, 0, env, path ++ [:params])
     indices = telescope!(family.indices, length(parameters), env, path ++ [:indices])
     order = family.ctor_order
@@ -126,7 +148,7 @@ defmodule Cure.Core.ProofSnapshot do
       "name" => text!(key, path),
       "params" => parameters,
       "indices" => indices,
-      "level" => family.level,
+      "level" => level,
       "opaque" => false,
       "constructors" => constructors
     }
@@ -161,9 +183,19 @@ defmodule Cure.Core.ProofSnapshot do
     keys!(definition, @global_keys, @global_keys, path)
     ensure!(definition.name == key, :key_name_mismatch, path)
     type = term!(definition.type, 0, env, path ++ [:type])
-    body = if is_nil(definition.body), do: nil, else: term!(definition.body, 0, env, path ++ [:body])
+
+    body =
+      if is_nil(definition.body), do: nil, else: term!(definition.body, 0, env, path ++ [:body])
+
     count = pi_arity(definition.type)
-    optional_layout!(definition.quantities, count, &(&1 == Grade.unrestricted()), path ++ [:quantities])
+
+    optional_layout!(
+      definition.quantities,
+      count,
+      &(&1 == Grade.unrestricted()),
+      path ++ [:quantities]
+    )
+
     optional_layout!(definition.plicities, count, &(&1 == :explicit), path ++ [:plicities])
     certified = MapSet.member?(env.certified, key)
     ensure!(not certified or not is_nil(body), :certified_body_missing, path ++ [:body])
@@ -173,8 +205,15 @@ defmodule Cure.Core.ProofSnapshot do
       "type" => type,
       "body" => body,
       "quantities" =>
-        if(is_nil(definition.quantities), do: nil, else: Enum.map(definition.quantities, &Atom.to_string/1)),
-      "explicit" => if(is_nil(definition.plicities), do: nil, else: Enum.map(definition.plicities, &(&1 == :explicit))),
+        if(is_nil(definition.quantities),
+          do: nil,
+          else: Enum.map(definition.quantities, &Atom.to_string/1)
+        ),
+      "explicit" =>
+        if(is_nil(definition.plicities),
+          do: nil,
+          else: Enum.map(definition.plicities, &(&1 == :explicit))
+        ),
       "certified" => certified,
       "totality_certified" => MapSet.member?(env.totality_certified, key)
     }
@@ -185,7 +224,10 @@ defmodule Cure.Core.ProofSnapshot do
     |> Enum.with_index()
     |> Enum.map(fn
       {{name, type}, index} when is_atom(name) ->
-        %{"name" => text!(name, path ++ [index]), "type" => term!(type, depth + index, env, path ++ [index])}
+        %{
+          "name" => text!(name, path ++ [index]),
+          "type" => term!(type, depth + index, env, path ++ [index])
+        }
 
       {_entry, index} ->
         reject!(:malformed_telescope, path ++ [index])
@@ -195,7 +237,9 @@ defmodule Cure.Core.ProofSnapshot do
   defp telescope!(_entries, _depth, _env, path), do: reject!(:malformed_telescope, path)
 
   defp terms!(terms, depth, env, path) when is_list(terms) do
-    terms |> Enum.with_index() |> Enum.map(fn {term, index} -> term!(term, depth, env, path ++ [index]) end)
+    terms
+    |> Enum.with_index()
+    |> Enum.map(fn {term, index} -> term!(term, depth, env, path ++ [index]) end)
   end
 
   defp terms!(_terms, _depth, _env, path), do: reject!(:malformed_spine, path)
@@ -206,10 +250,15 @@ defmodule Cure.Core.ProofSnapshot do
     Term.to_external(term)
   end
 
-  defp scan!({:type, _level}, _depth, _env, _path), do: :ok
-  defp scan!({node}, _depth, _env, _path) when node in [:atom_type, :float_type, :binary_type], do: :ok
+  defp scan!({:type, sort}, _depth, _env, path), do: finite3_sort!(sort, path)
+
+  defp scan!({node}, _depth, _env, _path) when node in [:atom_type, :float_type, :binary_type],
+    do: :ok
+
   defp scan!({:atom_lit, atom}, _depth, _env, path), do: text!(atom, path)
-  defp scan!({:var, index}, depth, _env, path), do: ensure!(index < depth, :escaped_variable, path)
+
+  defp scan!({:var, index}, depth, _env, path),
+    do: ensure!(index < depth, :escaped_variable, path)
 
   defp scan!({node, _grade, domain, body}, depth, env, path) when node in [:pi, :lam] do
     scan!(domain, depth, env, path ++ [:domain])
@@ -234,12 +283,18 @@ defmodule Cure.Core.ProofSnapshot do
     family = Map.fetch!(env.families, name)
 
     ensure!(
-      is_map(family) and not is_struct(family) and is_list(family[:params]) and is_list(family[:indices]),
+      is_map(family) and not is_struct(family) and is_list(family[:params]) and
+        is_list(family[:indices]),
       :malformed_family,
       path
     )
 
-    ensure!(length(params) == length(family.params) and length(indices) == length(family.indices), :data_arity, path)
+    ensure!(
+      length(params) == length(family.params) and length(indices) == length(family.indices),
+      :data_arity,
+      path
+    )
+
     terms!(params, depth, env, path ++ [:params])
     terms!(indices, depth, env, path ++ [:indices])
   end
@@ -247,7 +302,13 @@ defmodule Cure.Core.ProofSnapshot do
   defp scan!({:ctor, name, args}, depth, env, path) do
     registered!(env.ctors, name, path)
     ctor = Map.fetch!(env.ctors, name)
-    ensure!(is_map(ctor) and not is_struct(ctor) and is_list(ctor[:args]), :malformed_constructor, path)
+
+    ensure!(
+      is_map(ctor) and not is_struct(ctor) and is_list(ctor[:args]),
+      :malformed_constructor,
+      path
+    )
+
     ensure!(length(args) == length(ctor.args), :unsupported_constructor_spine, path)
     terms!(args, depth, env, path ++ [:args])
   end
@@ -259,13 +320,26 @@ defmodule Cure.Core.ProofSnapshot do
     for {name, arity, body} <- branches do
       registered!(env.ctors, name, path ++ [:branches])
       ctor = Map.fetch!(env.ctors, name)
-      ensure!(is_map(ctor) and not is_struct(ctor) and is_list(ctor[:args]), :malformed_constructor, path)
+
+      ensure!(
+        is_map(ctor) and not is_struct(ctor) and is_list(ctor[:args]),
+        :malformed_constructor,
+        path
+      )
+
       ensure!(arity == length(ctor.args), :branch_arity, path ++ [:branches, name])
       scan!(body, depth + arity, env, path ++ [:branches, name])
     end
   end
 
   defp scan!(_term, _depth, _env, path), do: reject!(:unsupported_term, path)
+
+  defp finite3_sort!(sort, path) do
+    case HistoricalFinite3.project_sort_finite3(sort) do
+      {:ok, level} -> level
+      {:error, _} -> reject!(:invalid_universe, path)
+    end
+  end
 
   defp registered!(table, name, path) do
     canonical!(name, path)
@@ -279,7 +353,13 @@ defmodule Cure.Core.ProofSnapshot do
 
   defp text!(name, path) when is_atom(name) do
     text = Atom.to_string(name)
-    ensure!(text != "" and Enum.all?(:binary.bin_to_list(text), &(&1 in 32..126)), :unsupported_name_encoding, path)
+
+    ensure!(
+      text != "" and Enum.all?(:binary.bin_to_list(text), &(&1 in 32..126)),
+      :unsupported_name_encoding,
+      path
+    )
+
     text
   end
 
@@ -297,7 +377,10 @@ defmodule Cure.Core.ProofSnapshot do
   end
 
   defp optional_layout!(nil, _count, _predicate, _path), do: :ok
-  defp optional_layout!(values, count, predicate, path), do: layout!(values, count, predicate, path)
+
+  defp optional_layout!(values, count, predicate, path),
+    do: layout!(values, count, predicate, path)
+
   defp pi_arity({:pi, _grade, _domain, codomain}), do: 1 + pi_arity(codomain)
   defp pi_arity(_type), do: 0
   defp sorted(table), do: Enum.sort_by(table, fn {name, _entry} -> Atom.to_string(name) end)
@@ -346,19 +429,38 @@ defmodule Cure.Core.ProofSnapshot do
       "#{global["certified"]} #{global["totality_certified"]})"
   end
 
-  defp render_term(%{"node" => "type", "level" => level}), do: "(tm-type l#{level})"
+  defp render_term(%{"format" => "cure-core"} = external),
+    do: external |> Term.from_external() |> Term.to_external_node() |> render_term()
+
+  defp render_term(%{
+         "node" => "type",
+         "sort" => %{"tag" => "finite", "level" => %{"constant" => level, "atoms" => []}}
+       }),
+       do: "(tm-type l#{level})"
+
   defp render_term(%{"node" => "var", "index" => index}), do: "(tm-var #{index})"
   defp render_term(%{"node" => "global", "name" => name}), do: "(tm-global #{quote_name(name)})"
-  defp render_term(%{"node" => "atom_lit", "value" => value}), do: "(tm-atom_lit #{quote_name(value)})"
-  defp render_term(%{"node" => node}) when node in ["atom_type", "float_type", "binary_type"], do: "tm-#{node}"
 
-  defp render_term(%{"node" => node, "grade" => grade, "dom" => dom} = term) when node in ["pi", "lam"] do
+  defp render_term(%{"node" => "atom_lit", "value" => value}),
+    do: "(tm-atom_lit #{quote_name(value)})"
+
+  defp render_term(%{"node" => node}) when node in ["atom_type", "float_type", "binary_type"],
+    do: "tm-#{node}"
+
+  defp render_term(%{"node" => node, "grade" => grade, "dom" => dom} = term)
+       when node in ["pi", "lam"] do
     body = if node == "pi", do: term["cod"], else: term["body"]
     "(tm-#{node} #{grade} #{render_term(dom)} #{render_term(body)})"
   end
 
-  defp render_term(%{"node" => "let", "grade" => grade, "type" => type, "value" => value, "body" => body}),
-    do: "(tm-let #{grade} #{render_term(type)} #{render_term(value)} #{render_term(body)})"
+  defp render_term(%{
+         "node" => "let",
+         "grade" => grade,
+         "type" => type,
+         "value" => value,
+         "body" => body
+       }),
+       do: "(tm-let #{grade} #{render_term(type)} #{render_term(value)} #{render_term(body)})"
 
   defp render_term(%{"node" => "app", "fun" => function, "arg" => argument}),
     do: "(tm-app #{render_term(function)} #{render_term(argument)})"
@@ -369,15 +471,24 @@ defmodule Cure.Core.ProofSnapshot do
   defp render_term(%{"node" => "ctor", "name" => name, "args" => args}),
     do: "(tm-ctor #{quote_name(name)} #{list(args, &render_term/1)})"
 
-  defp render_term(%{"node" => "case", "scrut" => scrutinee, "motive" => motive, "branches" => branches}) do
+  defp render_term(%{
+         "node" => "case",
+         "scrut" => scrutinee,
+         "motive" => motive,
+         "branches" => branches
+       }) do
     branch = fn b -> "(#{quote_name(b["ctor"])} , #{b["arity"]} , #{render_term(b["body"])})" end
     "(tm-case #{render_term(scrutinee)} #{render_term(motive)} #{list(branches, branch)})"
   end
 
-  defp tele(entries), do: list(entries, fn e -> "(#{quote_name(e["name"])} , #{render_term(e["type"])})" end)
+  defp tele(entries),
+    do: list(entries, fn e -> "(#{quote_name(e["name"])} , #{render_term(e["type"])})" end)
+
   defp list([], _render), do: "[]"
   defp list(entries, render), do: "(" <> Enum.map_join(entries, " ∷ ", render) <> " ∷ [])"
   defp optional(nil, _render), do: "nothing"
   defp optional(value, render), do: "(just #{render.(value)})"
-  defp quote_name(text), do: "\"" <> (text |> String.replace("\\", "\\\\") |> String.replace("\"", "\\\"")) <> "\""
+
+  defp quote_name(text),
+    do: "\"" <> (text |> String.replace("\\", "\\\\") |> String.replace("\"", "\\\"")) <> "\""
 end

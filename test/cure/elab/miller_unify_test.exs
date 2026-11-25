@@ -9,7 +9,14 @@ defmodule Cure.Elab.MillerUnifyTest do
 
   @nat {:data, :Nat, [], []}
   # ?m : (Nat) -> Type
-  defp fam_ctx, do: MetaCtx.fresh(MetaCtx.new(), {:pi, Cure.Core.Grade.unrestricted(), @nat, {:type, 0}})
+  defp fam_ctx,
+    do:
+      MetaCtx.fresh(
+        MetaCtx.new(),
+        {:pi, Cure.Core.Grade.unrestricted(), @nat,
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+      )
+
   # ?m : (Nat) -> Nat — for solutions that are Nat *values* (index inference)
   defp fam_ctx_nn, do: MetaCtx.fresh(MetaCtx.new(), {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat})
 

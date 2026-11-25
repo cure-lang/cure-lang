@@ -61,7 +61,10 @@ defmodule Cure.Audit.Refs do
   defp walk({:hole, name}, acc), do: %{acc | holes: [name | acc.holes]}
   defp walk({:absurd}, acc), do: %{acc | absurd: acc.absurd + 1}
 
-  defp walk({:type, _}, acc), do: acc
+  defp walk({tag, _} = term, acc) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &walk/2)
+
+  defp walk({:level_type}, acc), do: acc
   defp walk({:var, _}, acc), do: acc
   defp walk({:int_type}, acc), do: acc
   defp walk({:int_lit, _}, acc), do: acc

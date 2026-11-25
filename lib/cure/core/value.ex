@@ -31,7 +31,7 @@ defmodule Cure.Core.Value do
       `branch_closures :: [{ctor_name, arity, closure}]`
   """
 
-  alias Cure.Core.{Grade, Term, Universe}
+  alias Cure.Core.{Grade, Term}
 
   @typedoc "A `:ncase` branch closure: constructor name, arity, and the branch's closure."
   @type branch_closure :: {atom(), non_neg_integer(), closure()}
@@ -56,7 +56,9 @@ defmodule Cure.Core.Value do
   silently. Written precisely, both catch it statically.
   """
   @type t ::
-          {:vtype, non_neg_integer()}
+          {:vtype, {:finite, Cure.Core.LevelValue.t()} | {:omega, non_neg_integer()}}
+          | {:vlevel_type}
+          | {:vlevel, Cure.Core.LevelValue.t()}
           | {:vpi, Grade.t(), t(), closure()}
           | {:vlam, Grade.t(), t(), closure()}
           | {:vneutral, neutral()}
@@ -77,8 +79,12 @@ defmodule Cure.Core.Value do
 
   @doc "True when `value` is a structurally well-formed semantic value."
   @spec value?(term()) :: boolean()
-  def value?({:vtype, level}),
-    do: is_integer(level) and level >= 0 and level <= Universe.ceiling()
+  def value?({:vtype, {:finite, level}}), do: Cure.Core.LevelValue.valid?(level)
+  def value?({:vtype, {:omega, n}}), do: is_integer(n) and n >= 0
+  def value?({:vlevel_type}), do: true
+
+  def value?({:vlevel, level}),
+    do: Cure.Core.LevelValue.valid?(level)
 
   def value?({:vpi, g, dom, cl}), do: Grade.grade?(g) and value?(dom) and closure?(cl)
   def value?({:vlam, g, dom, cl}), do: Grade.grade?(g) and value?(dom) and closure?(cl)

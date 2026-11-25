@@ -103,7 +103,7 @@ defmodule Cure.Elab.Declarations do
               # the resulting ctor telescope is still named by the fields, which is what
               # construction/projection read.
               sig = struct_ctor_sig(name, [], variants)
-              working_env = Inductive.declare(env, Inductive.family(name, [], [], 0), [])
+              working_env = Inductive.declare(env, Inductive.family(name, [], [], Cure.Core.Sort.finite_closed(0)), [])
 
               with {:ok, [ctor]} <- elaborate_gadt_ctors([sig], name, [], [], working_env) do
                 declare_at_min_level(env, name, [attach_field_defaults(ctor, variants)], 0)
@@ -451,7 +451,11 @@ defmodule Cure.Elab.Declarations do
       # the ceiling universe makes every signature that mentions it infer
       # `Type2` until the real RHS overwrites the entry, which is too late for
       # an interface SCC (for example `Char = Bounded(...)` <-> `String`).
-      result_sort = if telescope == [], do: {:type, 0}, else: {:type, @ceiling}
+      result_sort =
+        if telescope == [],
+          do: {:type, Cure.Core.Sort.finite_zero()},
+          else: {:type, Cure.Core.Sort.finite_closed(@ceiling)}
+
       type = wrap_binders(:pi, telescope, quantities, result_sort)
       {:ok, Env.add_def(env, name, type, nil, quantities)}
     end
@@ -466,7 +470,7 @@ defmodule Cure.Elab.Declarations do
            elaborate_index_telescope(params, name, env, [], :duplicate_parameter),
          {:ok, index_tele} <-
            elaborate_index_telescope(index_params, name, env, param_scope, :duplicate_index, param_tele) do
-      {:ok, Inductive.declare(env, Inductive.family(name, param_tele, index_tele, 0), [])}
+      {:ok, Inductive.declare(env, Inductive.family(name, param_tele, index_tele, Cure.Core.Sort.finite_closed(0)), [])}
     end
   end
 
@@ -523,8 +527,9 @@ defmodule Cure.Elab.Declarations do
 
   defp typealias_universe(ctx, name, rhs_core, meta, rhs) do
     case Kernel.infer(ctx, rhs_core) do
-      {:ok, {:vtype, level}} ->
-        {:ok, level}
+      {:ok, {:vtype, _} = value} ->
+        {:type, sort} = Quote.reify(value, Context.length(ctx), Context.signature(ctx))
+        {:ok, sort}
 
       {:ok, other} ->
         info = Cure.MetaAST.Metadata.source_info(meta)
@@ -1485,7 +1490,8 @@ defmodule Cure.Elab.Declarations do
   # The signature's codomain Core term. A declared `-> T` is elaborated normally; an
   # omitted return (annotation-free `fn`) gets a `{:type, 0}` placeholder that
   # `elaborate_body_typed/4` overwrites with the inferred body type.
-  defp signature_return_core(nil, _scope, _env, _ctx), do: {:ok, {:type, 0}}
+  defp signature_return_core(nil, _scope, _env, _ctx),
+    do: {:ok, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
   defp signature_return_core(return_expr, scope, env, ctx),
     do: idx_to_core(return_expr, scope, nil, env, ctx)
@@ -1748,7 +1754,8 @@ defmodule Cure.Elab.Declarations do
     sig = struct_ctor_sig(name, type_params, fields)
 
     with {:ok, param_tele} <- elaborate_index_telescope(params, name, env, [], :duplicate_parameter),
-         working_env = Inductive.declare(env, Inductive.family(name, param_tele, [], 0), []),
+         working_env =
+           Inductive.declare(env, Inductive.family(name, param_tele, [], Cure.Core.Sort.finite_closed(0)), []),
          {:ok, [ctor]} <- elaborate_gadt_ctors([sig], name, param_tele, [], working_env) do
       declare_indexed_at_min_level(env, name, param_tele, [], [ctor], 0)
     end
@@ -1856,7 +1863,8 @@ defmodule Cure.Elab.Declarations do
          # self-references in constructor signatures — e.g. `Vector(a, n)` as a
          # `prepend` domain — resolve their parameter arity via param_count when
          # converted to Core. The authoritative declaration happens below.
-         working_env = Inductive.declare(env, Inductive.family(name, param_tele, index_tele, 0), []),
+         working_env =
+           Inductive.declare(env, Inductive.family(name, param_tele, index_tele, Cure.Core.Sort.finite_closed(0)), []),
          {:ok, ctors} <- elaborate_gadt_ctors(ctor_sigs, name, param_tele, index_tele, working_env) do
       declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, 0)
     end
@@ -2475,7 +2483,10 @@ defmodule Cure.Elab.Declarations do
           if Keyword.get(pmeta, :implicit) do
             # A bare implicit parameter `{a}` (no kind) is a type variable ranging
             # over `Type`; it is erased, exactly like `{a: Type}`.
-            {:cont, {:ok, tele ++ [{String.to_atom(pname), {:type, 0}}], quants ++ [:erased], [pname | scope]}}
+            {:cont,
+             {:ok,
+              tele ++ [{String.to_atom(pname), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+              quants ++ [:erased], [pname | scope]}}
           else
             info = Cure.MetaAST.Metadata.source_info(pmeta)
 
@@ -3234,22 +3245,19 @@ defmodule Cure.Elab.Declarations do
 
   # -- surface index/type expr → Core, with a de Bruijn scope -----------------
 
-  # `ctx` (5th arg, spec 2026-07-08 §7.3): the kernel typing context for the
-  # enclosing fn's parameters, threaded ONLY by the return-type lowering in
-  # `function_signature` (every other caller keeps the 4-arg form → nil). When
-  # present, a function-call node whose head is a term-level global carrying
-  # implicit (erased) parameters delegates to the term-position implicit-app
-  # machinery instead of lowering as a bare explicit-args spine. Crossing a
-  # binder-introducing form (pi/sigma/arrow) NULLs the ctx for that sub-lowering
-  # (the scope gains binders the kernel context lacks — §7.3 item 4).
+  # `ctx` is the typed preceding telescope for parameter/return annotations.
+  # It enables ordinary implicit-argument insertion for term-level globals.
+  # Real binders extend scope and context together; anonymous arrow components
+  # lower in the outer context before their Core terms are shifted. Syntax-only
+  # callers may pass nil, but no typing evidence is fabricated for that case.
   @doc """
   The single canonical type→Core lowering, shared by the live signature path
   (`register_signature`/`elaborate_param_telescope`) and the legacy
   `Elaborator.elaborate_type/3`, which delegates here. `scope` names the binders
-  in de Bruijn order (most-recent first); there is no family-relative context, so
-  `fam`/`ctx` are `nil` (used only defensively for family self-reference and
-  return-type implicit insertion). Lowers a type expression — including a numeric
-  index like `Bounded(5)` → `{:nat_lit, 5}` — to a Core term.
+  in de Bruijn order (most-recent first). This syntax-only overload supplies no
+  typing context; `lower_type/4` accepts the real context needed for annotation
+  implicit insertion. Neither overload has a family-relative scope. Lowers a
+  type expression — including `Bounded(5)` with a compact Nat index — to Core.
   """
   @spec lower_type(tuple(), [String.t()], Env.t()) :: {:ok, tuple()} | {:error, term()}
   def lower_type(ast, scope, env), do: idx_to_core(ast, scope, nil, env, nil)
@@ -3316,7 +3324,8 @@ defmodule Cure.Elab.Declarations do
 
   defp idx_to_core(ast, scope, fam, env, ctx \\ nil)
 
-  defp idx_to_core({:variable, _meta, "Type"}, _scope, _fam, _env, _ctx), do: {:ok, {:type, 0}}
+  defp idx_to_core({:variable, _meta, "Type"}, _scope, _fam, _env, _ctx),
+    do: {:ok, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
   defp idx_to_core({:variable, _meta, name} = node, scope, _fam, env, _ctx) do
     # A numeric literal in a dependent type index — the `5` in `Bounded(5)`, the
@@ -3369,14 +3378,15 @@ defmodule Cure.Elab.Declarations do
   defp idx_to_core({:function_call, fmeta, args}, scope, fam, env, ctx) do
     cond do
       Keyword.get(fmeta, :function_type) ->
-        arrow_to_pi(args, scope, fam, env)
+        arrow_to_pi(args, scope, fam, env, ctx)
 
       Keyword.fetch!(fmeta, :name) == "Tuple" ->
         build_telescope_type(
           Enum.zip(List.duplicate("_", length(args)), args),
           scope,
           fam,
-          env
+          env,
+          ctx
         )
 
       Keyword.fetch!(fmeta, :name) == "Effect" ->
@@ -3387,17 +3397,16 @@ defmodule Cure.Elab.Declarations do
     end
   end
 
-  # Binder-introducing forms (sigma/pi/arrow) sub-lower with the 4-arg form:
-  # the ctx is NULLed under their binders (spec §7.3 item 4). `Sigma(x: D, U)`
-  # lowers to the builtin inductive `Sigma(D, λx:D. U)`: `body` was elaborated with
-  # `bname` in scope, so it is already in the frame of one new lambda binder, and
-  # wrapping it under `{:lam, Cure.Core.Grade.unrestricted(), dom, body}` is exactly that frame.
-  defp idx_to_core({:sigma_type, meta, [dom_ast, body_ast]}, scope, fam, env, _ctx)
+  # The scope and typing context must enter the same binder. Dropping ctx here
+  # made calls beneath a Sigma lose their implicit arguments, even when those
+  # calls lowered correctly in an ordinary parameter annotation.
+  defp idx_to_core({:sigma_type, meta, [dom_ast, body_ast]}, scope, fam, env, ctx)
        when is_list(meta) do
     bname = Keyword.fetch!(meta, :binder)
 
-    with {:ok, dom} <- idx_to_core(dom_ast, scope, fam, env),
-         {:ok, body} <- idx_to_core(body_ast, [bname | scope], fam, env) do
+    with {:ok, dom} <- idx_to_core(dom_ast, scope, fam, env, ctx),
+         {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
+         {:ok, body} <- idx_to_core(body_ast, [bname | scope], fam, env, body_ctx) do
       {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, body}], []}}
     end
   end
@@ -3415,14 +3424,15 @@ defmodule Cure.Elab.Declarations do
          scope,
          fam,
          env,
-         _ctx
+         ctx
        )
        when is_list(meta) do
     bname = Keyword.fetch!(meta, :binder)
 
-    with {:ok, dom} <- idx_to_core(dom_ast, scope, fam, env),
+    with {:ok, dom} <- idx_to_core(dom_ast, scope, fam, env, ctx),
+         {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
          {:ok, proposition} <-
-           idx_to_core(reflect_boolean_proposition(proposition_ast), [bname | scope], fam, env) do
+           idx_to_core(reflect_boolean_proposition(proposition_ast), [bname | scope], fam, env, body_ctx) do
       {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, proposition}], []}}
     end
   end
@@ -3433,9 +3443,9 @@ defmodule Cure.Elab.Declarations do
   # keys on to flatten the whole spine to a flat BEAM tuple (spec §3.4). Each binder
   # `bi` is threaded into scope so a later position may depend on an earlier one
   # (dependent telescope); anonymous positions carry `"_"`.
-  defp idx_to_core({:tuple_type, meta, type_asts}, scope, fam, env, _ctx) do
+  defp idx_to_core({:tuple_type, meta, type_asts}, scope, fam, env, ctx) do
     binders = Keyword.get(meta, :binders) || List.duplicate("_", length(type_asts))
-    build_telescope_type(Enum.zip(binders, type_asts), scope, fam, env)
+    build_telescope_type(Enum.zip(binders, type_asts), scope, fam, env, ctx)
   end
 
   # A dependent function type `(x1: D1, …, xn: Dn) -> R` becomes the Π
@@ -3444,21 +3454,23 @@ defmodule Cure.Elab.Declarations do
   # `n` in `P(n)` as the Π-bound variable (de Bruijn `{:var, 0}`). Direct analog of
   # the `sigma_type` binder threading above; `nil` binders (anonymous domains, from
   # a mixed `(a, x: B) -> …`) push a placeholder so indices stay aligned.
-  defp idx_to_core({:pi_type, meta, asts}, scope, fam, env, _ctx) when is_list(meta) do
+  defp idx_to_core({:pi_type, meta, asts}, scope, fam, env, ctx) when is_list(meta) do
     names = Keyword.fetch!(meta, :binders)
     {domains, [ret_ast]} = Enum.split(asts, length(asts) - 1)
 
     folded =
       Enum.zip(names, domains)
-      |> Enum.reduce_while({:ok, [], scope}, fn {name, dom_ast}, {:ok, rev, sc} ->
-        case idx_to_core(dom_ast, sc, fam, env) do
-          {:ok, dom} -> {:cont, {:ok, [dom | rev], [name || :_ | sc]}}
+      |> Enum.reduce_while({:ok, [], scope, ctx}, fn {name, dom_ast}, {:ok, rev, sc, context} ->
+        with {:ok, dom} <- idx_to_core(dom_ast, sc, fam, env, context),
+             {:ok, extended} <- extend_annotation_context(context, dom) do
+          {:cont, {:ok, [dom | rev], [name || :_ | sc], extended}}
+        else
           {:error, _} = err -> {:halt, err}
         end
       end)
 
-    with {:ok, rev_doms, inner_scope} <- folded,
-         {:ok, ret} <- idx_to_core(ret_ast, inner_scope, fam, env) do
+    with {:ok, rev_doms, inner_scope, inner_ctx} <- folded,
+         {:ok, ret} <- idx_to_core(ret_ast, inner_scope, fam, env, inner_ctx) do
       {:ok, Enum.reduce(rev_doms, ret, fn dom, acc -> {:pi, Cure.Core.Grade.unrestricted(), dom, acc} end)}
     end
   end
@@ -3573,6 +3585,20 @@ defmodule Cure.Elab.Declarations do
 
   defp idx_to_core(other, _scope, _fam, _env, _ctx),
     do: {:error, {:unsupported_index_expr, index_problem_details(other)}}
+
+  defp extend_annotation_context(nil, _domain), do: {:ok, nil}
+
+  defp extend_annotation_context(ctx, domain) do
+    with {:ok, inferred} <- Kernel.infer(ctx, domain) do
+      case Cure.Core.Normalise.whnf_value(inferred, Context.signature(ctx)) do
+        {:vtype, _sort} ->
+          {:ok, Context.extend(ctx, Eval.eval(domain, Context.env(ctx)))}
+
+        _ ->
+          {:error, :not_a_type}
+      end
+    end
+  end
 
   defp index_problem_details(expression, extra \\ []) do
     %{
@@ -3876,9 +3902,19 @@ defmodule Cure.Elab.Declarations do
         bounded = {:bounded_lit, value}
 
         case Kernel.check(ctx, bounded, expected_value) do
-          :ok -> {:ok, bounded}
-          {:error, {:bounded_lit_out_of_range, _value, _bound}} = error -> error
-          {:error, _not_bounded} -> idx_to_core(ast, scope, fam, env, ctx)
+          :ok ->
+            {:ok, bounded}
+
+          {:error, {:bounded_lit_out_of_range, _value, _bound}} = error ->
+            error
+
+          {:error, _not_bounded} ->
+            integer = {:int_lit, value}
+
+            case Kernel.check(ctx, integer, expected_value) do
+              :ok -> {:ok, integer}
+              {:error, _not_integer} -> idx_to_core(ast, scope, fam, env, ctx)
+            end
         end
 
       _ ->
@@ -4093,6 +4129,9 @@ defmodule Cure.Elab.Declarations do
     {mctx, id} = MetaCtx.fresh(mctx)
     fresh_index_seed(mctx, count - 1, [{:meta, id} | acc])
   end
+
+  defp index_term_has_meta?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &index_term_has_meta?/1)
 
   defp index_term_has_meta?({:meta, _}), do: true
   defp index_term_has_meta?(term) when is_tuple(term), do: term |> Tuple.to_list() |> Enum.any?(&index_term_has_meta?/1)
@@ -4321,6 +4360,12 @@ defmodule Cure.Elab.Declarations do
   # which is correct for targeted unification substitution but not for reducing
   # `(fn x => body) arg`. This reducer decrements variables above the removed
   # binder and shifts inserted arguments only while crossing surviving binders.
+  defp beta_substitute({:type, sort}, depth, arg),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &beta_substitute(&1, depth, arg))}
+
+  defp beta_substitute({:level_value, level}, depth, arg),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &beta_substitute(&1, depth, arg))}
+
   defp beta_substitute({:var, index}, depth, arg) do
     cond do
       index == depth -> Term.shift(arg, depth, 0)
@@ -4383,12 +4428,13 @@ defmodule Cure.Elab.Declarations do
 
   defp beta_substitute(other, _depth, _arg), do: other
 
-  defp build_telescope_type([], _scope, _fam, env),
+  defp build_telescope_type([], _scope, _fam, env, _ctx),
     do: {:ok, {:data, Env.resolve_key(env, env.families, :Unit), [], []}}
 
-  defp build_telescope_type([{bname, ast} | rest], scope, fam, env) do
-    with {:ok, dom} <- idx_to_core(ast, scope, fam, env),
-         {:ok, body} <- build_telescope_type(rest, [bname | scope], fam, env) do
+  defp build_telescope_type([{bname, ast} | rest], scope, fam, env, ctx) do
+    with {:ok, dom} <- idx_to_core(ast, scope, fam, env, ctx),
+         {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
+         {:ok, body} <- build_telescope_type(rest, [bname | scope], fam, env, body_ctx) do
       {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, body}], []}}
     end
   end
@@ -4401,11 +4447,11 @@ defmodule Cure.Elab.Declarations do
   # the outer scope, then shifted past the arrow binders standing above it in the
   # nest (those binders are anonymous and unreferenced, so the shift only relocates
   # genuine outer-scope de Bruijn references).
-  defp arrow_to_pi(args, scope, fam, env) do
+  defp arrow_to_pi(args, scope, fam, env, ctx) do
     {domains, [ret]} = Enum.split(args, length(args) - 1)
 
-    with {:ok, dom_cores} <- map_idx_to_core(domains, scope, fam, env),
-         {:ok, ret_core} <- idx_to_core(ret, scope, fam, env) do
+    with {:ok, dom_cores} <- map_idx_to_core(domains, scope, fam, env, ctx),
+         {:ok, ret_core} <- idx_to_core(ret, scope, fam, env, ctx) do
       pi =
         dom_cores
         |> Enum.with_index()
@@ -4767,7 +4813,7 @@ defmodule Cure.Elab.Declarations do
   end
 
   defp declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, level) when level <= @ceiling do
-    family = Inductive.family(name, param_tele, index_tele, level)
+    family = Inductive.family(name, param_tele, index_tele, Cure.Core.Sort.finite_closed(level))
     env2 = Inductive.declare(env, family, ctors)
     family2 = Inductive.get_family(env2, name)
 
@@ -4792,7 +4838,7 @@ defmodule Cure.Elab.Declarations do
   # (level search on `:universe_level`). There are no constructors, so
   # check_all_ctors / positive? are vacuous and deliberately skipped.
   defp declare_opaque_at_min_level(env, name, param_tele, level, erasure) when level <= @ceiling do
-    family = Inductive.opaque_family(name, param_tele, level, erasure)
+    family = Inductive.opaque_family(name, param_tele, Cure.Core.Sort.finite_closed(level), erasure)
     env2 = Inductive.declare(env, family, [])
 
     case Kernel.check_family(env2, Inductive.get_family(env2, name)) do
@@ -4813,7 +4859,7 @@ defmodule Cure.Elab.Declarations do
   # -- declaration at the least well-formed universe level --------------------
 
   defp declare_at_min_level(env, name, ctors, level) when level <= @ceiling do
-    family = Inductive.family(name, [], [], level)
+    family = Inductive.family(name, [], [], Cure.Core.Sort.finite_closed(level))
     env2 = Inductive.declare(env, family, ctors)
     family2 = Inductive.get_family(env2, name)
 

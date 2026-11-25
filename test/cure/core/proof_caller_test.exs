@@ -1,4 +1,6 @@
 defmodule Cure.Core.ProofCallerTest do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u2 {:finite, Cure.Core.UniverseLevel.closed(2)}
   @moduledoc """
   Caller data production, not semantic Context extraction or admission.
   Agda checks the generated caller against the literal source/certificate.
@@ -14,7 +16,9 @@ defmodule Cure.Core.ProofCallerTest do
     assert {:ok, generated} = ProofCallerFixture.to_agda()
     assert generated == File.read!(@artifact)
 
-    assert {:ok, characters} = ProofRecipe.encode_caller(ProofCallerFixture.request(), ProofBundleFixture.table())
+    assert {:ok, characters} =
+             ProofRecipe.encode_caller(ProofCallerFixture.request(), ProofBundleFixture.table())
+
     assert String.starts_with?(characters, "(" <> String.duplicate("1", 19) <> ";")
   end
 
@@ -22,8 +26,8 @@ defmodule Cure.Core.ProofCallerTest do
     for caller <- [
           {:caller},
           {:caller, [], [], [], [], {:var, 0}, {:var, 1}, :r_leaf},
-          {:caller, [{"A", {:type, 0}, :extra}], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
-          {:caller, [fn -> {"A", {:type, 0}} end], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
+          {:caller, [{"A", {:type, @u0}, :extra}], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
+          {:caller, [fn -> {"A", {:type, @u0}} end], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
           %{}
         ] do
       assert {:error, {:malformed_recipe, _kind, _value}} =
@@ -33,10 +37,10 @@ defmodule Cure.Core.ProofCallerTest do
 
   test "improper caller vectors and invalid binder identities return errors" do
     for caller <- [
-          {:caller, [{"A", {:type, 0}} | :improper], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
+          {:caller, [{"A", {:type, @u0}} | :improper], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
           {:caller, [], [:r_leaf | :improper], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
           {:caller, [], [], [{:atom_type} | :improper], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf},
-          {:caller, [{42, {:type, 0}}], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf}
+          {:caller, [{42, {:type, @u0}}], [], [], [], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf}
         ] do
       assert {:error, {:malformed_recipe, _kind, _value}} =
                ProofRecipe.encode_caller(caller, ProofBundleFixture.table())
@@ -47,11 +51,12 @@ defmodule Cure.Core.ProofCallerTest do
     assert {:error, {:malformed_table, _table}} =
              ProofRecipe.encode_caller(ProofCallerFixture.request(), ["" | :improper])
 
-    assert {:error, {:unknown_name, "A"}} = ProofRecipe.encode_caller(ProofCallerFixture.request(), [""])
+    assert {:error, {:unknown_name, "A"}} =
+             ProofRecipe.encode_caller(ProofCallerFixture.request(), [""])
 
     assert {:error, {:unsupported_term, {:float_lit, 0.5}}} =
              ProofRecipe.encode_caller(
-               {:caller, [], [], [{:float_lit, 0.5}], [], {:atom_type}, {:type, 0}, :r_leaf, :r_leaf},
+               {:caller, [], [], [{:float_lit, 0.5}], [], {:atom_type}, {:type, @u0}, :r_leaf, :r_leaf},
                ProofBundleFixture.table()
              )
   end
@@ -61,7 +66,7 @@ defmodule Cure.Core.ProofCallerTest do
     # Independent caller replay, not this encoder, rejects it.
     assert {:ok, _characters} =
              ProofRecipe.encode_caller(
-               {:caller, [], [], [], [], {:var, 0}, {:type, 2}, :r_leaf, :r_leaf},
+               {:caller, [], [], [], [], {:var, 0}, {:type, @u2}, :r_leaf, :r_leaf},
                ProofBundleFixture.table()
              )
   end

@@ -14,7 +14,7 @@ defmodule Cure.Elab.TotalityGraphTest do
 
     env =
       Enum.reduce(defs, Env.empty(), fn {name, body}, env ->
-        Env.add_def(env, name, {:type, 0}, body)
+        Env.add_def(env, name, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body)
       end)
 
     Enum.reduce(defs, env, fn {name, body}, env ->
@@ -158,7 +158,7 @@ defmodule Cure.Elab.TotalityGraphTest do
 
     env =
       Env.empty()
-      |> Env.add_def(:caller, {:type, 0}, body)
+      |> Env.add_def(:caller, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body)
       |> then(&Env.put_direct_call_summary(&1, :caller, Certificate.direct_summary(:caller, body, &1)))
 
     certificate = TotalityGraph.propose_partition(env, [:caller])

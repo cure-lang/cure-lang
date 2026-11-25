@@ -20,7 +20,7 @@ defmodule Cure.Core.AtomPrimTest do
   defp ctx, do: Context.empty(Env.empty())
 
   test "kernel types the Atom base type at Type 0 and a literal at Atom" do
-    assert {:ok, {:vtype, 0}} = Kernel.infer(ctx(), {:atom_type})
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} = Kernel.infer(ctx(), {:atom_type})
     assert {:ok, {:vatom_type}} = Kernel.infer(ctx(), {:atom_lit, :ok})
   end
 

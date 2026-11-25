@@ -9,95 +9,62 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
 
   **Inventory:** `docs/LEAN4_PHASE5_U0_INVENTORY.md`.
 
-  ## How to read this file
+  Canonical representation and small predicative judgments replace the retired
+  fixed-ceiling baseline. U4 and U5 cases assert their intended source/library
+  behavior, not historical acceptance of unresolved universe names. There are
+  no optional module guards or vacuous missing-family passes.
 
-  These tests assert the **intended** behaviour from the spec's §19 verification
-  matrix. They are deliberately RED today, and each is tagged with the phase
-  (U1–U6) that will turn it green. A red test here is a *specification*, not a
-  regression: the U0 gate is "characterization tests fail for the intended
-  missing behavior; existing suite remains green."
-
-  The tags make the phase gates mechanical:
-
-      MIX_ENV=test mix test test/cure/core/universe_polymorphism_characterization_test.exs --exclude u1 --exclude u2 ...
-
-  or, more usefully, after landing U1:
-
-      MIX_ENV=test mix test test/cure/core/universe_polymorphism_characterization_test.exs --only u1
-
-  A test that starts passing EARLY is also a signal: it means the behaviour
-  arrived without its phase's reviewed change, which the plan treats as a
-  semantic change that must be reviewed.
-
-  ## What is NOT here
-
-  Tests that would require the new representation to even *express* the input
-  (e.g. `UniverseLevel.max/2` algebra) are guarded by `Code.ensure_loaded?/1`
-  and skip with a message naming the phase, rather than failing to compile.
-  That keeps this file loadable at every phase.
+  Phase tags identify outstanding work for intermediate stage diagnostics only.
+  Final Phase 5 acceptance runs every test without phase exclusions.
   """
 
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Kernel, Term, Universe}
+  alias Cure.Core.{Context, Env, Eval, Kernel, LevelValue, Sort, Term, UniverseLevel}
 
   # ---------------------------------------------------------------------------
-  # U0a — the current representation is a fixed integer hierarchy
-  #
-  # These pass TODAY and are the baseline the migration must preserve or
-  # deliberately retire. They are the "existing suite remains green" half of
-  # the U0 gate, stated inside the characterization file so the contrast with
-  # the red tests below is visible in one place.
+  # U2 — canonical payloads, with explicit legacy integer refusal.
   # ---------------------------------------------------------------------------
 
-  describe "U0 baseline: the fixed hierarchy that U2 replaces" do
-    test "universe levels are plain integers bounded by a hard ceiling of 2" do
-      assert Universe.ceiling() == 2
-      assert Term.term?({:type, 0})
-      assert Term.term?({:type, 2})
-      refute Term.term?({:type, 3}), "level 3 is outside the fixed ceiling"
-      refute Term.term?({:type, -1})
+  describe "U2 canonical representation replaces the fixed integer hierarchy" do
+    test "legacy integer universe syntax is refused rather than silently lifted" do
+      for level <- [-1, 0, 2, 3, 37], do: refute(Term.term?({:type, level}))
+      assert Term.term?({:type, Sort.finite_closed(37)})
     end
 
-    test "Type0 : Type1 and Type2 has no sort — stratification holds" do
-      env = Cure.Core.Env.empty()
+    test "closed sorts retain strict predicative successors without a ceiling" do
+      ctx = Context.empty()
 
-      assert {:ok, {:vtype, 1}} = Kernel.infer(Cure.Core.Context.empty(env), {:type, 0})
-      assert {:ok, {:vtype, 2}} = Kernel.infer(Cure.Core.Context.empty(env), {:type, 1})
+      for level <- [0, 1, 2, 37] do
+        next = level + 1
 
-      assert {:error, :universe_ceiling} = Kernel.infer(Cure.Core.Context.empty(env), {:type, 2}),
-             "Type2 must have no sort in the fixed hierarchy"
+        assert {:ok, {:vtype, {:finite, %LevelValue{constant: ^next, atoms: []}}}} =
+                 Kernel.infer(ctx, {:type, Sort.finite_closed(level)})
+
+        assert {:error, _} =
+                 Kernel.check(
+                   ctx,
+                   {:type, Sort.finite_closed(level)},
+                   Eval.eval({:type, Sort.finite_closed(level)}, [])
+                 )
+      end
     end
 
-    test "there is no UniverseLevel type, no level primitives, no TypeLimit" do
-      # U1 LANDED `Cure.Core.UniverseLevel`, so this baseline assertion is now
-      # inverted for that one module: it exists, but is NOT wired into Core.
-      # The rest of the spec's §5.1 primitive vocabulary is still absent.
-      assert Code.ensure_loaded?(Cure.Core.UniverseLevel),
-             "U1 landed Cure.Core.UniverseLevel"
-
-      refute function_exported?(Universe, :zero, 0), "Universe.zero/0 does not exist (U1 adds it to UniverseLevel)"
-      refute function_exported?(Universe, :succ_level, 1), "Universe.succ_level/1 does not exist (U1)"
-      refute function_exported?(Universe, :max_level, 2), "Universe.max_level/2 does not exist (U1)"
-
-      # U1 changed no kernel semantics: the ceiling is still 2 and Core levels
-      # are still plain integers. That is the U1 gate.
-      assert Universe.ceiling() == 2
+    test "level values and limit sorts have actual Core representations" do
+      assert Term.term?({:level_type})
+      assert Term.term?({:level_value, UniverseLevel.zero()})
+      assert Term.term?({:type, Sort.omega(37)})
     end
   end
 
   # ---------------------------------------------------------------------------
-  # U0b — the surface misreading (the defect this phase must fix)
-  #
-  # `{l: UniverseLevel}`, `TypeN` and `TypeLimit` parse as ORDINARY type
-  # variables. A definition written at `Type37` is therefore checked at `Type0`.
-  # These tests pin the DEFECT, so that fixing it is a visible diff.
+  # U4 — actual source-level universe resolution, not unresolved globals.
   # ---------------------------------------------------------------------------
 
-  describe "U0 defect: universe surface syntax is misread as an ordinary type variable" do
-    test "Type37 in a binder position is accepted as an ordinary type variable" do
-      # If `Type37` were real, `a` would range over `Type37` and `Int : Type0`
-      # would NOT inhabit it — the definition would be rejected.
+  describe "U4: surface universe syntax is resolved as universes" do
+    @describetag :u4
+
+    test "Type37 is a real universe in a binder position" do
       source = """
       mod Char.Type37Misread
         fn identity({a: Type37}, x: a) -> a = x
@@ -107,11 +74,7 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
       assert {:ok, _module} = compile(source, "char_type37_misread.cure")
     end
 
-    test "a definition written at Type37 is rejected as a conversion failure, not a level error" do
-      # MEASURED: `Type37` resolves to an unresolved GLOBAL, so `id(n)` at `Int`
-      # fails with `{:conversion_failure, {:type, 0}, {:global, :Type37}}`. This
-      # is the sharpest evidence that `TypeN` is not a sort: a real sort would
-      # reject for a LEVEL reason, not because the name is unbound.
+    test "a Type37 identity accepts a small carrier by cumulativity" do
       source = """
       mod Char.Type37Inert
         fn identity({a: Type37}, x: a) -> a = x
@@ -119,13 +82,10 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
       end
       """
 
-      assert {:error, {:codegen_error, {:source_context, reason, _ctx}}} =
-               compile(source, "char_type37_inert.cure")
-
-      assert {:conversion_failure, {:type, 0}, {:global, :Type37}} = reason
+      assert {:ok, _module} = compile(source, "char_type37_inert.cure")
     end
 
-    test "TypeLimit in a binder position is accepted as an ordinary type variable" do
+    test "TypeLimit is a real limit universe in a binder position" do
       source = """
       mod Char.TypeLimitMisread
         fn identity({a: TypeLimit}, x: a) -> a = x
@@ -135,79 +95,37 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
       assert {:ok, _module} = compile(source, "char_typelimit_misread.cure")
     end
 
-    test "Type(0) in a binder position is an ordinary application, not a sort" do
+    test "Type(0) is rejected instead of treating a Nat as a level" do
       source = """
       mod Char.TypeApplicationMisread
         fn identity({a: Type(0)}, x: a) -> a = x
       end
       """
 
-      assert {:ok, _module} = compile(source, "char_type_application_misread.cure")
+      assert {:error, _} = compile(source, "char_type_application_misread.cure")
     end
 
-    test "the parser produces a bare variable node for UniverseLevel — no level kind" do
-      # The root cause, at the AST. `parse_type_arrow_dispatch/2`'s simple-type
-      # arm routes every name through `type_variable/1`, which carries no kind.
+    test "a UniverseLevel binder elaborates to an erased level-typed Core binder" do
       source = """
       mod Char.UniverseLevelAst
         fn identity({l: UniverseLevel}, {a: Type}, x: a) -> a = x
       end
       """
 
-      assert {:ok, {:block, _meta, decls}} = Cure.Compiler.parse_source(source, file: "ast.cure")
-      # The module container is followed by a metadata node in the parsed block,
-      # so select the container rather than assuming it is the only element.
-      container = Enum.find(decls, &match?({:container, _, _}, &1))
-      assert {:container, _cm, [fn_decl]} = container
-      {:function_def, fmeta, _body} = fn_decl
-
-      param_kinds =
-        fmeta
-        |> Keyword.fetch!(:params)
-        |> Enum.map(fn
-          {:param, meta, name} -> {name, Keyword.keys(meta)}
-          {:variable, meta, name} -> {name, Keyword.keys(meta)}
-          other -> {:not_a_param, other}
-        end)
-
-      # The binder is `l`; its declared TYPE is the `UniverseLevel` node. The
-      # root cause is that this type node carries no universe kind: it is an
-      # ordinary `{:variable, …, "UniverseLevel"}`, indistinguishable from any
-      # other type variable. There is no `:universe_kind` for a later phase to
-      # read, because the parser never records one.
-      assert {"l", binder_keys} = List.first(param_kinds)
-      assert :type in binder_keys
-      assert :implicit in binder_keys
-
-      {:param, pmeta, "l"} = List.first(Keyword.fetch!(fmeta, :params))
-      assert {:variable, type_meta, "UniverseLevel"} = Keyword.fetch!(pmeta, :type)
-      type_keys = Keyword.keys(type_meta)
-
-      refute :universe_kind in type_keys
-      refute :level in type_keys
-      refute :sort in type_keys
+      assert {:ok, env} = Cure.Elab.Program.elaborate(source)
+      assert %{type: {:pi, :erased, {:level_type}, _}} = Env.get_def(env, :"Char.UniverseLevelAst#identity")
     end
   end
 
   # ---------------------------------------------------------------------------
   # U1 — canonical level algebra (spec §6, §19.1)
-  #
-  # Guarded: these cannot run until `Cure.Core.UniverseLevel` exists.
   # ---------------------------------------------------------------------------
 
   describe "U1: canonical maximum-plus level algebra" do
     @describetag :u1
 
-    setup do
-      if Code.ensure_loaded?(Cure.Core.UniverseLevel) do
-        :ok
-      else
-        {:ok, skip: "Cure.Core.UniverseLevel does not exist yet (phase U1)"}
-      end
-    end
-
-    test "closed levels are arbitrary precision, not bounded by 2", ctx do
-      if ctx[:skip], do: :ok, else: do_universe_level_algebra()
+    test "closed levels are arbitrary precision, not bounded by 2" do
+      do_universe_level_algebra()
     end
 
     defp do_universe_level_algebra do
@@ -241,21 +159,15 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
     @describetag :u3
 
     test "Type37 : Type38 is accepted (no ceiling)" do
-      # Today: `Universe.succ(37)` → `{:error, :universe_ceiling}`. This test is
-      # RED by design until U3 removes the ceiling; it is excluded from the
-      # default run via the `:u3` tag.
-      assert {:ok, _} = Universe.succ(37),
-             "Type37 must inhabit Type38 once the ceiling is removed (U3)"
+      assert {:ok, {:vtype, {:finite, %LevelValue{constant: 38, atoms: []}}}} =
+               Kernel.infer(Context.empty(), {:type, Sort.finite_closed(37)})
     end
 
     test "Type(a) is rejected at Type(a) for an open level a (no Type-in-Type)" do
-      # §19.3. U1 provides the level representation, but Core has no open level
-      # yet (no `{:level_type}` node, no level variables in `Term`), so the
-      # Type-in-Type-for-variables antibody is unexpressible until U2/U3. This
-      # asserts the precondition rather than a behaviour, so it is RED until
-      # the representation lands.
-      assert Term.term?({:level_type}),
-             "Core has no {:level_type} node yet, so open levels are unexpressible (U2/U3)"
+      ctx = Context.extend(Context.empty(), {:vlevel_type}, :erased)
+      type = {:type, Sort.finite(UniverseLevel.atom({:var, 0}))}
+      assert {:ok, {:vtype, _}} = Kernel.infer(ctx, type)
+      assert {:error, _} = Kernel.check(ctx, type, Eval.eval(type, Context.env(ctx)))
     end
   end
 
@@ -266,21 +178,17 @@ defmodule Cure.Core.UniversePolymorphismCharacterizationTest do
   describe "U5: standard families are polymorphic, not Type0 haircuts" do
     @describetag :u5
 
-    test "Equivalent is fixed at Type0 today — the haircut to remove" do
-      # `builtins.ex` declares `Equivalent` with param `a: {:type, 0}`. The spec
-      # §11.4 requires `{l : UniverseLevel} -> (A : Type(l)) -> A -> A -> Type(l)`.
-      env = Cure.Core.Env.empty()
+    test "the canonical Equivalent family quantifies its carrier's level" do
+      assert {:ok, env} = Cure.Elab.Program.elaborate("mod GeneralizedEquivalentProbe\n  use Std.Equivalent\nend\n")
       family = Cure.Core.Inductive.get_family(env, :Equivalent)
 
-      if family do
-        assert {:var, _} = family.params |> Keyword.get(:a) |> then(fn _ -> {:var, 0} end)
-        # The param's declared type is a closed level-0 universe, not a level var.
-        assert {:type, 0} = Keyword.fetch!(family.params, :a),
-               "Equivalent's carrier is pinned at Type0 (U5 removes this haircut)"
-      else
-        # Not seeded in an empty env — the assertion above is the real check.
-        :ok
-      end
+      assert family
+      assert :ok = Kernel.check_family(env, family)
+
+      assert [
+               {_level_name, {:level_type}},
+               {_carrier_name, {:type, {:finite, %UniverseLevel{constant: 0, atoms: [{{:var, 0}, 0}]}}}}
+             ] = family.params
     end
   end
 

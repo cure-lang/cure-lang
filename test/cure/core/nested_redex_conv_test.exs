@@ -45,11 +45,11 @@ defmodule Cure.Core.NestedRedexConvTest do
 
   defp env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Z, [], []),
       Inductive.ctor(:S, [{:n, @nat}], [])
     ])
-    |> Inductive.declare(Inductive.family(:SList, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:SList, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:SNil, [], []),
       Inductive.ctor(:SCons, [{:x, @nat}, {:r, @slist}], [])
     ])

@@ -14,7 +14,7 @@ defmodule Antigen.Assays.TotalityClosureAssay do
   """
   alias Antigen.Challenge
   alias Cure.Elab.TotalityClosure
-  alias Cure.Core.Env
+  alias Cure.Core.{Env, UniverseLevel}
 
   @real %{
     certify: &TotalityClosure.certify_type_level/1,
@@ -64,13 +64,23 @@ defmodule Antigen.Assays.TotalityClosureAssay do
     reach_close(env, MapSet.to_list(seeds), seeds)
   end
 
-  defp reach_seeds(%Env{families: fams, ctors: cts}) do
-    from_fams = fams |> Map.values() |> Enum.flat_map(fn f -> tele(f.params) ++ tele(f.indices) end)
+  defp reach_seeds(%Env{families: fams, ctors: cts, defs: defs}) do
+    from_fams =
+      fams
+      |> Map.values()
+      |> Enum.flat_map(fn f -> tele(f.params) ++ tele(f.indices) ++ globals(Map.get(f, :sort)) end)
 
     from_cts =
-      cts |> Map.values() |> Enum.flat_map(fn c -> tele(c.args) ++ Enum.flat_map(c.result_indices, &globals/1) end)
+      cts
+      |> Map.values()
+      |> Enum.flat_map(fn c ->
+        tele(c.args) ++
+          Enum.flat_map(Map.get(c, :result_params, []), &globals/1) ++
+          Enum.flat_map(c.result_indices, &globals/1)
+      end)
 
-    MapSet.new(from_fams ++ from_cts)
+    from_defs = Enum.flat_map(defs, fn {_name, definition} -> globals(definition.type) end)
+    MapSet.new(from_fams ++ from_cts ++ from_defs)
   end
 
   defp tele(t), do: Enum.flat_map(t, fn {_n, ty} -> globals(ty) end)
@@ -89,6 +99,12 @@ defmodule Antigen.Assays.TotalityClosureAssay do
   end
 
   defp globals({:global, n}), do: [n]
+
+  # Inspect the representation instead of sharing the production projection;
+  # otherwise a missing universe branch could blind both sides of the assay.
+  defp globals(%UniverseLevel{atoms: atoms}),
+    do: Enum.flat_map(atoms, fn {atom, _offset} -> globals(atom) end)
+
   defp globals({:pi, _g, d, c}), do: globals(d) ++ globals(c)
   defp globals({:lam, _g, d, b}), do: globals(d) ++ globals(b)
   defp globals({:app, f, a}), do: globals(f) ++ globals(a)
@@ -106,15 +122,13 @@ defmodule Antigen.Assays.TotalityClosureAssay do
   defp globals(term) when is_tuple(term) do
     term
     |> Tuple.to_list()
-    |> Enum.flat_map(fn
-      child when is_tuple(child) -> globals(child)
-      children when is_list(children) -> Enum.flat_map(children, &globals_child/1)
-      _leaf -> []
-    end)
+    |> Enum.flat_map(&globals_child/1)
   end
 
   defp globals(_), do: []
 
+  defp globals_child(%UniverseLevel{} = level), do: globals(level)
   defp globals_child(child) when is_tuple(child), do: globals(child)
+  defp globals_child(children) when is_list(children), do: Enum.flat_map(children, &globals_child/1)
   defp globals_child(_other), do: []
 end

@@ -161,7 +161,8 @@ defmodule Antigen.ShrinkTest do
     # assertion.
     ctx = [
       # pos0: local 0 -> abs 1 (pos1); local 2 -> abs 3 (pos3)
-      {:data, :Equivalent, [{:type, 0}], [{:var, 0}, {:var, 2}]},
+      {:data, :Equivalent, [{:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+       [{:var, 0}, {:var, 2}]},
       # pos1: local 1 -> abs 3 (pos3)
       {:data, :Vec, [], [{:var, 1}]},
       # pos2: unreferenced — the sole droppable entry
@@ -176,7 +177,8 @@ defmodule Antigen.ShrinkTest do
 
     assert c.payload.ctx == [
              # pos0: local 2 -> local 1 (target abs shifted 3 -> 2)
-             {:data, :Equivalent, [{:type, 0}], [{:var, 0}, {:var, 1}]},
+             {:data, :Equivalent, [{:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+              [{:var, 0}, {:var, 1}]},
              # pos1: local 1 -> local 0 (target abs shifted 3 -> 2)
              {:data, :Vec, [], [{:var, 0}]},
              # old pos3, now pos2, content unchanged
@@ -231,7 +233,7 @@ defmodule Antigen.ShrinkTest do
       case Antigen.Assays.Mutation.run(c, fn ctx, t ->
              case Kernel.infer(ctx, t) do
                # pretend it type-checks ⇒ wrongly accepted
-               {:error, _} -> {:ok, {:type, 0}}
+               {:error, _} -> {:ok, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
                ok -> ok
              end
            end) do
@@ -298,7 +300,7 @@ defmodule Antigen.ShrinkTest do
     # a family whose single ctor has one deliberately bloated arg type
     defp bloated_family_ch do
       bloated = {:app, {:app, {:global, :plus}, {:ctor, :S, [{:ctor, :Z, []}]}}, {:ctor, :Z, []}}
-      fam = Cure.Core.Inductive.family(:F, [], [], 0)
+      fam = Cure.Core.Inductive.family(:F, [], [], Cure.Core.Sort.finite_closed(0))
       ctor = Cure.Core.Inductive.ctor(:MkF, [{:x, bloated}], [], [:unrestricted], [])
 
       Challenge.new(

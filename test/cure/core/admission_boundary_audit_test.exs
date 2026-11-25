@@ -14,8 +14,20 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
   @value {:ctor, :"Boundary#Pack", [@atom, {:atom_lit, :payload}]}
 
   setup do
-    family = Inductive.family(:Packed, [], [{:A, {:type, 0}}], 1)
-    ctor = Inductive.ctor(:Pack, [{:A, {:type, 0}}, {:x, {:var, 0}}], [{:var, 1}])
+    family =
+      Inductive.family(
+        :Packed,
+        [],
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        Cure.Core.Sort.finite_closed(1)
+      )
+
+    ctor =
+      Inductive.ctor(
+        :Pack,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, {:x, {:var, 0}}],
+        [{:var, 1}]
+      )
 
     env =
       Env.empty()
@@ -33,7 +45,8 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
   end
 
   defp motive do
-    {:lam, @g, {:type, 0}, {:lam, @g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:var, 1}}}
+    {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+     {:lam, @g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:var, 1}}}
   end
 
   test "the Atom-only dependent fixture checks its original goal before evaluation", %{ctx: ctx} do
@@ -51,8 +64,19 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
       env
       |> Env.with_owner("Other")
       |> Inductive.declare(
-        Inductive.family(:Packed, [], [{:A, {:type, 0}}], 1),
-        [Inductive.ctor(:Pack, [{:A, {:type, 0}}, {:x, {:var, 0}}], [{:var, 1}])]
+        Inductive.family(
+          :Packed,
+          [],
+          [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          Cure.Core.Sort.finite_closed(1)
+        ),
+        [
+          Inductive.ctor(
+            :Pack,
+            [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, {:x, {:var, 0}}],
+            [{:var, 1}]
+          )
+        ]
       )
 
     assert %{name: :"Boundary#Pack"} = Inductive.get_ctor(other, :"Boundary#Pack")
@@ -70,7 +94,7 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
     env =
       Inductive.declare(
         env,
-        Inductive.family(:Ordered, [], [], 0),
+        Inductive.family(:Ordered, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Zulu, [], []), Inductive.ctor(:Alpha, [], [])]
       )
 
@@ -91,7 +115,7 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
   test "Any checking is directional subtyping, not definitional equality", %{env: env} do
     env =
       env
-      |> Inductive.declare(Inductive.opaque_family(:Any, [], 0), [])
+      |> Inductive.declare(Inductive.opaque_family(:Any, [], Cure.Core.Sort.finite_closed(0)), [])
       |> Inductive.register_builtin(:any, :"Boundary#Any")
 
     assert :ok = Kernel.check(Context.empty(env), {:atom_lit, :payload}, {:vdata, :"Boundary#Any", []})
@@ -104,9 +128,17 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
   test "List lifts Any widening without equating the two family applications", %{env: env} do
     env =
       env
-      |> Inductive.declare(Inductive.opaque_family(:Any, [], 0), [])
+      |> Inductive.declare(Inductive.opaque_family(:Any, [], Cure.Core.Sort.finite_closed(0)), [])
       |> Inductive.register_builtin(:any, :"Boundary#Any")
-      |> Inductive.declare(Inductive.family(:List, [{:A, {:type, 0}}], [], 1), [])
+      |> Inductive.declare(
+        Inductive.family(
+          :List,
+          [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          [],
+          Cure.Core.Sort.finite_closed(1)
+        ),
+        []
+      )
       |> Inductive.register_builtin(:list, :"Boundary#List")
 
     narrow = {:vdata, :"Boundary#List", [{:vatom_type}]}
@@ -118,10 +150,12 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
   end
 
   test "opaque families cannot use vacuous coverage as an empty eliminator", %{env: env} do
-    env = Inductive.declare(env, Inductive.opaque_family(:Carrier, [], 0), [])
+    env = Inductive.declare(env, Inductive.opaque_family(:Carrier, [], Cure.Core.Sort.finite_closed(0)), [])
     carrier = {:data, :"Boundary#Carrier", [], []}
     ctx = Context.extend(Context.empty(env), Eval.eval(carrier, []))
-    program = {:case, {:var, 0}, {:lam, @g, carrier, {:type, 0}}, []}
+
+    program =
+      {:case, {:var, 0}, {:lam, @g, carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, []}
 
     assert {:error, :opaque_not_eliminable} = Kernel.infer(ctx, program)
   end
@@ -156,7 +190,9 @@ defmodule Cure.Core.AdmissionBoundaryAuditTest do
 
   test "branch fields do not displace a captured outer let value", %{ctx: ctx} do
     body =
-      {:case, @value, {:lam, @g, {:type, 0}, {:lam, @g, @packed, @atom}},
+      {:case, @value,
+       {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:lam, @g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, @atom}},
        [
          {:"Boundary#Pack", 2, {:var, 2}}
        ]}

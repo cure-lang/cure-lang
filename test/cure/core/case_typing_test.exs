@@ -6,12 +6,12 @@ defmodule Cure.Core.CaseTypingTest do
 
   defp build_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
     # Box(d : Dec) with mk : (x : Dec) -> Box(x) — index computed from the field.
-    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])
     ])
   end
@@ -46,7 +46,12 @@ defmodule Cure.Core.CaseTypingTest do
   test "negative: a branch body of the wrong type" do
     ctx = ctx_with(Eval.eval(@dec, []))
     motive = {:lam, Cure.Core.Grade.unrestricted(), @dec, @dec}
-    branches = [{:Dcoupled, 0, {:type, 0}}, {:Causal, 0, {:ctor, :Dcoupled, []}}]
+
+    branches = [
+      {:Dcoupled, 0, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+      {:Causal, 0, {:ctor, :Dcoupled, []}}
+    ]
+
     cas = {:case, {:var, 0}, motive, branches}
 
     assert {:error, :branch_type} = Kernel.infer(ctx, cas)

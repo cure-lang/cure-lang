@@ -10,6 +10,9 @@ defmodule Cure.Core.RuntimeRefs do
   @spec globals(term()) :: [atom()]
   def globals(term), do: collect(term)
 
+  defp collect({:type, _sort}), do: []
+  defp collect({:level_type}), do: []
+  defp collect({:level_value, _level}), do: []
   defp collect({:global, name}) when is_atom(name), do: [name]
 
   defp collect({:case, scrutinee, _motive, branches}) do

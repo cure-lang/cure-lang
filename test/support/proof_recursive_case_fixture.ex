@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofRecursiveCaseFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Env, Eval, Grade, ProofWire, Quote}
@@ -44,7 +45,9 @@ defmodule Cure.Test.ProofRecursiveCaseFixture do
   def type_case do
     g = Grade.unrestricted()
     atom = {:atom_type}
-    motive = {:lam, g, {:type, 0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, 0}}}
+
+    motive =
+      {:lam, g, {:type, @u0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, @u0}}}
 
     {:case, {:ctor, :"Boundary#Pack", [atom, {:atom_lit, :payload}]}, motive,
      [{:"Boundary#Pack", 2, atom}, {:"Boundary#Alternate", 2, atom}]}
@@ -53,7 +56,10 @@ defmodule Cure.Test.ProofRecursiveCaseFixture do
   def to_agda do
     observations = Enum.map_join(cases(), "\n", &observation/1)
     g = Grade.unrestricted()
-    neutral = {:lam, g, {:atom_type}, {:case, {:var, 0}, {:atom_type}, [{:"Boundary#Pack", 2, {:var, 0}}]}}
+
+    neutral =
+      {:lam, g, {:atom_type}, {:case, {:var, 0}, {:atom_type}, [{:"Boundary#Pack", 2, {:var, 0}}]}}
+
     quoted = Quote.reify(Eval.eval(neutral, []), 0)
 
     {:ok,
@@ -112,7 +118,9 @@ defmodule Cure.Test.ProofRecursiveCaseFixture do
   defp values(values), do: "(" <> Enum.map_join(values, " ∷ ", &value/1) <> " ∷ [])"
   defp value({:vatom_type}), do: "E.v-atom-type"
   defp value({:vatom, name}), do: "(E.v-atom #{inspect(Atom.to_string(name))})"
-  defp value({:vctor, name, fields}), do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(fields)})"
+
+  defp value({:vctor, name, fields}),
+    do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(fields)})"
 
   defp value({:vlam, g, domain, {:closure, env, body}}),
     do: "(E.v-lam #{g} #{value(domain)} #{values(env)} #{term(body)})"

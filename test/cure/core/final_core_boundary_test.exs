@@ -40,7 +40,7 @@ defmodule Cure.Core.FinalCoreBoundaryTest do
 
     env =
       env0
-      |> Env.add_def(:natty, {:type, 0}, {:data, :Nat, [], []})
+      |> Env.add_def(:natty, {:type, Cure.Core.Sort.finite_zero()}, {:data, :Nat, [], []})
       |> Env.add_def(:myop, {:global, :natty}, nil)
       |> Env.register_builtin_op(:myop, :some_op)
 

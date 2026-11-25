@@ -107,23 +107,27 @@ defmodule Antigen.Generators.ConvPair do
       {2,
        ret(
          v(0),
-         {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:app, v(1), v(0)}},
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:app, v(1), v(0)}},
          true,
          "η neutral-vs-λ (70,108)",
          :eta_neutral_lam
        )},
       {2,
        ret(
-         {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, v(1)},
-         {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, v(1)},
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          v(1)},
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          v(1)},
          true,
          "λ-vs-λ η (107)",
          :eta_lam_lam
        )},
       {2,
        ret(
-         {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, v(1)},
-         {:type, 0},
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          v(1)},
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
          false,
          "λ-vs-non-λ (109)",
          :lam_vs_nonlam
@@ -153,7 +157,7 @@ defmodule Antigen.Generators.ConvPair do
       # -- an out-of-context de Bruijn var evaluates to a fresh neutral (Eval :var nil arm) --
       {1, ret({:var, 5}, {:var, 5}, true, "out-of-ctx var → neutral (eval)", :var_neutral)},
       # -- same_value_no_delta? over a stuck app's argument --
-      {1, app_refl({:type, 0}, "vtype (187)", :app_arg_type)},
+      {1, app_refl({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, "vtype (187)", :app_arg_type)},
       {1, app_refl({:int_type}, "vint_type (188)", :app_arg_int_type)},
       {1, Gen.bind(Gen.int(-9, 9), fn k -> app_refl({:int_lit, k}, "vint (189)", :app_arg_int) end)},
       {1, app_refl({:float_type}, "vfloat_type (190)", :app_arg_float_type)},
@@ -162,7 +166,8 @@ defmodule Antigen.Generators.ConvPair do
       {1, app_refl({:ctor, :Z, []}, "vctor (196)", :app_arg_ctor)},
       {1,
        app_refl(
-         {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}},
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
          "vλ fallback → conv_struct η (199)",
          :app_arg_lam
        )},
@@ -177,7 +182,14 @@ defmodule Antigen.Generators.ConvPair do
       {2, ret({:nat_lit, 1}, s_tower(1), true, "compact-lit vs S/Z tower (88)", :nat_vs_tower)},
       {2, ret(s_tower(2), {:nat_lit, 2}, true, "S/Z tower vs compact-lit (91)", :tower_vs_nat)},
       # -- structurally-distinct stuck neutrals (conv_neutral? head-mismatch, 146) --
-      {2, ret(v(0), {:app, v(1), {:type, 0}}, false, "nvar vs napp head mismatch (146)", :neutral_head_mismatch)}
+      {2,
+       ret(
+         v(0),
+         {:app, v(1), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+         false,
+         "nvar vs napp head mismatch (146)",
+         :neutral_head_mismatch
+       )}
     ])
   end
 

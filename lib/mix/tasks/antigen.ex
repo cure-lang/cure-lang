@@ -4,6 +4,7 @@ defmodule Mix.Tasks.Antigen do
 
       mix antigen [--count N | --budget Nm] [--bias] [--seed N] [--corpus PATH] [--seeds PATH] [--report-dir DIR]
       mix antigen generate [--count N | --budget Nm] [--seed N] [--seeds PATH] [--report-dir DIR]
+      mix antigen cover --refresh-existing-coverage-baseline
 
   Every run prints the integer master seed it used (`seed=…`). Re-running with
   `--seed N` replays that run's generation exactly (deterministic draws, including
@@ -55,13 +56,43 @@ defmodule Mix.Tasks.Antigen do
     plateau: :integer,
     guided_round: :integer,
     seed: :integer,
-    record_new_coverage_baseline: :boolean
+    record_new_coverage_baseline: :boolean,
+    refresh_existing_coverage_baseline: :boolean
   ]
 
   @impl Mix.Task
   def run(argv) do
-    {opts, rest, _} = OptionParser.parse(argv, strict: @switches)
+    {opts, rest, invalid} = OptionParser.parse(argv, strict: @switches)
 
+    refresh_flag = "--refresh-existing-coverage-baseline"
+    negated_refresh_flag = "--no-refresh-existing-coverage-baseline"
+    raw_refresh_flags = Enum.filter(argv, &String.starts_with?(&1, [refresh_flag, negated_refresh_flag]))
+
+    refresh_requested? =
+      Keyword.has_key?(opts, :refresh_existing_coverage_baseline) or
+        raw_refresh_flags != []
+
+    if refresh_requested? do
+      unless invalid == [] and rest == ["cover"] and Keyword.keys(opts) == [:refresh_existing_coverage_baseline] and
+               opts[:refresh_existing_coverage_baseline] == true and
+               raw_refresh_flags == [refresh_flag],
+             do: Mix.raise("--refresh-existing-coverage-baseline requires cover and no generative options")
+
+      %{records: count, measured: measured, floor: floor} = Antigen.CoverageBaseline.refresh_existing!()
+      covered = floor |> Map.values() |> Enum.map(& &1.covered) |> Enum.sum()
+      total = floor |> Map.values() |> Enum.map(& &1.total) |> Enum.sum()
+      observed = measured |> Map.values() |> Enum.map(& &1.covered) |> Enum.sum()
+
+      IO.puts(
+        "Antigen existing replay: #{count} records preserved, covered floors unchanged " <>
+          "(#{covered}/#{total}); observed #{observed} covered lines"
+      )
+    else
+      run_mode(opts, rest)
+    end
+  end
+
+  defp run_mode(opts, rest) do
     mode =
       cond do
         match?(["cover" | _], rest) -> :cover

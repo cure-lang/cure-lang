@@ -41,7 +41,7 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
   alias Cure.Core.{Kernel, Context, Conv, Eval, Inductive}
   alias Cure.Elab.Program
 
-  @nat {:data, :Nat, [], []}
+  defp nat(sig), do: {:data, Inductive.builtin(sig, :nat), [], []}
 
   # A signature seeding two DISTINCT opaque families (both 1-param, 0-index) plus
   # a genuine empty inductive Void — the three players in the contrast.
@@ -52,9 +52,14 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
     env
   end
 
-  # Evaluate a data type to its value form in the empty context of `sig`.
+  defp datatype(sig, name, params, indices) do
+    %{name: canonical} = Inductive.get_family(sig, name)
+    {:data, canonical, params, indices}
+  end
+
+  # Evaluate the registered family identity, not an unresolved source alias.
   defp data_val(sig, name, params, indices),
-    do: Eval.eval({:data, name, params, indices}, Context.env(Context.empty(sig)))
+    do: Eval.eval(datatype(sig, name, params, indices), Context.env(Context.empty(sig)))
 
   # ---- SOUNDNESS: opaque is NON-ELIMINABLE -----------------------------------
 
@@ -65,9 +70,10 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
 
     # A hypothetical `e : Effect(Nat)` in context; scrutinise it with an empty
     # branch list — the ex-falso shape a zero-ctor family would otherwise admit.
-    effect_val = data_val(sig, :Effect, [@nat], [])
+    effect_val = data_val(sig, :Effect, [nat(sig)], [])
     ctx = Context.extend(Context.empty(sig), effect_val)
-    motive = {:lam, Cure.Core.Grade.unrestricted(), {:data, :Effect, [@nat], []}, @nat}
+    motive = {:lam, Cure.Core.Grade.unrestricted(), datatype(sig, :Effect, [nat(sig)], []), nat(sig)}
+    assert {:ok, _} = Kernel.infer(ctx, motive)
 
     assert {:error, :opaque_not_eliminable} =
              Kernel.infer(ctx, {:case, {:var, 0}, motive, []}),
@@ -85,7 +91,8 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
 
     void_val = data_val(sig, :Void, [], [])
     ctx = Context.extend(Context.empty(sig), void_val)
-    motive = {:lam, Cure.Core.Grade.unrestricted(), {:data, :Void, [], []}, @nat}
+    motive = {:lam, Cure.Core.Grade.unrestricted(), datatype(sig, :Void, [], []), nat(sig)}
+    assert {:ok, _} = Kernel.infer(ctx, motive)
 
     result = Kernel.infer(ctx, {:case, {:var, 0}, motive, []})
 
@@ -96,7 +103,7 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
              "must key the `opaque: true` marker, not the constructor count, or ordinary " <>
              "empty inductives lose their ex-falso elimination."
 
-    nat_val = data_val(sig, :Nat, [], [])
+    nat_val = Eval.eval(nat(sig), [])
 
     assert {:ok, ^nat_val} = result,
            "Void must ex-falso-eliminate to the motive codomain (Nat), proving elimination " <>
@@ -109,20 +116,20 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
     sig = sig()
     len = 0
 
-    effect_nat = data_val(sig, :Effect, [@nat], [])
-    widget_nat = data_val(sig, :Widget, [@nat], [])
+    effect_nat = data_val(sig, :Effect, [nat(sig)], [])
+    widget_nat = data_val(sig, :Widget, [nat(sig)], [])
 
     refute Conv.conv_values?(effect_nat, widget_nat, len, sig),
            "CARRIER VIOLATION: two distinct opaque families were judged convertible — opaque " <>
              "identity is the family name; conflating them lets a value cross carrier types."
 
     # Same family, same payload: convertible (structural reflexivity, no unfolding needed).
-    assert Conv.conv_values?(effect_nat, data_val(sig, :Effect, [@nat], []), len, sig),
+    assert Conv.conv_values?(effect_nat, data_val(sig, :Effect, [nat(sig)], []), len, sig),
            "an opaque value must be convertible with itself"
 
     # Same family, DISTINCT payload: non-convertible. The payload is COMPARED
     # structurally — it is never unfolded (there is no delta rule for a postulate).
-    bool_ty = {:data, :Bool, [], []}
+    bool_ty = {:data, Inductive.builtin(sig, :bool), [], []}
 
     refute Conv.conv_values?(effect_nat, data_val(sig, :Effect, [bool_ty], []), len, sig),
            "distinct opaque payloads must be distinguished by structural comparison of the args"
@@ -132,13 +139,13 @@ defmodule Antigen.OpaqueFormerAntibodyTest do
 
   test "opaque-case inference and opaque conversion halt (bounded)" do
     sig = sig()
-    effect_val = data_val(sig, :Effect, [@nat], [])
+    effect_val = data_val(sig, :Effect, [nat(sig)], [])
     ctx = Context.extend(Context.empty(sig), effect_val)
-    motive = {:lam, Cure.Core.Grade.unrestricted(), {:data, :Effect, [@nat], []}, @nat}
+    motive = {:lam, Cure.Core.Grade.unrestricted(), datatype(sig, :Effect, [nat(sig)], []), nat(sig)}
 
     jobs = [
       fn -> Kernel.infer(ctx, {:case, {:var, 0}, motive, []}) end,
-      fn -> Conv.conv_values?(effect_val, data_val(sig, :Widget, [@nat], []), 0, sig) end
+      fn -> Conv.conv_values?(effect_val, data_val(sig, :Widget, [nat(sig)], []), 0, sig) end
     ]
 
     for {job, i} <- Enum.with_index(jobs) do

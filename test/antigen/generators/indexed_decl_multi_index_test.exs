@@ -18,13 +18,20 @@ defmodule Antigen.Generators.IndexedDeclMultiIndexTest do
   end
 
   test "V1: Type param, generalized var used in ONE index → accepted" do
-    fam = Inductive.family(:MyEq2, [{:a, {:type, 0}}], [{:x, {:var, 0}}], 0)
+    fam =
+      Inductive.family(
+        :MyEq2,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:x, {:var, 0}}],
+        Cure.Core.Sort.finite_closed(0)
+      )
+
     ctor = Inductive.ctor(:mrefl2, [{:w, {:var, 0}}], [{:var, 0}], [:many], [{:var, 1}])
     assert check_ctor_decl(fam, ctor) == :ok
   end
 
   test "V2: NO Type param, generalized var repeated across TWO indices → accepted" do
-    fam = Inductive.family(:Pair2, [], [{:x, {:int_type}}, {:y, {:int_type}}], 0)
+    fam = Inductive.family(:Pair2, [], [{:x, {:int_type}}, {:y, {:int_type}}], Cure.Core.Sort.finite_closed(0))
     ctor = Inductive.ctor(:same2, [{:w, {:int_type}}], [{:var, 0}, {:var, 0}], [:many], [])
     assert check_ctor_decl(fam, ctor) == :ok
   end
@@ -33,14 +40,26 @@ defmodule Antigen.Generators.IndexedDeclMultiIndexTest do
     # index telescope types both reference the param `a`: x:a = {:var,0}, y:a =
     # {:var,1} (a shifted past x). The ctor's single field w:a is written into
     # both result-index positions.
-    fam = Inductive.family(:MyEq3, [{:a, {:type, 0}}], [{:x, {:var, 0}}, {:y, {:var, 1}}], 0)
+    fam =
+      Inductive.family(
+        :MyEq3,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:x, {:var, 0}}, {:y, {:var, 1}}],
+        Cure.Core.Sort.finite_closed(0)
+      )
+
     ctor = Inductive.ctor(:mrefl3, [{:w, {:var, 0}}], [{:var, 0}, {:var, 0}], [:many], [{:var, 1}])
     assert check_ctor_decl(fam, ctor) == :ok
   end
 
   test "V4: Type param, var repeated across THREE indices → accepted" do
     fam =
-      Inductive.family(:MyEq4, [{:a, {:type, 0}}], [{:x, {:var, 0}}, {:y, {:var, 1}}, {:z, {:var, 2}}], 0)
+      Inductive.family(
+        :MyEq4,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:x, {:var, 0}}, {:y, {:var, 1}}, {:z, {:var, 2}}],
+        Cure.Core.Sort.finite_closed(0)
+      )
 
     ctor =
       Inductive.ctor(:mrefl4, [{:w, {:var, 0}}], [{:var, 0}, {:var, 0}, {:var, 0}], [:many], [{:var, 1}])

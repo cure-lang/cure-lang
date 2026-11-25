@@ -15,7 +15,9 @@ defmodule Cure.Core.ProofRecipe do
   Other constructors are exact tuples mirroring the Agda constructor:
   `{:r_pi, domain, codomain}`, `{:c_trans, term, left, right}`, etc.
   Hyphens in Agda names become underscores; arguments retain their order.
-  Levels are integers 0, 1 or 2. Terms use `Cure.Core.ProofWire`'s grammar.
+  Level slots accept current canonical closed finite sorts 0, 1 or 2 and
+  explicitly project them into the historical grammar. Terms use
+  `Cure.Core.ProofWire`'s bounded historical grammar.
 
   A case is `{:r_case, scrutinee, parameters, indices, level, kind, motive,
   branches}`, with each branch exactly `{field_kind_recipes, body_recipe}`.
@@ -33,9 +35,12 @@ defmodule Cure.Core.ProofRecipe do
   return structured errors. Name tables are inputs, not authenticated sources.
   """
 
-  alias Cure.Core.ProofWire
+  alias Cure.Core.{HistoricalFinite3, ProofWire}
 
-  @type result :: {:ok, String.t()} | {:error, ProofWire.error() | {:malformed_recipe, term(), term()}}
+  def transport_identity, do: HistoricalFinite3.transport_identity()
+
+  @type result ::
+          {:ok, String.t()} | {:error, ProofWire.error() | {:malformed_recipe, term(), term()}}
 
   @doc "Encode a conversion recipe as characters; this does not establish conversion."
   @spec encode_conversion(term(), ProofWire.table()) :: result()
@@ -91,7 +96,11 @@ defmodule Cure.Core.ProofRecipe do
   end
 
   defp node(:checking, {:checking, subject, recipe, kind, goal, goal_kind}, table) do
-    with {:ok, nodes} <- children([term: subject, recipe: recipe, recipe: kind, term: goal, recipe: goal_kind], table),
+    with {:ok, nodes} <-
+           children(
+             [term: subject, recipe: recipe, recipe: kind, term: goal, recipe: goal_kind],
+             table
+           ),
          do: {:ok, [20, nested(nodes)]}
   end
 
@@ -141,16 +150,26 @@ defmodule Cure.Core.ProofRecipe do
   defp node(:recipe, {:r_pi, a, b}, table), do: build(1, [recipe: a, recipe: b], table)
   defp node(:recipe, {:r_lam, a, b}, table), do: build(2, [recipe: a, recipe: b], table)
   defp node(:recipe, {:r_app, a, b}, table), do: build(3, [recipe: a, recipe: b], table)
-  defp node(:recipe, {:r_let, a, b, c}, table), do: build(4, [recipe: a, recipe: b, recipe: c], table)
+
+  defp node(:recipe, {:r_let, a, b, c}, table),
+    do: build(4, [recipe: a, recipe: b, recipe: c], table)
 
   defp node(:recipe, {:r_data, ps, is}, table),
     do: build(5, [{{:vector, :recipe}, ps}, {{:vector, :recipe}, is}], table)
 
   defp node(:recipe, {:r_ctor, ps, prs, ars}, table),
-    do: build(6, [{{:vector, :term}, ps}, {{:vector, :recipe}, prs}, {{:vector, :recipe}, ars}], table)
+    do:
+      build(
+        6,
+        [{{:vector, :term}, ps}, {{:vector, :recipe}, prs}, {{:vector, :recipe}, ars}],
+        table
+      )
 
-  defp node(:recipe, {:r_claim, term, child}, table), do: build(7, [term: term, recipe: child], table)
-  defp node(:recipe, {:r_cumul, level, child}, table), do: build(8, [level: level, recipe: child], table)
+  defp node(:recipe, {:r_claim, term, child}, table),
+    do: build(7, [term: term, recipe: child], table)
+
+  defp node(:recipe, {:r_cumul, level, child}, table),
+    do: build(8, [level: level, recipe: child], table)
 
   defp node(:recipe, {:r_convert, term, conversion, child}, table),
     do: build(9, [term: term, conversion: conversion, recipe: child], table)
@@ -171,7 +190,8 @@ defmodule Cure.Core.ProofRecipe do
     )
   end
 
-  defp node(:packet, {:packet, kind, body}, table), do: build(11, [recipe: kind, body: body], table)
+  defp node(:packet, {:packet, kind, body}, table),
+    do: build(11, [recipe: kind, body: body], table)
 
   defp node(:constructor, {:constructor_recipe, ps, fs, rps, ris}, table),
     do:
@@ -187,7 +207,12 @@ defmodule Cure.Core.ProofRecipe do
       )
 
   defp node(:family, {:family_recipe, ps, is, cs}, table),
-    do: build(13, [{{:vector, :recipe}, ps}, {{:vector, :recipe}, is}, {{:vector, :constructor}, cs}], table)
+    do:
+      build(
+        13,
+        [{{:vector, :recipe}, ps}, {{:vector, :recipe}, is}, {{:vector, :constructor}, cs}],
+        table
+      )
 
   defp node(:certificate, {:certificate, fs, ps}, table),
     do: build(14, [{{:vector, :family}, fs}, {{:vector, :packet}, ps}], table)
@@ -224,7 +249,13 @@ defmodule Cure.Core.ProofRecipe do
     end
   end
 
-  defp node(:level, level, _table) when is_integer(level) and level in 0..2, do: {:ok, level}
+  defp node(:level, sort, _table) do
+    case HistoricalFinite3.project_sort_finite3(sort) do
+      {:ok, level} -> {:ok, level}
+      {:error, _} -> malformed(:level, sort)
+    end
+  end
+
   defp node(:body, nil, _table), do: {:ok, []}
 
   defp node(:body, recipe, table) do

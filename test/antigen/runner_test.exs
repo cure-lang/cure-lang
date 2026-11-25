@@ -55,7 +55,7 @@ defmodule Antigen.RunnerTest do
     # `explore/1` returns %{infections, seeds_banked, health: %{discard_rate}, ...}
     # (no top-level :discards key). A single well-formed stub banks as one seed and
     # is not discarded, exercising exactly the one supplied challenge.
-    cs = [Antigen.Challenge.stub({:type, 0})]
+    cs = [Antigen.Challenge.stub({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})]
 
     r =
       Antigen.Runner.explore(

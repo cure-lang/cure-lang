@@ -8,11 +8,11 @@ defmodule Cure.Elab.LemmaSubgoalAmbiguityProbeTest do
   # are in scope, so the lemma's OWN sub-goal (P) is itself ambiguous.
   defp env_with_lemma do
     env = Env.empty()
-    p_family = Inductive.family(:P, [], [], 0)
+    p_family = Inductive.family(:P, [], [], Cure.Core.Sort.finite_closed(0))
     p_ctor = Inductive.ctor(:mkP, [], [])
     env = Inductive.declare(env, p_family, [p_ctor])
 
-    q_family = Inductive.family(:Q, [], [], 0)
+    q_family = Inductive.family(:Q, [], [], Cure.Core.Sort.finite_closed(0))
     q_ctor = Inductive.ctor(:mkQ, [{:explicit, {:data, :P, [], []}}], [])
     env = Inductive.declare(env, q_family, [q_ctor])
 

@@ -94,6 +94,14 @@ defmodule Cure.Compiler.MacroSyntax do
   # `synlit`, and any non-conforming tuple reflects opaquely, same as an
   # irreducible native term (e.g. a compiled regex) -- honest, not a crash.
   @spec to_syntax(term()) :: repr
+  def to_syntax(%Cure.Core.UniverseLevel{}), do: reject_universe_capture!()
+  def to_syntax({:level_nf, _, _}), do: reject_universe_capture!()
+  def to_syntax({:level_type}), do: reject_universe_capture!()
+  def to_syntax({:level_value, _}), do: reject_universe_capture!()
+  def to_syntax({:type, {:finite, _}}), do: reject_universe_capture!()
+  def to_syntax({:type, {:omega, _}}), do: reject_universe_capture!()
+  def to_syntax({:type, level}) when is_integer(level), do: reject_universe_capture!()
+
   def to_syntax({:quoted_syntax, _meta, [inner]}), do: {:syn_quoted, to_syntax(inner)}
 
   # Quasiquote splice holes (SP5.1). Keep the inner expression RAW (do not
@@ -431,6 +439,14 @@ defmodule Cure.Compiler.MacroSyntax do
   defp pascal_case?(<<first::utf8, _rest::binary>>) when first in ?A..?Z, do: true
   defp pascal_case?(_), do: false
 
+  defp synlit(%Cure.Core.UniverseLevel{}), do: reject_universe_capture!()
+  defp synlit({:level_nf, _, _}), do: reject_universe_capture!()
+  defp synlit({:level_type}), do: reject_universe_capture!()
+  defp synlit({:level_value, _}), do: reject_universe_capture!()
+  defp synlit({:type, {:finite, _}}), do: reject_universe_capture!()
+  defp synlit({:type, {:omega, _}}), do: reject_universe_capture!()
+  defp synlit({:type, level}) when is_integer(level), do: reject_universe_capture!()
+
   defp synlit(v) when is_integer(v), do: {:s_int, v}
   defp synlit(v) when is_float(v), do: {:s_float, v}
   defp synlit(v) when is_binary(v), do: {:s_str, v}
@@ -464,6 +480,9 @@ defmodule Cure.Compiler.MacroSyntax do
   defp synlit({tag, meta, _} = v) when is_atom(tag) and is_list(meta), do: {:s_syntax, to_syntax(v)}
 
   defp synlit(_), do: :s_opaque
+
+  defp reject_universe_capture!,
+    do: raise(ArgumentError, "raw Core universes are not parser-syntax captures")
 
   # -- from_syntax: repr -> parser AST ---------------------------------------
 
@@ -1336,6 +1355,12 @@ defmodule Cure.Compiler.MacroSyntax do
   defp canonical_ctor(:String), do: Cure.Elab.Name.qualify("Std.String", :String)
 
   defp canonical_ctor(name), do: Cure.Elab.Name.qualify("Std.Syntax", name)
+
+  defp canonicalize_core({:type, sort}),
+    do: {:type, Cure.Core.Sort.map(sort, &canonicalize_core/1)}
+
+  defp canonicalize_core({:level_value, level}),
+    do: {:level_value, Cure.Core.UniverseLevel.map(level, &canonicalize_core/1)}
 
   defp canonicalize_core({:ctor, name, args}) when is_atom(name) and is_list(args) do
     base = Cure.Elab.Name.base(name) |> String.to_atom()

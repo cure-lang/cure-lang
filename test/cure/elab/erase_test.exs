@@ -144,7 +144,11 @@ defmodule Cure.Elab.EraseTest do
   end
 
   test "detects holes in a term" do
-    assert Erase.has_hole?({:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:hole, "body"}})
+    assert Erase.has_hole?(
+             {:lam, Cure.Core.Grade.unrestricted(),
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:hole, "body"}}
+           )
+
     assert Erase.has_hole?({:ctor, :seq, [{:hole, "x"}]})
     refute Erase.has_hole?({:ctor, :prim, []})
   end

@@ -32,7 +32,7 @@ defmodule Cure.Elab.UnifyAbstractCaseIncompletenessRedTest do
 
   test "flex-rigid solving abstracts an occurrence nested inside a :case, not just the whole node" do
     domain = {:data, :Whatever, [], []}
-    pi_type = {:pi, Grade.unrestricted(), domain, {:type, 0}}
+    pi_type = {:pi, Grade.unrestricted(), domain, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
     m = MetaCtx.new()
     {m, id} = MetaCtx.fresh(m, pi_type)

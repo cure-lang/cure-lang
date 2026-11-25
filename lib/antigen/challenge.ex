@@ -152,12 +152,65 @@ defmodule Antigen.Challenge do
     :y,
     # universes vertical
     :u,
+    :universe_zero,
+    :universe_succ,
+    :universe_max,
+    # Fixed literal atoms are safe diagnostic metadata in every replay VM.
+    true,
+    false,
     # erasure quantities: the ω annotation `:many` on a ctor field (siblings
     # `:unrestricted`/`:erased` already interned). Family seeds carry it as text in the
     # scaffold and reconstruct it via `to_existing_atom`, so it must be interned or
     # a fresh-VM decode raises "not an already existing atom" (found banking
     # universes/family seeds — see many_quantity_decode_test).
     :many,
+    :linear,
+    :affine,
+    # Trusted literal builtin symbols emitted by the fixed signature menu and
+    # arithmetic producers. These are declarations, never names from input.
+    :Int,
+    :FromNat,
+    :NegativeSuccessor,
+    :mk_pair,
+    :int_add,
+    :int_sub,
+    :int_mul,
+    :int_div,
+    :int_rem,
+    :int_lt,
+    :int_le,
+    :int_gt,
+    :int_ge,
+    :int_eq,
+    :int_ne,
+    :int_band,
+    :int_bor,
+    :int_bxor,
+    :int_bsl,
+    :int_bsr,
+    :int_neg,
+    :int_bnot,
+    :float_add,
+    :float_sub,
+    :float_mul,
+    :float_div,
+    :float_lt,
+    :float_le,
+    :float_gt,
+    :float_ge,
+    :float_eq,
+    :float_ne,
+    :float_neg,
+    :struct_eq,
+    :struct_ne,
+    # Inert normalization options carried by the fixed delta probe catalogue.
+    :certified,
+    :delta,
+    :fuel,
+    :fuel_exhausted,
+    :mode,
+    :stuck_cases,
+    :whnf,
     # tier-B typed-term vertical: kind, family/ctor/def names, sig version
     # (:MkF is the shrink-test family F's ctor — a bloated-ctor-arg pieces-bridge probe)
     :typed_term,
@@ -250,6 +303,8 @@ defmodule Antigen.Challenge do
     :True,
     :False,
     :MkT,
+    :"Std.Bool#False",
+    :"Std.Bool#True",
     # parametric positivity generator: subject family + ctor/binder name pools
     :Pgen,
     :PC0,
@@ -259,7 +314,7 @@ defmodule Antigen.Challenge do
     :pq2,
     # S8: inert app-head used in app/lam-headed ctor field types
     :Fp,
-    # family-level universe ceiling probe (Kernel.check_family range-check)
+    # Historical family identities retained for explicitly reviewed archives.
     :Over,
     :MkOver,
     # totality: pending-sibling marker in a def-group payload (premature-cert guard)
@@ -378,11 +433,11 @@ defmodule Antigen.Challenge do
     :probe,
     :infer_absurd,
     :infer_fields_only_ctor,
-    :check_ctor_arity,
+    :check_canonical_ctor_arity,
     :check_def_unknown,
     :check_def_builtin_op,
     :validate_cert_builtin_op,
-    :family_ceiling,
+    :family_formation,
     :normalize_opts,
     :validator_warn_emit,
     :remap_index_passthrough,
@@ -390,12 +445,13 @@ defmodule Antigen.Challenge do
     :positivity_through_ctor,
     :decode_unknown_symbol,
     :cert_under_application,
-    :cert_dangling_callee,
+    :cert_unresolved_callee,
     # Adversarial "backstop" probes: feed the kernel malformed input at a real
     # boundary (Eval.eval / Eval.apply / Conv.conv? / check_def) and prove the
     # defensive guard fires (raises the documented ι-error / rejects the hole body).
     :eval_no_branch,
-    :eval_nondata_scrutinee,
+    :eval_float_scrutinee,
+    :effect_typing_guards,
     :apply_nonfun,
     :conv_unknown_ctor_fallback,
     :validator_rejects_hole_body,
@@ -412,17 +468,17 @@ defmodule Antigen.Challenge do
     :conv_no_delta_value_surface,
     :serialize_value_surface,
     :serialize_special_atoms,
-    :serialize_malformed_symbol,
+    :serialize_current_malformed_symbol,
     :infer_value_type_formers,
     :infer_bounded_unregistered,
     :infer_bounded_registered,
     :check_bounded_in_range,
     :check_bounded_out_of_range,
-    :check_bounded_tower,
+    :check_canonical_bounded_tower,
     :check_bounded_not_concrete,
     :check_bounded_wrong_family,
     :check_ctor_via_infer,
-    :sort_value_type_formers,
+    :typed_value_type_motives,
     :unify_bounded_bridge,
     :unify_rigid_value_heads,
     :opaque_family_positivity,
@@ -527,13 +583,12 @@ defmodule Antigen.Challenge do
 
     scaffold = %{
       "fam_name" => Atom.to_string(fam.name),
-      "fam_level" => fam.level,
       "fam_param_names" => Enum.map(fam.params, fn {n, _t} -> Atom.to_string(n) end),
       "fam_index_names" => Enum.map(fam.indices, fn {n, _t} -> Atom.to_string(n) end),
       "ctors" => ctor_scaffold
     }
 
-    {scaffold, param_pieces ++ index_pieces ++ ctor_pieces}
+    {scaffold, [{"fam_sort", family_sort_piece!(fam)} | param_pieces ++ index_pieces ++ ctor_pieces]}
   end
 
   def to_pieces(%__MODULE__{kind: k, payload: p}) when k in [:indexed_case, :rewrite_eq] do
@@ -699,13 +754,12 @@ defmodule Antigen.Challenge do
 
     scaffold = %{
       "fam_name" => Atom.to_string(fam.name),
-      "fam_level" => fam.level,
       "fam_param_names" => Enum.map(fam.params, fn {n, _t} -> Atom.to_string(n) end),
       "fam_index_names" => Enum.map(fam.indices, fn {n, _t} -> Atom.to_string(n) end),
       "ctors" => ctor_scaffold
     }
 
-    {scaffold, param_pieces ++ index_pieces ++ ctor_pieces}
+    {scaffold, [{"#{prefix}:sort", family_sort_piece!(fam)} | param_pieces ++ index_pieces ++ ctor_pieces]}
   end
 
   # --- from_pieces: decoded record fields → challenge -------------------------
@@ -731,10 +785,12 @@ defmodule Antigen.Challenge do
   end
 
   def from_pieces(:family, assay, label, seed, note, scaffold, pieces) do
-    pmap = Map.new(pieces)
+    reject_legacy_family_scaffold!(scaffold)
+    pmap = piece_map!(pieces)
     params = rebuild_telescope(scaffold["fam_param_names"], "fam_param", pmap)
     indices = rebuild_telescope(scaffold["fam_index_names"], "fam_index", pmap)
-    fam = Inductive.family(known_atom!(scaffold["fam_name"]), params, indices, scaffold["fam_level"])
+    sort = rebuild_sort!(pmap, "fam_sort")
+    fam = Inductive.family(known_atom!(scaffold["fam_name"]), params, indices, sort)
 
     ctors =
       scaffold["ctors"]
@@ -755,7 +811,7 @@ defmodule Antigen.Challenge do
   end
 
   def from_pieces(:indexed_case, assay, label, seed, note, scaffold, pieces) do
-    pmap = Map.new(pieces)
+    pmap = piece_map!(pieces)
 
     families =
       scaffold["families"]
@@ -962,6 +1018,8 @@ defmodule Antigen.Challenge do
 
   # Rebuild one {family, [ctor]} from its scaffold + the piece map, keyed under `prefix`.
   defp rebuild_family(fam_scaffold, prefix, pmap) do
+    reject_legacy_family_scaffold!(fam_scaffold)
+
     params =
       fam_scaffold["fam_param_names"]
       |> Enum.with_index()
@@ -972,7 +1030,8 @@ defmodule Antigen.Challenge do
       |> Enum.with_index()
       |> Enum.map(fn {n, k} -> {known_atom!(n), Map.fetch!(pmap, "#{prefix}:index:#{k}")} end)
 
-    fam = Inductive.family(known_atom!(fam_scaffold["fam_name"]), params, indices, fam_scaffold["fam_level"])
+    sort = rebuild_sort!(pmap, "#{prefix}:sort")
+    fam = Inductive.family(known_atom!(fam_scaffold["fam_name"]), params, indices, sort)
 
     ctors =
       fam_scaffold["ctors"]
@@ -990,6 +1049,55 @@ defmodule Antigen.Challenge do
       end)
 
     {fam, ctors}
+  end
+
+  @doc """
+  Reconstruct a candidate without letting malformed sort wrappers crash a
+  shrink/replay candidate handler. Success is syntax, not kernel evidence.
+  """
+  def safe_from_pieces(kind, assay, label, seed, note, scaffold, pieces) do
+    {:ok, from_pieces(kind, assay, label, seed, note, scaffold, pieces)}
+  rescue
+    exception -> {:error, exception}
+  end
+
+  defp family_sort_piece!(family) do
+    if Map.has_key?(family, :level), do: raise(ArgumentError, "legacy family level metadata")
+
+    case Map.fetch(family, :sort) do
+      {:ok, sort} ->
+        piece = {:type, sort}
+        if Cure.Core.Term.term?(piece), do: piece, else: raise(ArgumentError, "invalid family sort")
+
+      :error ->
+        raise ArgumentError, "missing family sort"
+    end
+  end
+
+  defp reject_legacy_family_scaffold!(scaffold) do
+    if Map.has_key?(scaffold, "fam_level"), do: raise(ArgumentError, "legacy family level scaffold")
+    :ok
+  end
+
+  defp rebuild_sort!(pieces, id) do
+    case Map.fetch(pieces, id) do
+      {:ok, {:type, sort} = term} ->
+        if Cure.Core.Term.term?(term), do: sort, else: raise(ArgumentError, "invalid family sort piece")
+
+      _ ->
+        raise ArgumentError, "missing or malformed family sort wrapper"
+    end
+  end
+
+  defp piece_map!(pieces) do
+    Enum.reduce(pieces, %{}, fn
+      {id, term}, acc when is_binary(id) ->
+        if Map.has_key?(acc, id), do: raise(ArgumentError, "duplicate challenge piece id")
+        Map.put(acc, id, term)
+
+      _, _acc ->
+        raise ArgumentError, "malformed challenge piece"
+    end)
   end
 
   # A constructor's result-parameter terms, tolerant of legacy records lacking

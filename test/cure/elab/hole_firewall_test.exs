@@ -114,8 +114,10 @@ defmodule Cure.Elab.HoleFirewallTest do
     # family is a proof-relevant value type.
     prop_env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:PropFamily, [], [], 0), [Inductive.ctor(:mkProp, [], [])])
-      |> Inductive.declare(Inductive.family(:ValFamily, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:PropFamily, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:mkProp, [], [])
+      ])
+      |> Inductive.declare(Inductive.family(:ValFamily, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mkA, [], []),
         Inductive.ctor(:mkB, [], [])
       ])

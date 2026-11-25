@@ -41,7 +41,15 @@ defmodule Cure.Compiler.ModulePipeline.Emission do
     asts
     |> Enum.sort_by(fn {identity, _ast} -> identity end)
     |> Enum.reduce_while({:ok, %{}}, fn {identity, ast}, {:ok, emitted} ->
-      case emit_module(identity, ast, manifest, interfaces, body_envs, reusable_beams, producer_snapshot) do
+      case emit_module(
+             identity,
+             ast,
+             manifest,
+             interfaces,
+             body_envs,
+             reusable_beams,
+             producer_snapshot
+           ) do
         {:ok, module, binary} -> {:cont, {:ok, Map.put(emitted, module, binary)}}
         {:error, _reason} = error -> {:halt, error}
       end
@@ -96,6 +104,7 @@ defmodule Cure.Compiler.ModulePipeline.Emission do
   defp provenance(module_name, entry, interface, snapshot) do
     %{
       format: 1,
+      universe_identity: Cure.Core.UniverseCodec.identity(),
       module: module_name,
       source_path: entry.source_path,
       source_hash: entry.source_hash,

@@ -158,8 +158,8 @@ defmodule Cure.Compiler.MacroFuzz do
            domain: :core,
            env: generation_env,
            ctx: ctx,
-           goal: {:type, 0},
-           generator: Term.gen_term(ctx, {:type, 0})
+           goal: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           generator: Term.gen_term(ctx, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
          }}
 
       "Type" ->

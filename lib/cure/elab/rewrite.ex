@@ -1,7 +1,7 @@
 defmodule Cure.Elab.Rewrite do
   @moduledoc "Compile-time equality transport and rewrite planning."
 
-  alias Cure.Core.{Grade, Inductive}
+  alias Cure.Core.{Grade, Inductive, Normalise, Term}
   alias Cure.Elab.Subst
 
   defmodule Occurrence do
@@ -12,7 +12,7 @@ defmodule Cure.Elab.Rewrite do
 
   def eq_parts({:vdata, family, [ty, a, b]}, signature) do
     if family == Inductive.builtin(signature, :eq),
-      do: {:ok, ty, a, b},
+      do: {:ok, Normalise.whnf_value(ty, signature), a, b},
       else: {:error, :rewrite_proof_not_equality}
   end
 
@@ -20,16 +20,17 @@ defmodule Cure.Elab.Rewrite do
 
   def legacy_plan(proof, ty, a, b, expected) do
     cond do
-      contains_term?(expected, a) ->
+      contains_term_scoped?(expected, a) ->
         with {:ok, symmetric} <- symmetry_proof(proof, ty, a),
              {:ok, motive} <- motive_for(expected, a, ty) do
-          {:ok, fn body -> {:app, transport_case(symmetric, ty, motive, b), body} end, replace_term(expected, a, b)}
+          {:ok, fn body -> {:app, transport_case(symmetric, ty, motive, b), body} end,
+           replace_term_scoped(expected, a, b)}
         end
 
-      contains_term?(expected, b) ->
+      contains_term_scoped?(expected, b) ->
         {:ok, motive} = motive_for(expected, b, ty)
 
-        {:ok, fn body -> {:app, transport_case(proof, ty, motive, a), body} end, replace_term(expected, b, a)}
+        {:ok, fn body -> {:app, transport_case(proof, ty, motive, a), body} end, replace_term_scoped(expected, b, a)}
 
       true ->
         {:error, {:rewrite_no_match, a, b, expected}}
@@ -47,6 +48,11 @@ defmodule Cure.Elab.Rewrite do
   transports rather than a new kind of evidence. A step that finds no
   occurrence stops the fold, which makes `all` idempotent on a fully-rewritten
   goal instead of failing.
+
+  Level-atom paths use one ordinary transport with a batched motive instead:
+  canonical rebuilding can merge or reorder atoms, so sequential reuse of
+  original numeric paths would rewrite the wrong occurrence. Both paths are
+  checked by the same kernel at the original goal.
   """
   def directed_plan(proof, ty, a, b, expected, direction, selector \\ nil)
 
@@ -55,6 +61,18 @@ defmodule Cure.Elab.Rewrite do
     occurrences = occurrences(expected, target)
 
     cond do
+      Enum.any?(occurrences, &level_path?(expected, &1.traversal_path)) ->
+        paths = Enum.map(occurrences, & &1.traversal_path)
+        marker = {:global, :"$cure_rewrite_occurrence"}
+        rewritten = replace_paths(expected, paths, replacement, 0)
+        marked = replace_paths(expected, paths, marker, 0)
+        motive = {:lam, motive_grade(ty), ty, abstract_term(marked, marker, 0)}
+
+        with {:ok, transport_proof, left} <- transport_for_direction(direction, proof, ty, a, b) do
+          build = fn evidence -> {:app, transport_case(transport_proof, ty, motive, left), evidence} end
+          {:ok, build, rewritten, occurrences}
+        end
+
       occurrences != [] ->
         Enum.reduce(occurrences, {:ok, fn evidence -> evidence end, expected, occurrences}, fn occurrence,
                                                                                                {:ok, outer, term, all} ->
@@ -137,7 +155,61 @@ defmodule Cure.Elab.Rewrite do
   defp motive_at(expected, path, ty) do
     marker = {:global, :"$cure_rewrite_occurrence"}
     marked = replace_at(expected, path, marker)
-    {:ok, {:lam, Grade.unrestricted(), ty, abstract_term(marked, marker, 0)}}
+    {:ok, {:lam, motive_grade(ty), ty, abstract_term(marked, marker, 0)}}
+  end
+
+  # Rebuilding a level can reorder or merge atoms. Transform all selected
+  # ORIGINAL paths before rebuilding that level; never reuse stale positions.
+  defp level_path?(_term, []), do: false
+  defp level_path?({tag, _}, [_ | _]) when tag in [:type, :level_value], do: true
+
+  defp level_path?(term, [index | rest]),
+    do: level_path?(Enum.fetch!(children(term), index), rest)
+
+  defp paths_below(paths, index), do: for([head | tail] <- paths, head == index, do: tail)
+
+  defp replace_paths(term, [], _replacement, _depth), do: term
+
+  defp replace_paths(term, paths, replacement, depth) do
+    if [] in paths,
+      do: Subst.shift(replacement, depth, 0),
+      else: replace_path_children(term, paths, replacement, depth)
+  end
+
+  defp replace_path_children({tag, grade, domain, body}, paths, replacement, depth) when tag in [:pi, :lam],
+    do:
+      {tag, grade, replace_paths(domain, paths_below(paths, 1), replacement, depth),
+       replace_paths(body, paths_below(paths, 2), replacement, depth + 1)}
+
+  defp replace_path_children({:let, grade, type, value, body}, paths, replacement, depth),
+    do:
+      {:let, grade, replace_paths(type, paths_below(paths, 1), replacement, depth),
+       replace_paths(value, paths_below(paths, 2), replacement, depth),
+       replace_paths(body, paths_below(paths, 3), replacement, depth + 1)}
+
+  defp replace_path_children({:case, scrutinee, motive, branches}, paths, replacement, depth) do
+    branch_paths = paths_below(paths, 2)
+
+    branches =
+      branches
+      |> Enum.with_index()
+      |> Enum.map(fn {{constructor, arity, body}, index} ->
+        selected = branch_paths |> paths_below(index) |> paths_below(1)
+        {constructor, arity, replace_paths(body, selected, replacement, depth + arity)}
+      end)
+
+    {:case, replace_paths(scrutinee, paths_below(paths, 0), replacement, depth),
+     replace_paths(motive, paths_below(paths, 1), replacement, depth), branches}
+  end
+
+  defp replace_path_children(term, paths, replacement, depth) do
+    updated =
+      term
+      |> children()
+      |> Enum.with_index()
+      |> Enum.map(fn {child, index} -> replace_paths(child, paths_below(paths, index), replacement, depth) end)
+
+    rebuild(term, updated)
   end
 
   defp collect_occurrences(term, target, path) when term == target, do: [{term, path}]
@@ -204,6 +276,10 @@ defmodule Cure.Elab.Rewrite do
   def mk_eq(ty, a, b), do: {:data, :"Std.Equivalent#Equivalent", [ty], [a, b]}
   def mk_refl(x), do: {:ctor, :"Std.Equivalent#reflexive", [x]}
 
+  @doc "An ordinary constant transport motive using the existing carrier-grade policy."
+  def constant_motive(ty, expected),
+    do: {:lam, motive_grade(ty), ty, Subst.shift(expected, 1, 0)}
+
   def transport_case(proof, ty, motive, left) do
     scrutinee_type =
       {:data, :"Std.Equivalent#Equivalent", [Subst.shift(ty, 2, 0)], [{:var, 1}, {:var, 0}]}
@@ -213,8 +289,8 @@ defmodule Cure.Elab.Rewrite do
        {:app, Subst.shift(motive, 4, 0), {:var, 2}}}
 
     arrow_motive =
-      {:lam, Grade.unrestricted(), ty,
-       {:lam, Grade.unrestricted(), Subst.shift(ty, 1, 0), {:lam, Grade.unrestricted(), scrutinee_type, arrow}}}
+      {:lam, motive_grade(ty), ty,
+       {:lam, motive_grade(ty), Subst.shift(ty, 1, 0), {:lam, Grade.unrestricted(), scrutinee_type, arrow}}}
 
     identity_domain = {:app, Subst.shift(motive, 1, 0), Subst.shift(left, 1, 0)}
 
@@ -224,12 +300,12 @@ defmodule Cure.Elab.Rewrite do
 
   def symmetry_proof(proof, ty, a) do
     motive_body = mk_eq(Subst.shift(ty, 1, 0), {:var, 0}, Subst.shift(a, 1, 0))
-    motive = {:lam, Grade.unrestricted(), ty, motive_body}
+    motive = {:lam, motive_grade(ty), ty, motive_body}
     {:ok, {:app, transport_case(proof, ty, motive, a), mk_refl(a)}}
   end
 
   defp motive_for(expected, target, ty),
-    do: {:ok, {:lam, Grade.unrestricted(), ty, abstract_term(expected, target, 0)}}
+    do: {:ok, {:lam, motive_grade(ty), ty, abstract_term(expected, target, 0)}}
 
   def contains_term?(term, target),
     do: term == target or Enum.any?(children(term), &contains_term?(&1, target))
@@ -357,11 +433,32 @@ defmodule Cure.Elab.Rewrite do
 
   def abstract_term(term, _target, _depth), do: term
 
+  defp motive_grade({:level_type}), do: :erased
+  defp motive_grade(_domain), do: Grade.unrestricted()
+
+  defp children({tag, _} = term) when tag in [:type, :level_value], do: Term.level_atoms(term)
+  defp children({:level_type}), do: []
   defp children(term) when is_tuple(term), do: term |> Tuple.to_list() |> tl()
   defp children(term) when is_list(term), do: term
   defp children(_term), do: []
 
+  defp rebuild({:type, sort} = term, atoms),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, atom_replacements(term, atoms))}
+
+  defp rebuild({:level_value, level} = term, atoms),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, atom_replacements(term, atoms))}
+
   defp rebuild(term, children) when is_tuple(term), do: List.to_tuple([elem(term, 0) | children])
   defp rebuild(term, children) when is_list(term), do: children
   defp rebuild(term, _children), do: term
+
+  defp atom_replacements(term, replacements) do
+    original = Term.level_atoms(term)
+
+    unless length(original) == length(replacements),
+      do: raise(ArgumentError, "level rewrite changed its atom-slot arity")
+
+    table = Map.new(Enum.zip(original, replacements))
+    &Map.fetch!(table, &1)
+  end
 end

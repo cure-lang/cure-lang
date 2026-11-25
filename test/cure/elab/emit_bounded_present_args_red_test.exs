@@ -31,11 +31,11 @@ defmodule Cure.Elab.EmitBoundedPresentArgsRedTest do
   alias Cure.Elab.Emit
 
   test "@linear a :-graded single-field ctor routed through the Bounded path keeps its value" do
-    dummy_type = {:type, 0}
+    dummy_type = {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
 
     # A single constructor, `Nxt`, whose one field is `:linear` (present).
     ctor = Inductive.ctor(:Nxt, [{:v, dummy_type}], [], [:linear], [])
-    family = Inductive.family(:Foo3, [], [], 0)
+    family = Inductive.family(:Foo3, [], [], Cure.Core.Sort.finite_closed(0))
 
     env =
       Env.empty()

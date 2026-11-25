@@ -28,9 +28,9 @@ defmodule Antigen.CorpusMergeTest do
   defp lines_of(p), do: p |> File.read!() |> String.split("\n", trim: true)
 
   test "merges only records whose key is not already in dest (union, not concat)" do
-    a = rec({:type, 0})
-    b = rec({:type, 1})
-    c = rec({:type, 2})
+    a = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
+    b = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}})
+    c = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}})
 
     dest = write("dest.sexp", [a, b])
     src = write("src.sexp", [b, c])
@@ -46,8 +46,8 @@ defmodule Antigen.CorpusMergeTest do
   end
 
   test "deduplicates across multiple sources within one call" do
-    a = rec({:type, 0})
-    c = rec({:type, 2})
+    a = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
+    c = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}})
 
     dest = write("dest.sexp", [a])
     s1 = write("s1.sexp", [c])
@@ -60,16 +60,21 @@ defmodule Antigen.CorpusMergeTest do
   end
 
   test "skips and counts keyless lines (no dedup identity)" do
-    a = rec({:type, 0})
+    a = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     dest = write("dest.sexp", [a])
-    src = write("src.sexp", ["this line has no key= field", rec({:type, 3})])
+
+    src =
+      write("src.sexp", [
+        "this line has no key= field",
+        rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 3, atoms: []}}})
+      ])
 
     assert %{added: 1, keyless: 1} = Corpus.merge(dest, [src])
     refute Enum.any?(lines_of(dest), &(&1 =~ "no key="))
   end
 
   test "a missing source contributes nothing (no crash)" do
-    a = rec({:type, 0})
+    a = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     dest = write("dest.sexp", [a])
 
     assert %{added: 0, duplicate: 0, keyless: 0} = Corpus.merge(dest, [path("does_not_exist.sexp")])
@@ -77,7 +82,7 @@ defmodule Antigen.CorpusMergeTest do
   end
 
   test "merging into a non-existent dest creates it with the source's records" do
-    c = rec({:type, 2})
+    c = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}})
     src = write("src.sexp", [c])
     dest = path("fresh.sexp")
 
@@ -86,8 +91,8 @@ defmodule Antigen.CorpusMergeTest do
   end
 
   test "a dest without a trailing newline is not glued onto by the appended record" do
-    a = rec({:type, 0})
-    c = rec({:type, 2})
+    a = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
+    c = rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}})
     dest = path("dest.sexp")
     # no trailing newline
     File.write!(dest, a)

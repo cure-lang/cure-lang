@@ -867,6 +867,9 @@ defmodule Cure.Elab.MacroExpand do
 
   defp primitive_field_types?(_field_types), do: false
 
+  defp global_names({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.flat_map(Cure.Core.Term.level_atoms(term), &global_names/1)
+
   defp global_names({:global, name}), do: [name]
   defp global_names({:app, f, a}), do: global_names(f) ++ global_names(a)
   defp global_names({:lam, _grade, domain, body}), do: global_names(domain) ++ global_names(body)
@@ -966,6 +969,9 @@ defmodule Cure.Elab.MacroExpand do
   defp normalise_fuel(application) do
     min(@normalise_fuel_ceiling, @normalise_fuel + @normalise_fuel_per_node * core_nodes(application))
   end
+
+  defp core_nodes({tag, _} = term) when tag in [:type, :level_value],
+    do: 1 + Enum.sum(Enum.map(Cure.Core.Term.level_atoms(term), &core_nodes/1))
 
   defp core_nodes(value) when is_tuple(value) do
     value

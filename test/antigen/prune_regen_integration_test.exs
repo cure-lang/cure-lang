@@ -22,10 +22,16 @@ defmodule Antigen.PruneRegenIntegrationTest do
     seeds = Path.join(@tmp, "seeds.sexp")
     retired = Path.join(@tmp, "retired.sexp")
 
-    keep = Corpus.encode_record(Challenge.stub({:type, 0}))
+    keep = Corpus.encode_record(Challenge.stub({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}))
 
-    bad =
-      Regex.replace(~r/pieces=.*$/, Corpus.encode_record(Challenge.stub({:type, 1})), "pieces=t::(zzz_unknown_node 1)")
+    original = Corpus.encode_record(Challenge.stub({:type, Cure.Core.Sort.finite_closed(1)}))
+
+    bad_piece =
+      [["term", "(cure-core 2 (zzz_unknown_node 1))"]] |> :json.encode() |> IO.iodata_to_binary() |> Base.encode64()
+
+    bad = Regex.replace(~r/pieces64=[^\t]*$/, original, "pieces64=" <> bad_piece)
+    refute bad == original
+    assert {:error, _} = Corpus.decode_record(bad)
 
     File.write!(corpus, keep <> "\n" <> bad <> "\n")
 

@@ -1,0 +1,11 @@
+{
+  "current_inferred_type": "(cure-core 2 (type (finite (level-nf 3))))",
+  "format": 1,
+  "original_cell": "universe_ceiling",
+  "original_claim": "Kernel.infer rejects bare Type2",
+  "original_term": "(cure-core 2 (type (finite (level-nf 2))))",
+  "reason": "Every canonical finite universe has a strictly larger successor. The replacement fails ordinary predicative application checking, not syntax decoding or an obsolete ceiling.",
+  "replacement_cell": "universe_application",
+  "replacement_term": "(cure-core 2 (app (lam unrestricted (type (finite (level-nf 37))) (var 0)) (type (finite (level-nf 37)))))",
+  "original_generator_sha256": "c82f96209e5910055629236e7d9254665daa48dfe27f5109bd497a4b47b56e47"
+}
