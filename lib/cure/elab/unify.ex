@@ -437,6 +437,31 @@ defmodule Cure.Elab.Unify do
   defp do_unify_struct(t, {:meta, id}, ctx, _sig, depth), do: solve(id, t, ctx, depth)
 
   defp do_unify_struct({:type, l}, {:type, l}, ctx, _sig, _depth), do: {:ok, ctx}
+
+  defp do_unify_struct({:type, {:finite, l1}}, {:type, {:finite, l2}}, ctx, sig, depth),
+    do: do_unify_struct({:level_value, l1}, {:level_value, l2}, ctx, sig, depth)
+
+  defp do_unify_struct({:level_type}, {:level_type}, ctx, _sig, _depth), do: {:ok, ctx}
+  defp do_unify_struct({:level_value, l}, {:level_value, l}, ctx, _sig, _depth), do: {:ok, ctx}
+
+  defp do_unify_struct(
+         {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}},
+         {:level_value, l2},
+         ctx,
+         _sig,
+         depth
+       ),
+       do: solve(id, {:level_value, l2}, ctx, depth)
+
+  defp do_unify_struct(
+         {:level_value, l1},
+         {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}},
+         ctx,
+         _sig,
+         depth
+       ),
+       do: solve(id, {:level_value, l1}, ctx, depth)
+
   defp do_unify_struct({:var, i}, {:var, i}, ctx, _sig, _depth), do: {:ok, ctx}
   defp do_unify_struct({:global, g}, {:global, g}, ctx, _sig, _depth), do: {:ok, ctx}
 

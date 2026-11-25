@@ -1000,14 +1000,25 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_typed({:variable, meta, name}, names, ctx, env) do
     case Enum.find_index(names, &(&1 == name)) do
       nil ->
-        case resolve_free(name, env) do
+        case Cure.Elab.UniverseSurface.lower_variable(name) do
           {:ok, term} ->
-            with {:ok, type} <- Kernel.infer(ctx, term) do
+            with {:ok, type} <- Cure.Elab.UniverseSurface.type_of_core(term, ctx) do
               {:ok, term, type}
             end
 
-          {:error, reason} ->
-            {:error, attach_variable_context(reason, meta, name)}
+          {:error, _} = err ->
+            err
+
+          :not_universe ->
+            case resolve_free(name, env) do
+              {:ok, term} ->
+                with {:ok, type} <- Kernel.infer(ctx, term) do
+                  {:ok, term, type}
+                end
+
+              {:error, reason} ->
+                {:error, attach_variable_context(reason, meta, name)}
+            end
         end
 
       index ->
@@ -18528,6 +18539,8 @@ defmodule Cure.Elab.Elaborator do
         mctx
       end
 
+    mctx = solve_universe_level_metas(name, chosen, mctx, ctx, env)
+
     args = Enum.map(chosen, &Unify.zonk(&1, mctx))
 
     if Enum.any?(args, &has_meta?/1) do
@@ -18539,6 +18552,93 @@ defmodule Cure.Elab.Elaborator do
       # levels (evaluating under `[]` would conflate index and level).
       result_type = Eval.eval(Subst.instantiate(codomain, args), Context.env(ctx))
       {:ok, term, result_type}
+    end
+  end
+
+  # Spec §10.3–§10.5: infer omitted use-site `UniverseLevel` metas from the
+  # sorts of solved type arguments (least upper bound via `UniverseLevel.max`),
+  # defaulting unconstrained use-site level metas to `universe_zero`. The
+  # kernel independently checks the assembled explicit application afterward.
+  defp solve_universe_level_metas(name, chosen, mctx, ctx, env) do
+    case Env.get_def(env, name) do
+      %{type: def_type} ->
+        {domains, _cod} = peel_pi(def_type, length(chosen))
+
+        level_metas =
+          domains
+          |> Enum.zip(chosen)
+          |> Enum.flat_map(fn
+            {{:level_type}, {:meta, id}} ->
+              if Unify.zonk({:meta, id}, mctx) == {:meta, id}, do: [id], else: []
+
+            _ ->
+              []
+          end)
+
+        if level_metas == [] do
+          mctx
+        else
+          level_meta_set = MapSet.new(level_metas)
+
+          bounds =
+            domains
+            |> Enum.with_index()
+            |> Enum.reduce(%{}, fn {dom, pos}, acc ->
+              arg = Unify.zonk(Enum.at(chosen, pos), mctx)
+
+              if not has_meta?(arg) do
+                inst_dom =
+                  dom
+                  |> Subst.instantiate(Enum.take(chosen, pos))
+                  |> Unify.zonk(mctx)
+
+                case inst_dom do
+                  {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}}} ->
+                    if MapSet.member?(level_meta_set, id) do
+                      case infer_finite_level(ctx, arg) do
+                        {:ok, level} ->
+                          Map.update(acc, id, level, &Cure.Core.UniverseLevel.max(&1, level))
+
+                        :error ->
+                          acc
+                      end
+                    else
+                      acc
+                    end
+
+                  _ ->
+                    acc
+                end
+              else
+                acc
+              end
+            end)
+
+          Enum.reduce(level_metas, mctx, fn id, current_mctx ->
+            level = Map.get(bounds, id, Cure.Core.UniverseLevel.zero())
+
+            case Unify.unify({:meta, id}, {:level_value, level}, current_mctx, env) do
+              {:ok, next_mctx} -> next_mctx
+              {:error, _} -> current_mctx
+            end
+          end)
+        end
+
+      _ ->
+        mctx
+    end
+  end
+
+  defp infer_finite_level(ctx, term) do
+    case Kernel.infer(ctx, term) do
+      {:ok, {:vtype, _} = sort_val} ->
+        case Normalise.nf(ctx, Quote.reify(sort_val, Context.length(ctx), Context.signature(ctx))) do
+          {:type, {:finite, %Cure.Core.UniverseLevel{} = level}} -> {:ok, level}
+          _ -> :error
+        end
+
+      _ ->
+        :error
     end
   end
 
@@ -18592,9 +18692,18 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr({:variable, meta, name}, scope, env) do
     case Enum.find_index(scope, &(&1 == name)) do
       nil ->
-        case resolve_free(name, env) do
-          {:error, reason} -> {:error, attach_variable_context(reason, meta, name)}
-          result -> result
+        case Cure.Elab.UniverseSurface.lower_variable(name) do
+          {:ok, term} ->
+            {:ok, term}
+
+          {:error, _} = err ->
+            err
+
+          :not_universe ->
+            case resolve_free(name, env) do
+              {:error, reason} -> {:error, attach_variable_context(reason, meta, name)}
+              result -> result
+            end
         end
 
       index ->
@@ -18609,7 +18718,15 @@ defmodule Cure.Elab.Elaborator do
         elaborate_expr(positional, scope, env)
       end
     else
-      elaborate_named_call_scoped(meta, args, scope, env)
+      case Cure.Elab.UniverseSurface.lower_call(
+             Keyword.get(meta, :name, ""),
+             args,
+             &elaborate_expr(&1, scope, env)
+           ) do
+        {:ok, term} -> {:ok, term}
+        {:error, _} = err -> err
+        :not_universe -> elaborate_named_call_scoped(meta, args, scope, env)
+      end
     end
   end
 

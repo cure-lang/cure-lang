@@ -285,7 +285,7 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g9-universe-level-binder",
         gap: :g9,
         axis: :l1,
-        title: "a UniverseLevel binder is misread as an ordinary type variable and ACCEPTED",
+        title: "UniverseLevel binder elaborates to an erased level-typed Core binder (Phase 5 U4)",
         expect: :accept,
         module: "Cure.Parity.G9UniverseLevelBinder",
         source: """
@@ -298,17 +298,9 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g9-typen-misread-as-level-zero",
         gap: :g9,
         axis: :l1,
-        title: "Type37 is an ordinary type variable, so an annotation at Type37 mismatches Type0",
-        expect: :reject,
-        reason:
-          "MEASURED: `Type37` parses as a bare `{:variable, …, \"Type37\"}` with no level " <>
-            "kind, so it elaborates to the unresolved global `{:global, :Type37}`. A definition " <>
-            "written at `Type37` therefore does not inhabit `Type37` at all — the kernel reports " <>
-            "`{:conversion_failure, {:type, 0}, {:global, :Type37}}`. The rejection is a " <>
-            "CONSEQUENCE OF THE DEFECT, not the correct diagnosis: correct behaviour is that " <>
-            "`Type37` is a real sort, so `Int : Type0` does NOT inhabit it and the definition " <>
-            "is rejected for a level reason. Flipping this to :accept requires U4 to make " <>
-            "`TypeN` a real sort. See docs/LEAN4_PHASE5_U0_INVENTORY.md §1.1.",
+        title: "Type37 is a real finite sort and accepts Int by cumulativity (Phase 5 U4)",
+        expect: :accept,
+        module: "Cure.Parity.G9TypenMisread",
         source: """
         mod Parity.G9TypenMisread
           fn identity({a: Type37}, x: a) -> a = x
@@ -320,7 +312,7 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g9-typelimit-misread-as-variable",
         gap: :g9,
         axis: :l1,
-        title: "TypeLimit is an ordinary type variable and ACCEPTED; no TypeLimit sort exists",
+        title: "TypeLimit is a real limit sort in binder position (Phase 5 U4)",
         expect: :accept,
         module: "Cure.Parity.G9TypeLimitMisread",
         source: """
@@ -333,9 +325,11 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g9-type-application-misread",
         gap: :g9,
         axis: :l1,
-        title: "Type(0) in a binder position is an ordinary application and ACCEPTED",
-        expect: :accept,
-        module: "Cure.Parity.G9TypeApplicationMisread",
+        title: "Type(0) is rejected because 0 is a Nat, not a UniverseLevel (Phase 5 U4)",
+        expect: :reject,
+        reason:
+          "Phase 5 U4: `Type(level)` requires a `UniverseLevel` index; `0` is a `Nat` literal, " <>
+            "so `Type(0)` is rejected instead of being misread as an ordinary application.",
         source: """
         mod Parity.G9TypeApplicationMisread
           fn identity({a: Type(0)}, x: a) -> a = x

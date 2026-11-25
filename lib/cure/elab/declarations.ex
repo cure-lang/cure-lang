@@ -20,8 +20,6 @@ defmodule Cure.Elab.Declarations do
   alias Cure.Elab.{Elaborator, Induction, MacroExpand, MetaCtx, Relevance, Subst, TotalityClosure, Unify}
   alias Cure.MetaAST.Metadata
 
-  @ceiling 2
-
   # The runtime classes an `@erases(<class>)` may name. Each maps to exactly one TOTAL
   # Erlang guard in `Cure.Elab.Emit.class_guard/1`, which is what makes an opaque
   # carrier discriminable inside an anonymous union.
@@ -451,10 +449,12 @@ defmodule Cure.Elab.Declarations do
       # the ceiling universe makes every signature that mentions it infer
       # `Type2` until the real RHS overwrites the entry, which is too late for
       # an interface SCC (for example `Char = Bounded(...)` <-> `String`).
+      # A parameterized alias can inhabit any finite sort; `TypeLimit` bounds
+      # every finite sort until the real RHS overwrites the entry.
       result_sort =
         if telescope == [],
           do: {:type, Cure.Core.Sort.finite_zero()},
-          else: {:type, Cure.Core.Sort.finite_closed(@ceiling)}
+          else: {:type, Cure.Core.Sort.omega(0)}
 
       type = wrap_binders(:pi, telescope, quantities, result_sort)
       {:ok, Env.add_def(env, name, type, nil, quantities)}
@@ -481,14 +481,15 @@ defmodule Cure.Elab.Declarations do
 
   # Does `name` denote a type in `env`? A builtin primitive, a declared family, the
   # universe itself, or an earlier alias (a def whose declared type is a universe).
-  defp type_name?(_env, "Type"), do: true
-
   defp type_name?(env, name) do
-    atom = String.to_atom(name)
+    Cure.Elab.UniverseSurface.universe_name?(name) or
+      (
+        atom = String.to_atom(name)
 
-    Env.primitive(env, name) != nil or
-      Inductive.get_family(env, atom) != nil or
-      match?(%{type: {:type, _}}, Env.get_def(env, atom))
+        Env.primitive(env, name) != nil or
+          Inductive.get_family(env, atom) != nil or
+          match?(%{type: {:type, _}}, Env.get_def(env, atom))
+      )
   end
 
   # Type alias `typealias Name(params?) = RHS`: a transparent definition whose
@@ -2260,7 +2261,7 @@ defmodule Cure.Elab.Declarations do
   defp collect_type_vars({:variable, _m, name}, bound, env, {ordered, seen} = acc) do
     cond do
       not type_var_name?(name) -> acc
-      name == "Type" -> acc
+      Cure.Elab.UniverseSurface.universe_name?(name) -> acc
       MapSet.member?(bound, name) -> acc
       MapSet.member?(seen, name) -> acc
       Inductive.family?(env, String.to_atom(name)) -> acc
@@ -2510,6 +2511,18 @@ defmodule Cure.Elab.Declarations do
           ctx = build_context(env, tele)
 
           case idx_to_core(type_expr, scope, nil, env, ctx) do
+            {:ok, {:level_type} = core} ->
+              # §13: Every binder whose domain is `UniverseLevel` is forced to
+              # grade zero. An explicit attempt to mark one present/linear is
+              # rejected.
+              case Keyword.get(pmeta, :grade) do
+                g when g in [:linear, :unrestricted] ->
+                  {:halt, {:error, {:runtime_relevant_level, pname, :binder}}}
+
+                _ ->
+                  {:cont, {:ok, tele ++ [{String.to_atom(pname), core}], quants ++ [Grade.zero()], [pname | scope]}}
+              end
+
             {:ok, core} ->
               # A surface grade (`c :linear T`, plan slice 5) overrides the position's
               # default: an implicit defaults to `:erased`, an explicit to `ω`. `ω`
@@ -3216,7 +3229,7 @@ defmodule Cure.Elab.Declarations do
 
         {ordered2, seen}
 
-      vname == "Type" ->
+      Cure.Elab.UniverseSurface.universe_name?(vname) ->
         acc
 
       atom == fam ->
@@ -3354,22 +3367,31 @@ defmodule Cure.Elab.Declarations do
             {:ok, {:var, idx}}
 
           true ->
-            case resolve_index_name(name, env) do
-              {:ambiguous_name, atom, mods} ->
-                {:error, {:ambiguous_name, atom, mods}}
+            case Cure.Elab.UniverseSurface.lower_variable(name) do
+              {:ok, term} ->
+                {:ok, term}
 
-              {:retired_process_type, legacy} ->
-                info = Cure.MetaAST.Metadata.source_info(elem(node, 1))
+              {:error, _} = err ->
+                err
 
-                {:error,
-                 {:retired_process_type,
-                  %{
-                    name: legacy,
-                    span: info && (info.name || info.whole)
-                  }}}
+              :not_universe ->
+                case resolve_index_name(name, env) do
+                  {:ambiguous_name, atom, mods} ->
+                    {:error, {:ambiguous_name, atom, mods}}
 
-              node ->
-                {:ok, node}
+                  {:retired_process_type, legacy} ->
+                    info = Cure.MetaAST.Metadata.source_info(elem(node, 1))
+
+                    {:error,
+                     {:retired_process_type,
+                      %{
+                        name: legacy,
+                        span: info && (info.name || info.whole)
+                      }}}
+
+                  node ->
+                    {:ok, node}
+                end
             end
         end
     end
@@ -3393,7 +3415,15 @@ defmodule Cure.Elab.Declarations do
         lower_effect_former(args, scope, fam, env, ctx)
 
       true ->
-        lower_applied_type(fmeta, args, scope, fam, env, ctx)
+        case Cure.Elab.UniverseSurface.lower_call(
+               Keyword.fetch!(fmeta, :name),
+               args,
+               &idx_to_core(&1, scope, fam, env, ctx)
+             ) do
+          {:ok, core} -> {:ok, core}
+          {:error, _} = err -> err
+          :not_universe -> lower_applied_type(fmeta, args, scope, fam, env, ctx)
+        end
     end
   end
 
@@ -4812,8 +4842,9 @@ defmodule Cure.Elab.Declarations do
     end)
   end
 
-  defp declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, level) when level <= @ceiling do
-    family = Inductive.family(name, param_tele, index_tele, Cure.Core.Sort.finite_closed(level))
+  defp declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, _level) do
+    least_sort = infer_family_least_sort(env, name, param_tele, index_tele, ctors)
+    family = Inductive.family(name, param_tele, index_tele, least_sort)
     env2 = Inductive.declare(env, family, ctors)
     family2 = Inductive.get_family(env2, name)
 
@@ -4821,59 +4852,75 @@ defmodule Cure.Elab.Declarations do
          :ok <- check_all_ctors(env2, family2, ctors),
          :ok <- Inductive.positive?(env2, family2) do
       {:ok, env2}
-    else
-      {:error, :universe_level} ->
-        declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, level + 1)
-
-      {:error, _} = err ->
-        err
     end
   end
-
-  defp declare_indexed_at_min_level(_env, _name, _param_tele, _index_tele, _ctors, _level),
-    do: {:error, :universe_ceiling}
 
   # Opaque (postulate) family: register with the `opaque: true` marker and zero
-  # constructors, checking only that the parameter telescope is well-formed
-  # (level search on `:universe_level`). There are no constructors, so
-  # check_all_ctors / positive? are vacuous and deliberately skipped.
-  defp declare_opaque_at_min_level(env, name, param_tele, level, erasure) when level <= @ceiling do
-    family = Inductive.opaque_family(name, param_tele, Cure.Core.Sort.finite_closed(level), erasure)
+  # constructors. A constructor-less family defaults to `Type(universe_zero)`.
+  defp declare_opaque_at_min_level(env, name, param_tele, _level, erasure) do
+    family = Inductive.opaque_family(name, param_tele, Cure.Core.Sort.finite_zero(), erasure)
     env2 = Inductive.declare(env, family, [])
 
-    case Kernel.check_family(env2, Inductive.get_family(env2, name)) do
-      :ok ->
-        {:ok, env2}
-
-      {:error, :universe_level} ->
-        declare_opaque_at_min_level(env, name, param_tele, level + 1, erasure)
-
-      {:error, _} = err ->
-        err
+    with :ok <- Kernel.check_family(env2, Inductive.get_family(env2, name)) do
+      {:ok, env2}
     end
   end
-
-  defp declare_opaque_at_min_level(_env, _name, _param_tele, _level, _erasure),
-    do: {:error, :universe_ceiling}
 
   # -- declaration at the least well-formed universe level --------------------
 
-  defp declare_at_min_level(env, name, ctors, level) when level <= @ceiling do
-    family = Inductive.family(name, [], [], Cure.Core.Sort.finite_closed(level))
-    env2 = Inductive.declare(env, family, ctors)
-    family2 = Inductive.get_family(env2, name)
+  defp declare_at_min_level(env, name, ctors, _level),
+    do: declare_indexed_at_min_level(env, name, [], [], ctors, 0)
 
-    with :ok <- Kernel.check_family(env2, family2),
-         :ok <- check_all_ctors(env2, family2, ctors),
-         :ok <- Inductive.positive?(env2, family2) do
-      {:ok, env2}
-    else
-      {:error, :universe_level} -> declare_at_min_level(env, name, ctors, level + 1)
-      {:error, _} = err -> err
-    end
+  # Spec §11.1 / §11.2: compute the least upper bound of all constructor field
+  # sorts in the family's parameter frame, defaulting to `Type(universe_zero)`.
+  # Replaces the retired fixed-ceiling `0..2` retry loop.
+  defp infer_family_least_sort(_env, _name, _param_tele, _index_tele, []),
+    do: Cure.Core.Sort.finite_zero()
+
+  defp infer_family_least_sort(env, name, param_tele, index_tele, ctors) do
+    working_family = Inductive.family(name, param_tele, index_tele, Cure.Core.Sort.finite_zero())
+    working_env = Inductive.declare(env, working_family, ctors)
+
+    param_ctx =
+      Enum.reduce(param_tele, Context.empty(working_env), fn {_pname, ptype}, c ->
+        Context.extend(c, Eval.eval(ptype, Context.env(c)))
+      end)
+
+    param_depth = Context.length(param_ctx)
+
+    Enum.reduce(ctors, Cure.Core.Sort.finite_zero(), fn ctor, acc_sort ->
+      {_final_ctx, ctor_sort} =
+        Enum.reduce(ctor.args, {param_ctx, acc_sort}, fn {_fname, ftype}, {c, current_sort} ->
+          next_sort =
+            case Kernel.infer(c, ftype) do
+              {:ok, {:vtype, _} = sort_val} ->
+                {:type, raw_sort} =
+                  Cure.Core.Normalise.nf(c, Quote.reify(sort_val, Context.length(c), Context.signature(c)))
+
+                field_depth = Context.length(c) - param_depth
+                shifted = strengthen_field_sort(raw_sort, field_depth)
+                Cure.Core.Sort.join(current_sort, shifted)
+
+              _ ->
+                current_sort
+            end
+
+          {Context.extend(c, Eval.eval(ftype, Context.env(c))), next_sort}
+        end)
+
+      ctor_sort
+    end)
   end
 
-  defp declare_at_min_level(_env, _name, _ctors, _level), do: {:error, :universe_ceiling}
+  defp strengthen_field_sort(sort, 0), do: sort
+
+  defp strengthen_field_sort(sort, field_depth) do
+    if Enum.any?(Cure.Core.Sort.free_vars(sort), &(&1 < field_depth)) do
+      Cure.Core.Sort.omega(0)
+    else
+      Cure.Core.Sort.shift(sort, -field_depth, field_depth)
+    end
+  end
 
   defp check_all_ctors(env, family, ctors) do
     Enum.reduce_while(ctors, :ok, fn ctor, :ok ->
