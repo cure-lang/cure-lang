@@ -6064,6 +6064,8 @@ defmodule Cure.Elab.Elaborator do
             |> retry_fixed_index_match(cfg)
             |> retry_index_alias_match(cfg)
             |> retry_goal_value_operand_match(cfg)
+            |> retry_computed_index_carrier_match(cfg)
+            |> retry_multi_fixed_index_match(cfg)
           end
 
         _ ->
@@ -6083,6 +6085,411 @@ defmodule Cure.Elab.Elaborator do
   # all original candidates reject, then use the ordinary branch finisher once.
   # No equality or inverse is inferred from the dependency that normalization
   # removes; the raw original goal and complete resulting case remain checked.
+  defp retry_computed_index_carrier_match(candidate, cfg) do
+    key = {__MODULE__, :computed_index_carrier_retry}
+
+    rejected? =
+      case candidate do
+        {:error, _} -> true
+        {:ok, term} -> match_term_kernel_rejects?(term, cfg.original_goal, cfg.ctx)
+      end
+
+    if rejected? and length(cfg.family.indices) == 1 and cfg.siblings == [] and
+         match?({:var, _}, cfg.scrut_term) and Process.get(key, false) != true do
+      previous = Process.get(key, :absent)
+      fuel_key = Normalise.fuel_key()
+      Process.put(key, true)
+
+      try do
+        do_retry_computed_index_carrier_match(candidate, cfg)
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      after
+        if previous == :absent, do: Process.delete(key), else: Process.put(key, previous)
+      end
+    else
+      candidate
+    end
+  end
+
+  defp do_retry_computed_index_carrier_match(candidate, cfg) do
+    [idx_term] = cfg.idx_terms
+    {:var, scrut_orig} = cfg.scrut_term
+    expected = Eval.eval(cfg.original_goal, Context.env(cfg.ctx))
+
+    with false <- match?({:var, _}, idx_term) or match?({:ctor, _, _}, idx_term),
+         :ok <- whole_index_raw_sort(cfg.ctx, cfg.original_goal),
+         true <- length(Cure.Core.Validator.nodes(cfg.original_goal)) <= 4_096,
+         carriers when carriers != [] and length(carriers) <= 8 <-
+           collect_index_dependent_carriers(cfg.original_goal, idx_term, cfg.scrut_term, cfg.ctx, cfg.env),
+         ctors when ctors != [] <- Inductive.ctors_of(cfg.env, cfg.family.name),
+         {:ok, ctor_specs} <- computed_carrier_ctor_specs(ctors, cfg.env),
+         {:ok, {arm_map, nil}} <- partition_arms(cfg.arms, cfg.ctx, cfg.env, cfg.family.name),
+         true <- Enum.all?(ctor_specs, &Map.has_key?(arm_map, &1.ctor.name)),
+         {:ok, motive, pi_chain} <-
+           build_computed_carrier_motive(cfg, idx_term, scrut_orig, carriers, ctor_specs),
+         {:ok, _} <- Kernel.infer(cfg.ctx, motive),
+         {:ok, branches} <-
+           build_computed_carrier_branches(ctor_specs, idx_term, length(carriers), pi_chain),
+         {:ok, continuations} <-
+           elaborate_computed_carrier_continuations(
+             ctor_specs,
+             arm_map,
+             idx_term,
+             carriers,
+             pi_chain,
+             cfg
+           ),
+         term =
+           Enum.reduce(
+             Enum.map(carriers, & &1.term) ++ continuations,
+             {:case, cfg.scrut_term, motive, branches},
+             fn arg, acc -> {:app, acc, arg} end
+           ),
+         :ok <- Kernel.check(cfg.ctx, term, expected) do
+      {:ok, term}
+    else
+      _ -> candidate
+    end
+  end
+
+  defp collect_index_dependent_carriers(goal, idx_term, scrut_term, ctx, env) do
+    depth = Context.length(ctx)
+    sig = Context.signature(ctx)
+
+    goal
+    |> do_collect_carriers(idx_term, scrut_term, ctx, env, depth, sig, [])
+    |> Enum.reverse()
+    |> Enum.uniq_by(& &1.term)
+  end
+
+  defp do_collect_carriers({tag, _, _, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc)
+       when tag in [:lam, :pi, :case],
+       do: acc
+
+  defp do_collect_carriers({:let, _, _, _, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:var, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:type, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:level_type}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:level_value, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+
+  defp do_collect_carriers({:data, _name, params, indices}, idx, scrut, ctx, env, depth, sig, acc) do
+    Enum.reduce(params ++ indices, acc, fn child, a ->
+      do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+    end)
+  end
+
+  defp do_collect_carriers(term, idx, scrut, _ctx, _env, _depth, _sig, acc)
+       when term == idx or term == scrut,
+       do: acc
+
+  defp do_collect_carriers(term, idx, scrut, ctx, env, depth, sig, acc) when is_tuple(term) do
+    cond do
+      contains_term_scoped?(term, scrut) ->
+        Enum.reduce(children(term), acc, fn child, a ->
+          do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+        end)
+
+      match?({:app, _, _}, term) or match?({:global, _}, term) or match?({:ctor, _, _}, term) ->
+        case Kernel.infer(ctx, term) do
+          {:ok, type_val} ->
+            type_term = resplit_data(Quote.reify(type_val, depth, sig), env)
+
+            if contains_term_scoped?(type_term, idx) do
+              [%{term: term, type_term: type_term} | acc]
+            else
+              Enum.reduce(children(term), acc, fn child, a ->
+                do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+              end)
+            end
+
+          _ ->
+            Enum.reduce(children(term), acc, fn child, a ->
+              do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+            end)
+        end
+
+      true ->
+        Enum.reduce(children(term), acc, fn child, a ->
+          do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+        end)
+    end
+  end
+
+  defp do_collect_carriers(term, idx, scrut, ctx, env, depth, sig, acc) when is_list(term) do
+    Enum.reduce(term, acc, fn child, a ->
+      do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+    end)
+  end
+
+  defp do_collect_carriers(_term, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+
+  defp computed_carrier_ctor_specs(ctors, env) do
+    Enum.reduce_while(ctors, {:ok, []}, fn ctor, {:ok, acc} ->
+      arity = length(ctor.args)
+
+      with [{:var, idx_arg_db}] <- ctor.result_indices,
+           true <- idx_arg_db >= 0 and idx_arg_db < arity,
+           grades when is_list(grades) <- Inductive.ctor_application_quantities(env, ctor.name, arity) do
+        p_idx = arity - 1 - idx_arg_db
+
+        rem_specs =
+          ctor.args
+          |> Enum.zip(grades)
+          |> Enum.with_index()
+          |> Enum.reject(fn {_entry, pos} -> pos == p_idx end)
+          |> Enum.map(fn {{arg, grade}, pos} -> %{orig_pos: pos, arg: arg, grade: grade} end)
+
+        {:cont, {:ok, acc ++ [%{ctor: ctor, arity: arity, p_idx: p_idx, rem_specs: rem_specs}]}}
+      else
+        _ -> {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp build_computed_carrier_motive(cfg, idx_term, scrut_orig, carriers, ctor_specs) do
+    r = length(carriers)
+    m = length(ctor_specs)
+    outer_domains = motive_domains(cfg.family.name, cfg.family.indices, cfg.param_terms)
+
+    sentinel_base =
+      1 + max_free_ref([cfg.original_goal, cfg.scrut_term, idx_term | Enum.map(carriers, & &1.term)])
+
+    {goal_marked, carrier_rebind} =
+      carriers
+      |> Enum.with_index()
+      |> Enum.reduce({cfg.original_goal, %{}}, fn {%{term: c_term}, i}, {rt, acc} ->
+        sentinel = sentinel_base + i
+        {replace_term_scoped(rt, c_term, {:var, sentinel}), Map.put(acc, sentinel, r - 1 - i)}
+      end)
+
+    idx_sentinel = sentinel_base + r
+    goal_marked = replace_term_scoped(goal_marked, idx_term, {:var, idx_sentinel})
+    rebind = carrier_rebind |> Map.put(idx_sentinel, r + 1) |> Map.put(scrut_orig, r)
+    g_open = generalize(goal_marked, rebind, 2 + r, 0)
+
+    carrier_domains =
+      carriers
+      |> Enum.with_index()
+      |> Enum.map(fn {%{type_term: c_type}, i} ->
+        c_sentinel = 1 + max_free_ref([c_type, idx_term])
+        marked = replace_term_scoped(c_type, idx_term, {:var, c_sentinel})
+        generalize(marked, %{c_sentinel => i + 1}, 2 + i, 0)
+      end)
+
+    cont_domains =
+      ctor_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, c_idx} ->
+        build_computed_carrier_cont_domain(spec, c_idx, r, g_open, cfg.param_terms)
+      end)
+
+    pi_chain =
+      cont_domains
+      |> Enum.reverse()
+      |> Enum.reduce(Subst.shift(g_open, m, 0), fn dom, acc ->
+        {:pi, Grade.unrestricted(), dom, acc}
+      end)
+
+    pi_chain =
+      carrier_domains
+      |> Enum.reverse()
+      |> Enum.reduce(pi_chain, fn dom, acc -> {:pi, :erased, dom, acc} end)
+
+    motive =
+      outer_domains
+      |> Enum.reverse()
+      |> Enum.reduce(pi_chain, fn dom, acc -> {:lam, motive_domain_grade(dom), dom, acc} end)
+
+    {:ok, motive, pi_chain}
+  end
+
+  defp build_computed_carrier_cont_domain(spec, c_idx, r, g_open, param_terms) do
+    q = length(spec.rem_specs)
+
+    rem_domains =
+      spec.rem_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {%{orig_pos: orig_pos, arg: {_name, arg_type}, grade: grade}, k} ->
+        depth_above = 2 + r + c_idx + k
+        j_var = {:var, r + 1 + c_idx + k}
+        shifted_params = Enum.map(param_terms, &Subst.shift(&1, depth_above, 0))
+
+        prev_args =
+          for pos <- 0..(orig_pos - 1)//1 do
+            if pos == spec.p_idx do
+              j_var
+            else
+              prev_k = Enum.find_index(spec.rem_specs, &(&1.orig_pos == pos))
+              {:var, k - 1 - prev_k}
+            end
+          end
+
+        {grade, Subst.instantiate(arg_type, shifted_params ++ prev_args)}
+      end)
+
+    ctor_args =
+      for pos <- 0..(spec.arity - 1)//1 do
+        if pos == spec.p_idx do
+          {:var, r + 1 + c_idx + q}
+        else
+          k = Enum.find_index(spec.rem_specs, &(&1.orig_pos == pos))
+          {:var, q - 1 - k}
+        end
+      end
+
+    ctor_term = {:ctor, spec.ctor.name, ctor_args}
+    cod = g_open |> Subst.shift(c_idx + q, 0) |> replace_var_no_shift(r + c_idx + q, ctor_term, 0)
+
+    rem_domains
+    |> Enum.reverse()
+    |> Enum.reduce(cod, fn {grade, dom}, acc -> {:pi, grade, dom, acc} end)
+  end
+
+  defp replace_var_no_shift({:var, i}, target, replacement, depth) when i == target + depth,
+    do: Subst.shift(replacement, depth, 0)
+
+  defp replace_var_no_shift({:var, _} = v, _target, _replacement, _depth), do: v
+
+  defp replace_var_no_shift({:type, sort}, target, replacement, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &replace_var_no_shift(&1, target, replacement, depth))}
+
+  defp replace_var_no_shift({:level_value, level}, target, replacement, depth),
+    do:
+      {:level_value,
+       Cure.Elab.UniverseTraversal.map_level(level, &replace_var_no_shift(&1, target, replacement, depth))}
+
+  defp replace_var_no_shift({tag, grade, dom, body}, target, replacement, depth) when tag in [:pi, :lam],
+    do:
+      {tag, grade, replace_var_no_shift(dom, target, replacement, depth),
+       replace_var_no_shift(body, target, replacement, depth + 1)}
+
+  defp replace_var_no_shift({:let, grade, ty, val, body}, target, replacement, depth),
+    do:
+      {:let, grade, replace_var_no_shift(ty, target, replacement, depth),
+       replace_var_no_shift(val, target, replacement, depth),
+       replace_var_no_shift(body, target, replacement, depth + 1)}
+
+  defp replace_var_no_shift({:case, scrut, motive, branches}, target, replacement, depth) do
+    {:case, replace_var_no_shift(scrut, target, replacement, depth),
+     replace_var_no_shift(motive, target, replacement, depth),
+     Enum.map(branches, fn {c, ar, b} ->
+       {c, ar, replace_var_no_shift(b, target, replacement, depth + ar)}
+     end)}
+  end
+
+  defp replace_var_no_shift(term, target, replacement, depth) when is_tuple(term),
+    do: rebuild(term, Enum.map(children(term), &replace_var_no_shift(&1, target, replacement, depth)))
+
+  defp replace_var_no_shift(term, target, replacement, depth) when is_list(term),
+    do: Enum.map(term, &replace_var_no_shift(&1, target, replacement, depth))
+
+  defp replace_var_no_shift(term, _target, _replacement, _depth), do: term
+
+  defp build_computed_carrier_branches(ctor_specs, idx_term, r, pi_chain) do
+    m = length(ctor_specs)
+
+    branches =
+      ctor_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, c_idx} ->
+        a = spec.arity
+        j_val = Subst.shift(idx_term, a, 0)
+        x_val = {:ctor, spec.ctor.name, for(pos <- 0..(a - 1)//1, do: {:var, a - 1 - pos})}
+
+        instantiated =
+          pi_chain
+          |> Subst.shift(a, 2)
+          |> Subst.instantiate([j_val, x_val])
+
+        {binders, _cod} = peel_pis(instantiated, r + m, [])
+
+        body =
+          spec.rem_specs
+          |> Enum.reduce({:var, m - 1 - c_idx}, fn %{orig_pos: orig_pos}, acc ->
+            {:app, acc, {:var, a - 1 - orig_pos + r + m}}
+          end)
+
+        wrapped =
+          binders
+          |> Enum.reverse()
+          |> Enum.reduce(body, fn {grade, dom}, acc -> {:lam, grade, dom, acc} end)
+
+        {spec.ctor.name, a, wrapped}
+      end)
+
+    {:ok, branches}
+  end
+
+  defp peel_pis(term, 0, acc), do: {Enum.reverse(acc), term}
+  defp peel_pis({:pi, grade, dom, cod}, n, acc), do: peel_pis(cod, n - 1, [{grade, dom} | acc])
+
+  defp elaborate_computed_carrier_continuations(ctor_specs, arm_map, idx_term, carriers, pi_chain, cfg) do
+    outer_pis = Subst.instantiate(pi_chain, [idx_term, cfg.scrut_term])
+
+    after_carriers =
+      Enum.reduce(carriers, outer_pis, fn %{term: c_term}, {:pi, _grade, _dom, cod} ->
+        Subst.instantiate(cod, [c_term])
+      end)
+
+    {cont_pis, _cod} = peel_pis(after_carriers, length(ctor_specs), [])
+
+    ctor_specs
+    |> Enum.zip(cont_pis)
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {{spec, {_grade, cont_type_shifted}}, c_idx}, {:ok, acc} ->
+      cont_type = Subst.shift(cont_type_shifted, -c_idx, 0)
+
+      case Map.fetch!(arm_map, spec.ctor.name) do
+        {:matched, pattern, body_expr} ->
+          with {:ok, {_cname, vars}} <- constructor_pattern(pattern),
+               {:ok, cont_term} <-
+                 elaborate_single_carrier_continuation(spec, vars, body_expr, cont_type, cfg) do
+            {:cont, {:ok, acc ++ [cont_term]}}
+          else
+            _ -> {:halt, :unsupported}
+          end
+
+        _ ->
+          {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp elaborate_single_carrier_continuation(spec, vars, body_expr, cont_type, cfg) do
+    q = length(spec.rem_specs)
+    {binders, cod} = peel_pis(cont_type, q, [])
+    present_count = Enum.count(binders, fn {grade, _dom} -> Grade.present?(grade) end)
+
+    if length(vars) == present_count do
+      {arm_ctx, arm_names, []} =
+        Enum.reduce(binders, {cfg.ctx, cfg.names, vars}, fn {grade, dom}, {c, ns, vs} ->
+          dom_val = Eval.eval(dom, Context.env(c))
+
+          if Grade.present?(grade) do
+            [v | rest] = vs
+            {Context.extend(c, dom_val, grade), [v | ns], rest}
+          else
+            {Context.extend(c, dom_val, grade), ["_" | ns], vs}
+          end
+        end)
+
+      with {:ok, body_term} <- elaborate_expr_checked(body_expr, cod, arm_names, arm_ctx, cfg.env) do
+        wrapped =
+          binders
+          |> Enum.reverse()
+          |> Enum.reduce(body_term, fn {grade, dom}, acc -> {:lam, grade, dom, acc} end)
+
+        {:ok, wrapped}
+      end
+    else
+      :unsupported
+    end
+  end
+
   defp retry_goal_value_operand_match(candidate, cfg) do
     key = {__MODULE__, :goal_value_operand_retry}
 
@@ -6508,6 +6915,14 @@ defmodule Cure.Elab.Elaborator do
   # into the actual constructor fields; no equality with an ambient value is
   # assumed. Constants, nested terms and repeated variable fields stay refused.
   defp retry_fixed_index_match(candidate, cfg) do
+    do_retry_fixed_index_match(candidate, cfg, :single)
+  end
+
+  defp retry_multi_fixed_index_match(candidate, cfg) do
+    do_retry_fixed_index_match(candidate, cfg, :multi_with_fields)
+  end
+
+  defp do_retry_fixed_index_match(candidate, cfg, mode) do
     key = {__MODULE__, :fixed_index_motive}
 
     rejected? =
@@ -6527,8 +6942,8 @@ defmodule Cure.Elab.Elaborator do
              {:ok, siblings} <-
                fixed_index_siblings(cfg.siblings, cfg.idx_terms, cfg.scrut_term, cfg.names, cfg.ctx, cfg.env),
              generalized_goal = generalize_sibling_telescope(siblings, cfg.original_goal),
-             {:ok, position, constructor, fields} <-
-               fixed_constructor_index(cfg.idx_terms, cfg.env, Context.length(cfg.ctx)),
+             {:ok, fixed_items} <-
+               fixed_constructor_indices(cfg.idx_terms, cfg.env, Context.length(cfg.ctx), mode),
              {:ok, inferred} <- Kernel.infer(cfg.ctx, generalized_goal),
              {:vtype, _} = goal_sort <- Normalise.whnf_value(inferred, Context.signature(cfg.ctx)),
              sort_term <- Quote.reify(goal_sort, Context.length(cfg.ctx), Context.signature(cfg.ctx)),
@@ -6545,17 +6960,17 @@ defmodule Cure.Elab.Elaborator do
              {domains, raw_goal} <- peel_lams(motive, length(cfg.family.indices) + 1, []),
              {motive_ctx, motive_names} <- fixed_motive_context(domains, cfg.ctx, cfg.names),
              motive_sort <- Subst.shift(sort_term, length(domains), 0),
-             fields <- Enum.map(fields, fn {index, field} -> {index + length(domains), field} end),
-             index_term = {:var, length(cfg.family.indices) - position},
-             {:ok, {:vdata, index_family, combined}} <- Kernel.infer(motive_ctx, index_term),
-             true <- Inductive.ctor_family(cfg.env, constructor) == index_family,
+             fixed_chain =
+               Enum.map(fixed_items, fn {position, constructor, fields} ->
+                 %{
+                   index_term: {:var, length(cfg.family.indices) - position},
+                   constructor: constructor,
+                   fields: Enum.map(fields, fn {index, field} -> {index + length(domains), field} end)
+                 }
+               end),
              {:ok, wrapper} <-
-               fixed_index_type_case(
-                 index_term,
-                 index_family,
-                 combined,
-                 constructor,
-                 fields,
+               fixed_index_type_case_chain(
+                 fixed_chain,
                  raw_goal,
                  motive_sort,
                  motive_ctx,
@@ -6751,7 +7166,7 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  defp fixed_constructor_index(indices, env, depth) do
+  defp fixed_constructor_indices(indices, env, depth, mode) do
     constructors =
       indices
       |> Enum.with_index()
@@ -6760,26 +7175,41 @@ defmodule Cure.Elab.Elaborator do
         _ -> []
       end)
 
-    with [{position, name, arguments}] <- constructors,
-         %{args: telescope, quantities: quantities} <- Inductive.get_ctor(env, name),
-         true <- length(telescope) == length(quantities),
-         parameter_count <- Inductive.param_count(env, Inductive.ctor_family(env, name)),
-         {:ok, arguments} <- fixed_constructor_fields(arguments, length(telescope), parameter_count),
-         fields <-
-           arguments
-           |> Enum.zip(quantities)
-           |> Enum.with_index()
-           |> Enum.flat_map(fn
-             {{argument, grade}, field} ->
-               if Grade.present?(grade), do: [{argument, field}], else: []
+    count_ok? =
+      case mode do
+        :single -> length(constructors) == 1
+        :multi_with_fields -> length(constructors) >= 2 and length(constructors) <= 8
+      end
+
+    with true <- count_ok?,
+         {:ok, items, variables} <-
+           Enum.reduce_while(constructors, {:ok, [], []}, fn {position, name, arguments}, {:ok, acc, vars} ->
+             with %{args: telescope, quantities: quantities} <- Inductive.get_ctor(env, name),
+                  true <- length(telescope) == length(quantities),
+                  parameter_count <- Inductive.param_count(env, Inductive.ctor_family(env, name)),
+                  {:ok, arguments} <- fixed_constructor_fields(arguments, length(telescope), parameter_count),
+                  fields <-
+                    arguments
+                    |> Enum.zip(quantities)
+                    |> Enum.with_index()
+                    |> Enum.flat_map(fn
+                      {{argument, grade}, field} ->
+                        if Grade.present?(grade), do: [{argument, field}], else: []
+                    end),
+                  true <- mode == :single or fields != [],
+                  true <-
+                    Enum.all?(fields, fn {argument, _field} ->
+                      match?({:var, index} when index >= 0 and index < depth, argument)
+                    end) do
+               item_vars = Enum.map(fields, fn {{:var, index}, _field} -> index end)
+               mapped = Enum.map(fields, fn {{:var, index}, field} -> {index, field} end)
+               {:cont, {:ok, acc ++ [{position, name, mapped}], vars ++ item_vars}}
+             else
+               _ -> {:halt, :unsupported}
+             end
            end),
-         true <-
-           Enum.all?(fields, fn {argument, _field} ->
-             match?({:var, index} when index >= 0 and index < depth, argument)
-           end),
-         variables <- Enum.map(fields, fn {{:var, index}, _field} -> index end),
          true <- MapSet.size(MapSet.new(variables)) == length(variables) do
-      {:ok, position, name, Enum.map(fields, fn {{:var, index}, field} -> {index, field} end)}
+      {:ok, items}
     else
       _ -> :unsupported
     end
@@ -6802,7 +7232,47 @@ defmodule Cure.Elab.Elaborator do
     end)
   end
 
-  defp fixed_index_type_case(scrutinee, dname, combined, selected, field_bindings, raw_goal, sort_term, ctx, names, env) do
+  defp fixed_index_type_case_chain(
+         [%{index_term: scrutinee, constructor: selected, fields: field_bindings} | rest],
+         raw_goal,
+         sort_term,
+         ctx,
+         names,
+         env
+       ) do
+    with {:ok, {:vdata, dname, combined}} <- Kernel.infer(ctx, scrutinee),
+         true <- Inductive.ctor_family(env, selected) == dname do
+      fixed_index_type_case(
+        scrutinee,
+        dname,
+        combined,
+        selected,
+        field_bindings,
+        rest,
+        raw_goal,
+        sort_term,
+        ctx,
+        names,
+        env
+      )
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp fixed_index_type_case(
+         scrutinee,
+         dname,
+         combined,
+         selected,
+         field_bindings,
+         rest,
+         raw_goal,
+         sort_term,
+         ctx,
+         names,
+         env
+       ) do
     family = Inductive.get_family(env, dname)
     {params, indices} = Enum.split(combined, Inductive.param_count(env, dname))
     depth = Context.length(ctx)
@@ -6855,35 +7325,74 @@ defmodule Cure.Elab.Elaborator do
             pattern = {:function_call, [name: Atom.to_string(ctor.name)], fields}
             frame = prepare_motivegen_branch(ctor.name, pattern, branch_cfg)
 
-            body =
+            body_result =
               if ctor.name == selected do
                 field_subst =
                   Map.new(field_bindings, fn {index, position} ->
                     {index + frame.arity, {:var, frame.arity - 1 - position}}
                   end)
 
-                indexed_branch_codomain(
-                  raw_goal,
-                  scrutinee,
-                  ctor.name,
-                  frame.arity,
-                  Map.merge(frame.motive_subst, field_subst),
-                  siblings,
-                  frame.branch_ctx
-                )
+                combined_subst = Map.merge(frame.motive_subst, field_subst)
+
+                next_goal =
+                  indexed_branch_codomain(
+                    raw_goal,
+                    scrutinee,
+                    ctor.name,
+                    frame.arity,
+                    combined_subst,
+                    siblings,
+                    frame.branch_ctx
+                  )
+
+                if rest == [] do
+                  {:ok, next_goal}
+                else
+                  next_sort = Subst.shift(sort_term, frame.arity + length(siblings), 0)
+
+                  next_rest =
+                    Enum.map(rest, fn %{index_term: r_term, constructor: r_ctor, fields: r_fields} ->
+                      transported_term =
+                        r_term
+                        |> refine_branch_goal_term(scrutinee, ctor.name, frame.arity, combined_subst)
+                        |> rebind_carried_sibling_term(siblings, length(siblings), frame.arity)
+
+                      transported_fields =
+                        Enum.map(r_fields, fn {v_idx, f_pos} ->
+                          {:var, new_idx} =
+                            {:var, v_idx}
+                            |> refine_branch_goal_term(scrutinee, ctor.name, frame.arity, combined_subst)
+                            |> rebind_carried_sibling_term(siblings, length(siblings), frame.arity)
+
+                          {new_idx, f_pos}
+                        end)
+
+                      %{index_term: transported_term, constructor: r_ctor, fields: transported_fields}
+                    end)
+
+                  fixed_index_type_case_chain(
+                    next_rest,
+                    next_goal,
+                    next_sort,
+                    frame.branch_ctx,
+                    frame.branch_names,
+                    env
+                  )
+                end
               else
-                {:atom_type}
+                {:ok, {:atom_type}}
               end
 
-            case Kernel.check(frame.branch_ctx, body, Eval.eval(frame.cod_expected, Context.env(frame.branch_ctx))) do
-              :ok ->
-                wrapped =
-                  Enum.reduce(frame.doms_rev, body, fn {grade, domain}, acc ->
-                    {:lam, grade, domain, acc}
-                  end)
+            with {:ok, body} <- body_result,
+                 :ok <-
+                   Kernel.check(frame.branch_ctx, body, Eval.eval(frame.cod_expected, Context.env(frame.branch_ctx))) do
+              wrapped =
+                Enum.reduce(frame.doms_rev, body, fn {grade, domain}, acc ->
+                  {:lam, grade, domain, acc}
+                end)
 
-                {:cont, {:ok, acc ++ [{ctor.name, frame.arity, wrapped}]}}
-
+              {:cont, {:ok, acc ++ [{ctor.name, frame.arity, wrapped}]}}
+            else
               error ->
                 {:halt, error}
             end
