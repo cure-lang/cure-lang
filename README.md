@@ -374,18 +374,35 @@ All four run in CI (Dialyzer on Linux, where the PLT is built and cached).
 
 The classic checker/code-generator has been removed. Every source file now
 passes through the dependent elaborator, trusted Core validator, erasure, and
-BEAM emitter. **v0.35.0** adds a machine-checked soundness proof of that kernel
-(an 18-module Agda development in [`proof/`](proof/) plus the written argument
-in [`docs/SOUNDNESS.md`](docs/SOUNDNESS.md)), a first-class Tree-Sitter grammar
-and Zed extension, and audit-driven kernel hardening (the hole firewall and
-enforced `@total true`). See [`CHANGELOG.md`](CHANGELOG.md) for the full
-inventory and [`blog/2026-10-11-cure-v0.35.0.md`](blog/2026-10-11-cure-v0.35.0.md)
+BEAM emitter. **v0.36.0** delivers full Agda-style universe polymorphism
+(removing the fixed three-level ceiling), interactive proof tooling and
+extensible tactics (goal-state introspection across CLI/REPL/LSP/VS Code,
+template and typed computed tactic macros, checked solvers including bounded
+`omega`, explicit `@simp` admission, and automatic proof-admission totality),
+a 238-module Agda soundness and executable certificate-replay development in
+[`proof/`](proof/), and broad editor/LSP/formatter upgrades across Neovim,
+VS Code, Zed, and the web playground. See [`CHANGELOG.md`](CHANGELOG.md) for the
+full inventory and [`blog/2026-11-26-cure-v0.36.0.md`](blog/2026-11-26-cure-v0.36.0.md)
 for the release narrative. The 0.34 dependent-pipeline work (indexed families,
 quantitative binders, interfaces and implementations, structural derivation,
 canonical module interfaces, macro expansion, structured diagnostics) is
 described in [`ROADMAP-0.34.md`](ROADMAP-0.34.md).
 
 ### Release history
+- **v0.36.0 -- Universe Polymorphism, Interactive Tactics & Mechanised Verification**:
+  end-to-end Agda-style universe polymorphism (`Cure.Core.UniverseLevel`,
+  unbounded cumulativity with `Universe.ceiling/0` removed, surface universe
+  syntax and use-site inference, universe-polymorphic `Equivalent`/`List`/`Option`/`Sigma`
+  across 82 stdlib modules, grade-0 erasure enforcement, and Antigen polymorphic
+  antibodies); Lean 4 parity Phases 1–4 (goal-state introspection in `E110`,
+  REPL `:goals`, LSP `cure/proofState` and hole-goal inlay hints, native VS Code
+  `cure.goals` tree, `Cure.Elab.Tactic` monad, template `tactic ... becomes ...`
+  and typed goal-inspecting computed tactics, checked `search`/`assumption`/`positivity`/`decide`/`omega`
+  solvers, `@simp`/`@lemma(:simp)` admission, deterministic `rewrite using h all`,
+  and automatic proof-admission totality); a 238-module Agda soundness and
+  executable wire-format certificate-replay development; the linear resource
+  pool example (`examples/cure_pool`); and unified editor/LSP/formatter tooling
+  (`mix cure.editors.sync`, Neovim tree-sitter, LSP hover docs & byte framing).
 - **v0.35.0 -- Mechanised Soundness, Tree-Sitter & Kernel Hardening**: an
   18-module Agda formalisation of the Core calculus proving Progress,
   Preservation (zero postulates), and the fuel-indexed, coinductive, and
