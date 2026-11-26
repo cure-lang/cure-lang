@@ -30,6 +30,6 @@ defmodule Cure.Stdlib.OptionTypeTest do
 
   test "Std.Option declares the Option type in-source (inspectable)" do
     src = File.read!("lib/std/option.cure")
-    assert src =~ "type Option(t) = Some(t) | None()"
+    assert src =~ "type Option(l: UniverseLevel, t: Type(l)) indices ()"
   end
 end

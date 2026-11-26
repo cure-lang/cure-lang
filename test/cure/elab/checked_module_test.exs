@@ -37,8 +37,10 @@ defmodule Cure.Elab.CheckedModuleTest do
     assert source_path == Path.expand(path)
     assert source_hash == :crypto.hash(:sha256, source)
     assert interface.source_hash == source_hash
-    assert interface.owned_env == env
-    assert interface.export_env.defs[:"Checked.Sample#answer"] == env.defs[:"Checked.Sample#answer"]
+    assert is_nil(interface.owned_env)
+    assert is_nil(interface.export_env)
+    assert {:ok, export_env} = Cure.Compiler.ModulePipeline.Interface.to_env(interface)
+    assert export_env.defs[:"Checked.Sample#answer"].type == env.defs[:"Checked.Sample#answer"].type
     assert :"Checked.Sample#answer" in local_defs
 
     assert {:ok, independently_loaded} = Program.module_interface("Checked.Sample", path)

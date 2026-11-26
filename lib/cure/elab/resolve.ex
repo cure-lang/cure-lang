@@ -254,8 +254,15 @@ defmodule Cure.Elab.Resolve do
   defp result_head_core(_ast, _core, _head_var), do: :error
 
   defp find_result_head(ast_args, core_args, head_var) do
+    aligned_core_args =
+      if length(core_args) > length(ast_args) do
+        drop_leading_level_cores(core_args, length(core_args) - length(ast_args))
+      else
+        core_args
+      end
+
     ast_args
-    |> Enum.zip(core_args)
+    |> Enum.zip(aligned_core_args)
     |> Enum.reduce_while(:error, fn {ast, core}, :error ->
       case result_head_core(ast, core, head_var) do
         {:ok, _} = found -> {:halt, found}
@@ -263,6 +270,11 @@ defmodule Cure.Elab.Resolve do
       end
     end)
   end
+
+  defp drop_leading_level_cores([{:level_value, _} | rest], n) when n > 0,
+    do: drop_leading_level_cores(rest, n - 1)
+
+  defp drop_leading_level_cores(args, _n), do: args
 
   @doc """
   Elaborate a call to a constrained global `name(args...)`, appending the
@@ -632,12 +644,25 @@ defmodule Cure.Elab.Resolve do
   end
 
   defp bind_instance_type({:function_call, _meta, ast_args}, {:vdata, _name, value_args}, bindings) do
+    aligned_values =
+      if length(value_args) > length(ast_args) do
+        drop_count = length(value_args) - length(ast_args)
+        drop_leading_level_values(value_args, drop_count)
+      else
+        value_args
+      end
+
     ast_args
-    |> Enum.zip(value_args)
+    |> Enum.zip(aligned_values)
     |> Enum.reduce(bindings, fn {ast, value}, acc -> bind_instance_type(ast, value, acc) end)
   end
 
   defp bind_instance_type(_surface, _value, bindings), do: bindings
+
+  defp drop_leading_level_values([{:vlevel, _} | rest], n) when n > 0,
+    do: drop_leading_level_values(rest, n - 1)
+
+  defp drop_leading_level_values(values, _n), do: values
 
   defp constraint_type_value({:function_call, meta, [{:variable, _vm, name}]}, bindings) do
     case Map.fetch(bindings, name) do

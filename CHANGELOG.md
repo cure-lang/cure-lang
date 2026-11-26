@@ -4,14 +4,75 @@ All notable changes to Cure are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.36.0] -- Universe Polymorphism, Interactive Tactics & Mechanised Verification -- 2026-11-26
 
 ### Added
 
+#### Universe Polymorphism
+
+- **Canonical universe level algebra (`Cure.Core.UniverseLevel`, `Cure.Core.LevelValue`, `Cure.Core.Sort`, `Cure.Core.UniverseCodec`)**:
+  - Implemented Agda-style maximum-plus normal form (`%UniverseLevel{constant, atoms}`) with deduplicated, canonically ordered `{atom_term, offset}` entries and constant subsumption.
+  - Added canonical constructors and operations (`zero`, `closed`, `atom`, `succ`, `max`, `equal?/3`, `leq?/3`), binder-aware `shift/3`, `subst/3`, and `free_vars/1`, and strict `validate/2` rejecting negative constants/offsets or non-canonical atom lists.
+  - Audited and upgraded all Core walkers (`Closure.collect`, `Interface.mentioned_globals`, `Conformance.walk`, `MetadataLint.walk`, `Metadata.strip_diagnostics`, `Cycle`, `Expansion.collect_variables`) to be level-aware and fail-closed.
+- **Surface universe syntax & inference (`Cure.Elab.UniverseSurface`, `Cure.Elab.UniverseTraversal`)**:
+  - Added first-class surface syntax for `UniverseLevel`, `universe_zero`, `universe_succ`, `universe_max`, `Type(l)`, `TypeN`, `TypeLimit`, and `TypeLimitN` (previously misparsed as ordinary type variables).
+  - Implemented least-upper-bound (LUB) inductive family sort inference, level unification, and use-site level inference so polymorphic definitions can be called without manual level annotations in common cases.
+- **Universe-polymorphic standard library (82 modules: 71 in `lib/std/` + 11 in `lib/std_deps/`)**:
+  - Migrated `Std.Equivalent`, `Std.List`, `Std.Option`, and `Std.Sigma` to single universe-polymorphic definitions across the entire bundled standard library.
+- **Grade-0 erasure & backend invariance**:
+  - Enforced grade-0 erasure for universe-level parameters: runtime-relevant level uses are rejected at elaboration/erasure time, and emitted BEAM bytecode is verified byte-identical to the monomorphic baseline.
+- **Antigen universe-polymorphism hardening (`lib/antigen/generators/universes.ex`, `lib/antigen/shrink.ex`, `lib/antigen/corpus/{migration,legacy_import}.ex`)**:
+  - Added polymorphic and adversarial universe generators, canonical maximum-plus shrinking, and §19.6 weak-kernel sensitivity antibodies.
+
+#### Interactive Proofs, Tactics & Checked Solvers
+
+- **Goal-state introspection across CLI, REPL, LSP, and VS Code (`Cure.Elab.ProofState`, `Cure.Elab.SourceContext`, `Cure.Elab.ProofDisplay`)**:
+  - `E110` proof-failure diagnostics now render the remaining goal target and authored local hypotheses.
+  - Added REPL `:goals` meta-command (retaining the last submission's proof states even when a definition is refused, without installing the failed definition).
+  - Added LSP `cure/proofState` custom request honoring negotiated UTF-8/16/32 cursor positions and document versions (`-32801` on stale/closed buffers), plus LSP hole-goal inlay hints.
+  - Added a native VS Code `cure.goals` tree view and `cure.showGoals` command with request coalescing, cancellation, and real Extension Host CI verification (`.github/workflows/extension.yml`, `vscode-cure/src/test/hostSuite.ts`).
+- **Checked tactic engine & canonical-frame induction (`Cure.Elab.Tactic`, `Tactic.{Step,Result,Script,Apply,Computed}`, `Cure.Elab.Induction.Frame`)**:
+  - Unified justification commands on `ProofGoal.new/5` and `inspect_goal/1` with original-goal identity and checked evidence retention across sequence, choice, focus, all-goals, and bounded repeat combinators.
+  - Added application sessions (`apply`) retaining immutable pending parents with telescope-ordered independent premises, staged dependent premises, and visible typed witness obligations for unresolved implicits.
+  - Added canonical-frame induction executing checked goal commands per branch with hygienic field and induction-hypothesis (`IH`) names.
+- **Extensible tactic macros (`Std.Tactic`, `Cure.Elab.Tactic.Computed`)**:
+  - Added declarative template tactic rules (`tactic ... becomes ...`) inside macro containers so libraries can define reusable, contextual proof commands.
+  - Added typed goal-inspecting computed tactics taking captured `Syntax` arguments and a typed `Std.Tactic.Goal` (with `Hypothesis` records and structural target syntax), returning requests from a closed 256-operation vocabulary with fresh invocation handles, explicit `fresh(...)` hygiene markers, and strict kernel re-checking against the original goal.
+- **Checked solver suite (`Cure.Elab.Solver`, `Cure.Elab.Omega`, `Omega.{Linear,Certificate,Proof}`, `Std.Proof.LinearArithmetic.Reflection`)**:
+  - `by search`: local evidence, checked projections, and tagged lemmas (preserving ambiguity errors).
+  - `by assumption`: matching local propositional evidence only.
+  - `by positivity`: curated natural-number `IsPositive` fragment (successors, addition, multiplication, sign hypotheses).
+  - `by decide` and `by decide using expr`: certified Core normalization of `Decision(P)` extracting actual `Yes` evidence checked at the original goal.
+  - `by omega`: bounded checked reconstruction of non-strict `Std.Proof.IntOrder` goals (local evidence, reflexivity, transitivity, add-same, add-both, literal-natural scaling; bounds: 128 local slots, depth 12, 512 steps, scalars ≤ 1024).
+- **Ambient simplification & deterministic rewrite-all (`Cure.Elab.SimpSet`)**:
+  - Added explicit `@simp` and `@lemma(:simp)` admission with strict Core-size termination validation (`E112` on non-decreasing or binder-containing endpoints), certified recursive computation (`beta`, `iota`, `zeta`, certified `delta`), and opt-in `rewrite using h all` (and backwards form) visiting occurrences deterministically left-to-right via composed checked equality transports.
+- **Automatic proof-admission totality (`Cure.Elab.ProofAdmission`)**:
+  - Hole-free declarations executing proof syntax or implicit search now require totality certification after body checking (`E013` `proof_totality_unproven`, not waivable by `@total false`), preventing nonterminating recursive evidence from entering logical proofs while keeping partial runtime functions legal.
+- **Lean 4 parity corpus & documentation**:
+  - Added the pinned source corpus in `test/lean4_parity/` (`mix test test/lean4_parity_test.exs`) and documentation in `docs/PATH_TO_LEAN4.md`, `docs/PATH_TO_LEAN4_PLAN.md`, `docs/LEAN4_PARITY_STATUS.md`, `docs/LEAN4_MIGRATION_PLAN.md`, `docs/LEAN4_READINESS_AUDIT.md`, `docs/LEAN4_PHASE5_U0_INVENTORY.md`, `docs/CONFLUENCE.md`, and `docs/README.md`.
+
+#### Mechanised Soundness & Executable Certificate Replay (`proof/`, `lib/cure/core/proof_*.ex`)
+
+- **Expanded Agda formalisation (18 → 238 modules) & CI verification**:
+  - Added CI job `ci(proof)` machine-checking the Agda soundness development and guarding its exact axiom surface.
+  - Proved the diamond property and confluence of `_⇝_` via value-free strict parallel reduction `⇉` (`⇉-substS`, `substTopT-⇉*`, branch-reducing `ι`, `ξ-case-brs`) and derived the zero-postulate classical normal-form dichotomy `soundness-nf : Reached ⊎ DivergesNF` (`Proof.SoundnessConfluence`).
+  - Mechanised erasure (`erase-idem`, zero postulates) and added regression suites for `docs/SOUNDNESS.md` §8 (hole firewall on both paths, SCC verifier forged-partition rejection, erasure-commutation congruence and negative `δ` commutation result).
+  - Built the native dependent-typing soundness development (`Core.DependentTyping`, `Proof.DependentSoundness`, `Proof.DependentSoundnessModel`): general dependent transport, conversion inversion, recursive native subject reduction with checked literal layouts, local reduction witnesses, and constructive fuel/trace/tree soundness.
+- **Executable wire-format & certificate replay (`Cure.Core.ProofWire`, `ProofSnapshot`, `ProofSnapshotWire`, `ProofRecipe`, `ProofContext`)**:
+  - Implemented canonical executable snapshots, checked character codecs, and Elixir-produced recipe certificate artifacts replayed in Agda for family/constructor declarations, non-reflexive conversions, and dependent case elimination.
+  - Completed M1 normalization-guided caller and packet replay (scoped closure quotation, bounded exact-arity constructor-case execution, recursive data-spine & residual-case readback, prefix-kind coherence), closing the M1 acceptance gate on a genuinely dependent converted argument.
+  - Discharged representation and adapter obligations by construction and checked preconditions: host-shaped table resolution, failure impossibility for three evaluator raise sites, narrowed `δ`-unfolding policy, and typed `η` extending conversion without disturbing head separation.
+
+#### Examples, Editors & Tooling
+
+- **Linear resource pool example (`examples/cure_pool/`)**: Cure + Elixir/OTP pool where the compiler statically rejects checkout from an empty pool, double-return, and dropped leases (including negative compile-fail fixtures and OTP crash-reclaim tests).
 - `neovim-cure` highlights with tree-sitter on Neovim 0.11+, using
   `tree-sitter-cure/` and the same highlight queries as `zed-cure`. It
   compiles the parser from the repository on first use and falls back to
   `syntax/cure.vim` without a C compiler; `:CureTSBuild` builds it by hand.
+  Also registers the `.cure` icon with `nvim-web-devicons`.
+- `vscode-cure` adds the extension icon and `.cure` file icon, and auto-indents
+  after a trailing `=` or `->` with a two-space default.
 - `mix cure.editors.sync` generates the keyword lists every editor grammar
   shares from the compiler: keywords and contextual keywords from
   `Cure.Compiler.Lexer` (new `Lexer.keywords/0`), declaration heads from the
@@ -24,118 +85,151 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   or when an editor lacks a rule for a contextual keyword or macro word.
 - `behavior` (`Std.Actor`'s `macro behavior <name: ModuleName>`) is
   highlighted as a declaration head, like `actor`.
-- `cure-lsp` hover shows a declaration's `##` documentation under its
-  signature, as ElixirLS shows `@doc`: functions, modules, types, records,
-  interfaces and constructors. Hover follows `use` (including `as` aliases)
-  and qualified names (`Std.List.map`) into the standard library, other open
-  documents, and the document's directory and the workspace's `lib/`.
-  Signatures now carry parameter types, the return type and effects.
+- `cure-lsp` hover (`Cure.LSP.Docs`) shows a declaration's `##` documentation
+  under its signature, as ElixirLS shows `@doc`: functions, modules, types,
+  records, interfaces and constructors. Hover follows `use` (including `as`
+  aliases) and qualified names (`Std.List.map`) into the standard library,
+  other open documents, the document's directory, and the nearest `Cure.toml`'s
+  source paths. Signatures now carry parameter types, the return type and effects.
+- The web playground (`site/`) now highlights Cure code with the
+  `tree-sitter-cure` grammar.
 
 ### Changed
 
+- **Unbounded universe hierarchy**: removed `Universe.ceiling/0` (the fixed
+  three-level `Type 0 : Type 1 : Type 2` ceiling). Trusted sorting and
+  cumulativity now operate over unbounded canonical `UniverseLevel` expressions
+  (`Cure.Core.HistoricalFinite3` preserves the historical 3-level model only for
+  legacy comparison).
+- **Honest classical soundness boundary in Agda**: retired the false postulate
+  `never-reached→no-value` and the classical `soundness` theorem built on it
+  (which failed for binder-reducing `_⇝_` on `tm-lam g d Ω`), replacing it with
+  `soundness-nf` over normal forms; frozen legacy contradictory interfaces in
+  `Proof.InterfaceAudit`.
 - `cure help` is now generated from a single command registry
   (`Cure.CLI.Commands`) instead of a list hard-coded in three places (the
   `@moduledoc`, the unknown-command suggestion list, and the `help/0` text).
   Adding or renaming a subcommand now touches one list; the registry names are
   cross-checked against the dispatch `case`.
+- Single-buffer parsing (`Cure.Compiler.BufferParse`) reuses canonical
+  manifest/expansion grammar discovery so unsaved editor buffers resolve saved
+  source-backed macro and tactic providers cleanly.
+- Stdlib loading falls back to source when a published stdlib artifact was
+  compiled by a different toolchain version.
+- Refreshed locked dependency versions (`mix.lock`) and suppressed Elixir 1.18
+  CI builds where formatter output diverged.
 
 ### Fixed
 
-- A hole that survives to the canonical emission boundary now renders as the
-  user-facing `E014 UNFILLED HOLE` (source span, caret, hint) instead of
-  `E101 CODE GENERATION FAILED` with the note "This is an internal compiler
-  failure; report it with the diagnostic fingerprint". A user who simply left a
-  hole was being told to file a compiler bug. `cure compile hole.cure` now prints
-  `-- UNFILLED HOLE [E014]`.
-- `cure watch --action` is validated against `compile | check | test` at the CLI
-  boundary; an unknown value is an `E099` usage error instead of a
-  `String.to_atom/1` of untrusted input handed to `Cure.Watch`.
-- `Term.from_external/1` decodes an `atom_lit` through the same bounded-interning
-  path (`sym_atom/1`, existing atoms only) as every other symbol, closing the one
-  atom-minting path that could exhaust the atom table from untrusted JSON (K12 §D).
-- `cure migrate`'s error path uses `exit({:shutdown, 1})` rather than the lone
-  `System.halt(1)` in the CLI, so output flushes and shutdown hooks run.
-- `cmd_keys_generate`'s unreachable `exit({:shutdown, 1})` (after a `raise`) was
-  removed; the `rescue` already owns the single exit.
-- Documentation and version drift (audit §4.6): the CHANGELOG gained its
-  `[0.35.0]` section; `RELEASE.md` was updated to 0.35.0 and the 0.34 launch
-  checklist marked closed; the README "Status" and release history were
-  refreshed; `examples/cure_exchange/cure/README.md`'s "Known limitations" was
-  corrected (limitation 2 is fixed, 1/3/4 remain) along with the same claims in
-  `docs/FSM_GUIDE.md`, `examples/cure_exchange/cure/lib/{escrow_fsm_dsl_reference,otp_demo}.cure`,
-  and `examples/cure_pool/{README.md,docs/POOL.md}`; the `docs/SUPERVISION.md`
-  actor example is now indentation-structured; `docs/GETTING_STARTED.md`,
-  `docs/GLOSSARY.md`, and `docs/BIND_PIPE.md` were added to the HexDocs
-  `extras`; the stdlib module count is stated once as 80 (69 + 11); and a
-  `docs/README.md` index was added.
-- `neovim-cure` could not be installed: its README pointed lazy.nvim and
-  packer at `cure-lang/neovim-cure`, a repository that does not exist. It now
-  installs `cure-lang/cure-lang` and adds `neovim-cure/` to the runtimepath;
-  `setup()` registers the filetype itself, since lazy.nvim does not source
-  `ftdetect/` in a subdirectory.
-- `neovim-cure` started two LSP clients per buffer when nvim-lspconfig was
-  installed (one through lspconfig, one through `vim.lsp.start`), and one
-  client per directory. It now starts a single client per project root.
-- `vscode-cure` only found `cure-lsp` at the root of the workspace, so the
-  LSP did not start in any project other than the Cure repository, and its
-  check for `cure` on `PATH` always answered yes. It now looks on `PATH`,
-  then in each workspace folder, expands `~` and `${workspaceFolder}` in
-  `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
-  it finds nothing. The REPL command uses the same lookup, and
-  `cure.trace.server` now takes effect.
-- `vscode-cure`'s TextMate grammar is generated from `tree-sitter-cure`'s
-  keyword list (`scripts/build-grammar.js`) and follows the tree-sitter
-  grammar's tokens: `##`/`###` doc comments instead of a `#| |#` block
-  comment Cure does not have, chars, regexes, holes, decorators, FSM
-  transitions, contextual keywords and macro vocabulary.
-- Every editor grammar (tree-sitter, TextMate, Vim, highlight.js) matched
-  regexes as `~r/.../`, which Cure does not have, so a real `/.../flags`
-  literal was never highlighted, and one holding `#` or `"` turned the rest
-  of the line into a comment or a string. They now match `/.../` where the
-  lexer does: where an expression can begin, so `a / b / c` still divides.
-  `language-configuration.json` no longer declares `#| |#` either.
-- `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
-  `#| |#` block comment and keywords Cure does not have (`state`, `event`,
-  `erased`, ...); it now follows the tree-sitter grammar's tokens.
-- No editor grammar knew `directly` in `computed directly by` (used by
-  `Std.Supervisor`'s `child` rule); all of them highlight it now.
-- `highlightjs-cure` missed twenty keywords (`interface`, `deriving`,
-  `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
-  and its `dist/` bundle was a hand-kept copy of the source. Its keyword
-  lists are now generated and `dist/cure.min.js` is built from the source.
-- `cure-lsp` marked keywords inside comments and strings as semantic tokens
-  (a regex over each line), so editors coloured `type` or `when` in doc
-  comments over their own grammar. Semantic tokens now come from the lexer's
-  tokens, with columns in the negotiated position encoding. Contextual words
-  (`proof`, `case`, `app`, `have`, ...) are keywords only in the position
-  that makes them one, so `fn proof(...)` or `let case = 1` keep the
-  editor's own colours.
-- A `##` doc comment that followed another comment-only line got that line's
-  position, so the parser could not see a blank line between two doc blocks:
-  the doc of a module's first definition was merged into the module doc.
-  Doc comments now start on their own line.
-- A `##` block right after `mod Name` always became the module doc, even
-  when it sat on the first definition, so in
-  `mod M` / `## Adds.` / `fn add(...)` the doc went to `M` instead of
-  `add`. A block that touches the first definition now documents it; a
-  module doc is separated from what follows by a blank line, as
-  `docs/DOC.md` now says. A block above a `use` line or a plain `#`
-  comment still documents the module. The stdlib modules written the other way
-  (`Std.Atom`, `Std.Float`, `Std.Int`, `Std.ExitReason`, `Std.Syntax`,
-  `Std.Syntax.Raw`, `Std.Proof.LinearArithmetic`, `Std.Regex`,
-  `Std.Regex.Core`, `Std.Regex.Runtime`) gain that blank line.
-  `Std.Comparable`, `Std.Equatable` and `Std.Tuple` had only a note on
-  their `use` line where the module doc goes; they now have module docs.
-- `cure-lsp` put every inlay hint and code lens on the first line: symbols
-  read a `:line` key the parser no longer sets. They now take the line from
-  the source span. Sum-type variants were listed as functions, which gave
-  constructor calls raw-AST parameter hints; they are constructors now. The
-  `# fn name(...)` inlay hint, which repeated the line it sat on, is gone, and
-  so is the `Type | Effects` code lens, whose `cure.type.*` command no client
-  implements.
-- Repository links in `zed-cure`, `vscode-cure`, `highlightjs-cure` and
-  `tree-sitter-cure` pointed at `cure-lang/cure` or `am-kantox/cure`, which
-  do not exist; they now point at `cure-lang/cure-lang`.
+- **Universe polymorphism & elaborator fixes**:
+  - Aligned `Sigma` tuple-pattern arity and remaining Antigen `Equivalent` arities after U5 migration.
+  - Fixed stdlib elaboration under polymorphic universes via computed-index carrier propagation, multi-fixed-index motive retries, conversion fuel propagation, transport and alias repairs, bounded computed-with retries, and denominator-only coverage refresh.
+  - Fixed Core printer (`Cure.Core.Printer`) and `Cure.Elab.ProofDisplay` formatting for universe-polymorphic terms and levels.
+- **Proof language & tactic macro fixes**:
+  - Added a parser `proof_context` flag so contextual proof commands (`apply`, `exact`) remain ordinary identifiers outside `because`/`induction` blocks, fixing regressions in `Std.Regex` (`rewrite exact in body` and pattern-bound `exact`).
+  - Made `proof chain` usable directly as a function body and fixed inline proof commands.
+  - Resolved 2026-11-22 tactic macro audit findings: silent printer deletion/crashes, nested expression keyword capture, unsafe literal lookahead, nested alias expansion, source-provider grammar shadowing, open-goal handling, unreachable statements after closure, trace duplication, and malformed command acceptance.
+  - Repaired integer commutativity/associativity totality in `Std.Proof.IntOrder` via four private structural `Nat` helpers without changing public theorem types or trusted termination rules.
+- **Diagnostics, CLI & Kernel**:
+  - Unresolved modules now report `E091` instead of `E101`.
+  - A hole that survives to the canonical emission boundary now renders as the
+    user-facing `E014 UNFILLED HOLE` (source span, caret, hint) instead of
+    `E101 CODE GENERATION FAILED` with the note "This is an internal compiler
+    failure; report it with the diagnostic fingerprint". `cure compile hole.cure`
+    now prints `-- UNFILLED HOLE [E014]`.
+  - `cure watch --action` is validated against `compile | check | test` at the CLI
+    boundary; an unknown value is an `E099` usage error instead of a
+    `String.to_atom/1` of untrusted input handed to `Cure.Watch`.
+  - `Term.from_external/1` decodes an `atom_lit` through the same bounded-interning
+    path (`sym_atom/1`, existing atoms only) as every other symbol, closing the one
+    atom-minting path that could exhaust the atom table from untrusted JSON (K12 §D).
+  - `cure migrate`'s error path uses `exit({:shutdown, 1})` rather than the lone
+    `System.halt(1)` in the CLI, so output flushes and shutdown hooks run.
+  - `cmd_keys_generate`'s unreachable `exit({:shutdown, 1})` (after a `raise`) was
+    removed; the `rescue` already owns the single exit.
+- **Formatter, LSP & Lexer**:
+  - `cure fmt` now indents every line of a multi-line node in the algebra formatter.
+  - `cure-lsp` frames stdio `Content-Length` headers in bytes rather than Unicode characters, fixing protocol desync on multi-byte UTF-8 files.
+  - `cure-lsp` keeps a predicate's trailing `?` in hover names and resolves hover names in the module they belong to.
+  - `cure-lsp` marked keywords inside comments and strings as semantic tokens
+    (a regex over each line), so editors coloured `type` or `when` in doc
+    comments over their own grammar. Semantic tokens now come from the lexer's
+    tokens, with columns in the negotiated position encoding. Contextual words
+    (`proof`, `case`, `app`, `have`, ...) are keywords only in the position
+    that makes them one, so `fn proof(...)` or `let case = 1` keep the
+    editor's own colours.
+  - `cure-lsp` put every inlay hint and code lens on the first line: symbols
+    read a `:line` key the parser no longer sets. They now take the line from
+    the source span. Sum-type variants were listed as functions, which gave
+    constructor calls raw-AST parameter hints; they are constructors now. The
+    `# fn name(...)` inlay hint, which repeated the line it sat on, is gone, and
+    so is the `Type | Effects` code lens, whose `cure.type.*` command no client
+    implements.
+  - A `##` doc comment that followed another comment-only line got that line's
+    position, so the parser could not see a blank line between two doc blocks:
+    the doc of a module's first definition was merged into the module doc.
+    Doc comments now start on their own line.
+  - A `##` block right after `mod Name` always became the module doc, even
+    when it sat on the first definition, so in
+    `mod M` / `## Adds.` / `fn add(...)` the doc went to `M` instead of
+    `add`. A block that touches the first definition now documents it; a
+    module doc is separated from what follows by a blank line, as
+    `docs/DOC.md` now says. A block above a `use` line or a plain `#`
+    comment still documents the module. The stdlib modules written the other way
+    (`Std.Atom`, `Std.Float`, `Std.Int`, `Std.ExitReason`, `Std.Syntax`,
+    `Std.Syntax.Raw`, `Std.Proof.LinearArithmetic`, `Std.Regex`,
+    `Std.Regex.Core`, `Std.Regex.Runtime`) gain that blank line.
+    `Std.Comparable`, `Std.Equatable` and `Std.Tuple` had only a note on
+    their `use` line where the module doc goes; they now have module docs.
+- **Editors & Documentation**:
+  - Documentation and version drift (audit §4.6): the CHANGELOG gained its
+    `[0.35.0]` section; `RELEASE.md` was updated and the 0.34 launch
+    checklist marked closed; the README "Status" and release history were
+    refreshed; `examples/cure_exchange/cure/README.md`'s "Known limitations" was
+    corrected (limitation 2 is fixed, 1/3/4 remain) along with the same claims in
+    `docs/FSM_GUIDE.md`, `examples/cure_exchange/cure/lib/{escrow_fsm_dsl_reference,otp_demo}.cure`,
+    and `examples/cure_pool/{README.md,docs/POOL.md}`; the `docs/SUPERVISION.md`
+    actor example is now indentation-structured; `docs/GETTING_STARTED.md`,
+    `docs/GLOSSARY.md`, and `docs/BIND_PIPE.md` were added to the HexDocs
+    `extras`; and a `docs/README.md` index was added.
+  - `neovim-cure` could not be installed: its README pointed lazy.nvim and
+    packer at `cure-lang/neovim-cure`, a repository that does not exist. It now
+    installs `cure-lang/cure-lang` and adds `neovim-cure/` to the runtimepath;
+    `setup()` registers the filetype itself, since lazy.nvim does not source
+    `ftdetect/` in a subdirectory.
+  - `neovim-cure` started two LSP clients per buffer when nvim-lspconfig was
+    installed (one through lspconfig, one through `vim.lsp.start`), and one
+    client per directory. It now starts a single client per project root.
+  - `vscode-cure` only found `cure-lsp` at the root of the workspace, so the
+    LSP did not start in any project other than the Cure repository, and its
+    check for `cure` on `PATH` always answered yes. It now looks on `PATH`,
+    then in each workspace folder, expands `~` and `${workspaceFolder}` in
+    `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
+    it finds nothing. The REPL command uses the same lookup, and
+    `cure.trace.server` now takes effect.
+  - `vscode-cure`'s TextMate grammar is generated from `tree-sitter-cure`'s
+    keyword list (`scripts/build-grammar.js`) and follows the tree-sitter
+    grammar's tokens: `##`/`###` doc comments instead of a `#| |#` block
+    comment Cure does not have, chars, regexes, holes, decorators, FSM
+    transitions, contextual keywords and macro vocabulary.
+  - Every editor grammar (tree-sitter, TextMate, Vim, highlight.js) matched
+    regexes as `~r/.../`, which Cure does not have, so a real `/.../flags`
+    literal was never highlighted, and one holding `#` or `"` turned the rest
+    of the line into a comment or a string. They now match `/.../` where the
+    lexer does: where an expression can begin, so `a / b / c` still divides.
+    `language-configuration.json` no longer declares `#| |#` either.
+  - `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
+    `#| |#` block comment and keywords Cure does not have (`state`, `event`,
+    `erased`, ...); it now follows the tree-sitter grammar's tokens.
+  - No editor grammar knew `directly` in `computed directly by` (used by
+    `Std.Supervisor`'s `child` rule); all of them highlight it now.
+  - `highlightjs-cure` missed twenty keywords (`interface`, `deriving`,
+    `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
+    and its `dist/` bundle was a hand-kept copy of the source. Its keyword
+    lists are now generated and `dist/cure.min.js` is built from the source.
+  - Repository links in `zed-cure`, `vscode-cure`, `highlightjs-cure` and
+    `tree-sitter-cure` pointed at `cure-lang/cure` or `am-kantox/cure`, which
+    do not exist; they now point at `cure-lang/cure-lang`.
 
 ## [0.35.0] -- Mechanised Soundness, Tree-Sitter & Kernel Hardening -- 2026-10-11
 

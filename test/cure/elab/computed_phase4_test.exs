@@ -151,7 +151,7 @@ defmodule Cure.Elab.ComputedPhase4Test do
   test "target variables are authored names, not opaque reflection or pending have names" do
     callback = """
     match goal_target(g)
-        Node(:Equivalent, _, [_, Leaf(:variable, _, SStr(left)), Leaf(:variable, _, SStr(right))]) ->
+        Node(:Equivalent, _, [_, _, Leaf(:variable, _, SStr(left)), Leaf(:variable, _, SStr(right))]) ->
           match string_eq(left, "x")
             True() -> match string_eq(right, "x")
               True() -> match has_hypothesis(g, "fact")

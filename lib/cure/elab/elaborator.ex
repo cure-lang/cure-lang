@@ -14737,8 +14737,14 @@ defmodule Cure.Elab.Elaborator do
 
   defp goal_payload(expected_core, head, ctx, _env) do
     case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), Context.signature(ctx)) do
-      {:vdata, ^head, [payload | _]} -> payload
-      _ -> nil
+      {:vdata, ^head, args} ->
+        case drop_leading_level_values(args) do
+          [payload | _] -> payload
+          _ -> nil
+        end
+
+      _ ->
+        nil
     end
   end
 
@@ -14780,8 +14786,14 @@ defmodule Cure.Elab.Elaborator do
   # arm).
   defp monad_type_args(type_value, head, ctx, _env) do
     case Normalise.whnf_value(type_value, Context.signature(ctx)) do
-      {:vdata, ^head, [payload | rest]} -> {:ok, payload, rest}
-      _ -> :error
+      {:vdata, ^head, args} ->
+        case drop_leading_level_values(args) do
+          [payload | rest] -> {:ok, payload, rest}
+          _ -> :error
+        end
+
+      _ ->
+        :error
     end
   end
 
@@ -14789,10 +14801,19 @@ defmodule Cure.Elab.Elaborator do
     sig = Context.signature(ctx)
 
     case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), sig) do
-      {:vdata, ^head, [payload | rest]} -> {:ok, payload, rest}
-      _ -> :error
+      {:vdata, ^head, args} ->
+        case drop_leading_level_values(args) do
+          [payload | rest] -> {:ok, payload, rest}
+          _ -> :error
+        end
+
+      _ ->
+        :error
     end
   end
+
+  defp drop_leading_level_values(args),
+    do: Enum.drop_while(args, &match?({:vlevel, _}, &1))
 
   # The SURFACE fallback: desugar to `and_then(rhs, λx. rest)` and let the
   # bidirectional solver resolve the interface instance and the lambda's domain.
@@ -14858,8 +14879,14 @@ defmodule Cure.Elab.Elaborator do
 
   defp payload_surface_type(expected_core, ctx, _env) do
     case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), Context.signature(ctx)) do
-      {:vdata, _head, [payload | _]} -> core_type_to_surface(payload)
-      _ -> nil
+      {:vdata, _head, args} ->
+        case drop_leading_level_values(args) do
+          [payload | _] -> core_type_to_surface(payload)
+          _ -> nil
+        end
+
+      _ ->
+        nil
     end
   end
 
@@ -14869,7 +14896,7 @@ defmodule Cure.Elab.Elaborator do
   # `Type`. A shape outside this set yields `nil`, and the binder stays
   # unannotated (never a wrong annotation).
   defp core_type_to_surface({:vdata, family, args}) do
-    surfaces = Enum.map(args, &core_type_to_surface/1)
+    surfaces = args |> drop_leading_level_values() |> Enum.map(&core_type_to_surface/1)
 
     if Enum.all?(surfaces, &(&1 != nil)) do
       {:function_call, [name: surface_family_name(family)], surfaces}

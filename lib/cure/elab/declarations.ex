@@ -76,7 +76,7 @@ defmodule Cure.Elab.Declarations do
         # `Inductive.positive?/2` where it belongs.
         with :ok <- reject_reserved_family_name(name) do
           type_params = Keyword.get(meta, :type_params, [])
-          params = Enum.map(type_params, fn p -> {:param, [], p} end)
+          params = Keyword.get_lazy(meta, :params, fn -> Enum.map(type_params, fn p -> {:param, [], p} end) end)
           sigs = Enum.map(variants, &variant_to_gadt_sig(&1, name, type_params))
           declare_parameterized(name, params, [], sigs, env)
         end
@@ -385,7 +385,11 @@ defmodule Cure.Elab.Declarations do
         name = meta |> Keyword.fetch!(:name) |> String.to_atom()
 
         with :ok <- reject_reserved_family_name(name) do
-          params = Keyword.get(meta, :type_params, []) |> Enum.map(fn p -> {:param, [], p} end)
+          params =
+            Keyword.get_lazy(meta, :params, fn ->
+              Keyword.get(meta, :type_params, []) |> Enum.map(fn p -> {:param, [], p} end)
+            end)
+
           register_header(name, params, [], env)
         end
 
@@ -418,7 +422,12 @@ defmodule Cure.Elab.Declarations do
 
       single_variant_enum?(rhs, env) ->
         name = meta |> Keyword.fetch!(:name) |> String.to_atom()
-        params = Keyword.get(meta, :type_params, []) |> Enum.map(fn p -> {:param, [], p} end)
+
+        params =
+          Keyword.get_lazy(meta, :params, fn ->
+            Keyword.get(meta, :type_params, []) |> Enum.map(fn p -> {:param, [], p} end)
+          end)
+
         register_header(name, params, [], env)
 
       true ->
@@ -1139,7 +1148,7 @@ defmodule Cure.Elab.Declarations do
              env,
              nil
            ) do
-      ret_core = Quote.reify(ret_val, length(sig.telescope))
+      ret_core = Quote.reify(ret_val, length(sig.telescope), env)
       {:ok, body_term, ret_core, ret_val}
     end
   end
@@ -3076,9 +3085,20 @@ defmodule Cure.Elab.Declarations do
     # the index telescope (and parameters are never collected as implicits).
     app_param_count =
       cond do
-        name == fam -> self_param_count
-        Inductive.family?(env, name) -> Inductive.param_count(env, name)
-        true -> 0
+        name == fam ->
+          self_param_count
+
+        Inductive.family?(env, name) ->
+          raw_ptele = Inductive.param_telescope(env, name) || []
+          itele_len = length(Inductive.index_telescope(env, name) || [])
+          level_prefix = Enum.take_while(raw_ptele, fn {_n, d} -> d == {:level_type} end) |> length()
+
+          if level_prefix > 0 and length(args) + level_prefix == length(raw_ptele) + itele_len,
+            do: length(raw_ptele) - level_prefix,
+            else: length(raw_ptele)
+
+        true ->
+          0
       end
 
     acc =
@@ -3206,15 +3226,31 @@ defmodule Cure.Elab.Declarations do
 
   # The positional index types of family `name` (self or already registered).
   defp family_index_types(name, args, fam, index_tele, env, param_scope) do
-    {param_count, tele} =
+    {param_count, level_prefix, tele} =
       cond do
-        name == fam -> {length(args) - length(index_tele), index_tele}
-        Inductive.family?(env, name) -> {Inductive.param_count(env, name), Inductive.index_telescope(env, name) || []}
-        true -> {0, nil}
+        name == fam ->
+          {length(args) - length(index_tele), 0, index_tele}
+
+        Inductive.family?(env, name) ->
+          raw_ptele = Inductive.param_telescope(env, name) || []
+          itele = Inductive.index_telescope(env, name) || []
+          lp = Enum.take_while(raw_ptele, fn {_n, d} -> d == {:level_type} end) |> length()
+
+          if lp > 0 and length(args) + lp == length(raw_ptele) + length(itele),
+            do: {length(raw_ptele), lp, itele},
+            else: {length(raw_ptele), 0, itele}
+
+        true ->
+          {0, 0, nil}
       end
 
+    surface_count = param_count - level_prefix + if(is_list(tele), do: length(tele), else: 0)
+
     with tele when is_list(tele) <- tele,
-         {:ok, actuals} <- map_idx_to_core(Enum.take(args, param_count + length(tele)), param_scope, fam, env) do
+         {:ok, surface_actuals} <- map_idx_to_core(Enum.take(args, surface_count), param_scope, fam, env) do
+      level_pad = List.duplicate({:level_value, Cure.Core.UniverseLevel.zero()}, level_prefix)
+      actuals = level_pad ++ surface_actuals
+
       tele
       |> Enum.with_index()
       |> Enum.map(fn {{_binder, type}, index_position} ->

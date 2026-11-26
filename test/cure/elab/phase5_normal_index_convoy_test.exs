@@ -483,8 +483,9 @@ defmodule Cure.Elab.Phase5NormalIndexConvoyTest do
     assert {:ok, env} = Cure.Compiler.check_source(source, file: consumer, source_roots: [dir])
     zero = {:ctor, :"Std.Nat#Z", []}
     regular = {:ctor, :"Std.Nat#S", [zero]}
+    level_zero = {:level_value, Cure.Core.UniverseLevel.zero()}
     state_type = {:data, :"NormalConvoyProvider#State", [], [zero]}
-    starts = {:ctor, :"Std.List#Nil", [state_type]}
+    starts = {:ctor, :"Std.List#Nil", [level_zero, state_type]}
     machine = {:ctor, :"NormalConvoyProvider#MkMachine", [zero, starts]}
     state = {:ctor, :"NormalConvoyProvider#Accepted", [zero, regular, zero]}
     edge = {:ctor, :"NormalConvoyProvider#EC", [zero, starts, regular]}
@@ -502,7 +503,7 @@ defmodule Cure.Elab.Phase5NormalIndexConvoyTest do
     assert :ok = Kernel.check_def(env, :"NormalConvoySource#runtime_input")
     assert :ok = Kernel.check_def(env, :"NormalConvoySource#runtime_result")
     active_type = {:data, :"NormalConvoyProvider#State", [], [regular]}
-    active_starts = {:ctor, :"Std.List#Nil", [active_type]}
+    active_starts = {:ctor, :"Std.List#Nil", [level_zero, active_type]}
     active_machine = {:ctor, :"NormalConvoyProvider#MkMachine", [regular, active_starts]}
     point = {:bounded_lit, 0}
     active_state = {:ctor, :"NormalConvoyProvider#Active", [regular, point, regular, zero]}

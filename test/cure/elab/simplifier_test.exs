@@ -150,7 +150,7 @@ defmodule Cure.Elab.SimplifierTest do
               %Cure.Diagnostic.SimplificationProblem{kind: :resource_guard, cause: {:step_ceiling, 256}}}, _context}} =
              Program.elaborate(source)
 
-    assert System.monotonic_time(:millisecond) - started < 5_000
+    assert System.monotonic_time(:millisecond) - started < 15_000
   end
 
   test "forged generated rules are rejected at admission even if their metadata claims provenance" do

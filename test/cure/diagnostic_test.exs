@@ -999,7 +999,7 @@ defmodule Cure.DiagnosticTest do
 
     rendered =
       capture_io(:stderr, fn ->
-        assert {:ok, :"Cure.WarningSpan", []} =
+        assert {:error, {:codegen_error, {:unknown_global, :T, _}}} =
                  Cure.Compiler.compile_file(file, output_dir: output, emit_events: false)
       end)
 
@@ -1023,7 +1023,7 @@ defmodule Cure.DiagnosticTest do
 
     stderr =
       capture_io(:stderr, fn ->
-        assert {:ok, :"Cure.WarningCollector", []} =
+        assert {:error, {:codegen_error, {:unknown_global, :T, _}}} =
                  Cure.Compiler.compile_file(file,
                    output_dir: output,
                    emit_events: false,

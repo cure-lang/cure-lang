@@ -25,9 +25,9 @@ defmodule Cure.Elab.Phase5NumericIndexTest do
     %{type: {:pi, :erased, int, {:pi, :erased, nat, {:pi, :erased, bounded, _}}}} =
       Env.get_def(env, :"NumericIndexCarriers#keep")
 
-    assert {:data, _, [_], [{:int_lit, 18}, {:int_lit, 18}]} = int
-    assert {:data, _, [_], [{:nat_lit, 18}, {:nat_lit, 18}]} = nat
-    assert {:data, _, [_], [{:bounded_lit, 1}, {:bounded_lit, 1}]} = bounded
+    assert {:data, _, [{:level_value, _}, _], [{:int_lit, 18}, {:int_lit, 18}]} = int
+    assert {:data, _, [{:level_value, _}, _], [{:nat_lit, 18}, {:nat_lit, 18}]} = nat
+    assert {:data, _, [{:level_value, _}, _], [{:bounded_lit, 1}, {:bounded_lit, 1}]} = bounded
   end
 
   test "an explicit Nat constructor is not coerced to the Int equality carrier" do

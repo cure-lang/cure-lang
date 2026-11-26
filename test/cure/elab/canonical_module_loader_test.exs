@@ -58,7 +58,7 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
         root,
         "a.cure",
         "Loader.A",
-        "use Loader.B\n  fn from_a() -> Int = 1\n  fn a_uses_b() -> Int = from_b()"
+        "use Loader.B\n  fn from_a() -> Int = 1\n  @reducible\n  fn a_uses_b() -> Int = from_b()"
       )
 
     b =
@@ -66,7 +66,7 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
         root,
         "b.cure",
         "Loader.B",
-        "use Loader.A\n  fn from_b() -> Int = 2\n  fn b_uses_a() -> Int = from_a()"
+        "use Loader.A\n  fn from_b() -> Int = 2\n  @reducible\n  fn b_uses_a() -> Int = from_a()"
       )
 
     assert {:ok, env} =

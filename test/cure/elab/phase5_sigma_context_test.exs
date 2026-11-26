@@ -41,7 +41,9 @@ defmodule Cure.Elab.Phase5SigmaContextTest do
     %{type: {:pi, _, _, {:pi, _, _, {:pi, _, sigma, _}}}} =
       Env.get_def(env, :"SigmaAnnotationContext#inspect_nested")
 
-    assert {:data, _, [_, {:lam, _, _, {:data, _, [tag, machine], []}}], []} = sigma
+    assert {:data, _, [{:level_value, _}, {:level_value, _}, _, {:lam, _, _, {:data, _, [tag, machine], []}}], []} =
+             sigma
+
     assert {:app, {:app, {:global, :"SigmaAnnotationContext#tag"}, {:var, 2}}, {:var, 1}} = tag
     assert {:app, {:app, {:global, :"SigmaAnnotationContext#machine"}, {:var, 2}}, {:var, 1}} = machine
   end

@@ -5640,7 +5640,7 @@ defmodule Cure.Elab.Program do
         constructor_bindings(declaration) != []
 
       {:indexed_type, meta, _ctors} = declaration when is_list(meta) ->
-        Keyword.get(meta, :index_params, []) == [] and constructor_bindings(declaration) != []
+        Keyword.get(meta, :indices, []) == [] and constructor_bindings(declaration) != []
 
       _indexed_or_non_constructor ->
         false

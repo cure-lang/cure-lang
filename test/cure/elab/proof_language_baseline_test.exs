@@ -72,17 +72,17 @@ defmodule Cure.Elab.ProofLanguageBaselineTest do
 
     expected = %{
       nested_transitivity:
-        {"d28d0a97b5b8aab88fe1f312cd12e5199b6c70b3a71549cc99e15e565dd8ada3",
+        {"2c7bafbe81527831abca4d8e8af7116117b17c03372104aa4e7baa1d53b72b2d",
          "986c09099b298f7742f0291e8ea45cc9d6903a5670ebdf3ed0dce2bd7650d4b5"},
       double_symmetry:
-        {"412d0690ee1c630541f768ad718ae942792d5165de270fd404e5b11956a5de5b",
+        {"ff85a0d7c0a33ce62be822e4804573e2928acdeab29b5801bcba9e7bee02bb94",
          "93397a982577775e378ac52c6d848f168a72ecbcaff41e3e901ca7b5fbddc611"},
       beneath_function:
-        {"416c6f115b3363194fb9c3ffeac244c1514392fef029c348f8c2963d47bf5bae",
+        {"4986cc48cce93793f7188f9aad74c94a39b1738adb3eb4f4b1ac3d9deb46b608",
          "482e3db58e8eaa6432e149c0bc4f373413b01bd19a03769a57a97c49538d10ff"},
       rewritten_goal:
-        {"0b4633586b603f3907e60d510966bbfcaa74dc40c40532e34efc62260aceb732",
-         "d259ed09fe82b7f7e90623db7ca4743b6370b3593143317da7827d1beaec60fc"}
+        {"8c0d429839283b71def251091d5f11f23027bd07de739f36fbdf6798bf5411b4",
+         "07cc378e8d9f0fed76c85293b8132c28af14e3c4331db246eed7d703b61fabec"}
     }
 
     observed =
