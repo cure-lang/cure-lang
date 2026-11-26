@@ -10,7 +10,9 @@ defmodule Antigen.BuiltinListDriftTest do
   @group(:collections)
   mod Std.List
     @builtin(:list)
-    type List(a) = Nil | Cons(a, List(a))
+    type List(l: UniverseLevel, a: Type(l)) indices ()
+      Nil : List(l, a)
+      Cons : a -> List(l, a) -> List(l, a)
   """
 
   test "the seeded :list family exists with ctors Nil/0 and Cons/2" do

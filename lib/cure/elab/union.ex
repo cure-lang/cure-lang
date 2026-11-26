@@ -197,6 +197,13 @@ defmodule Cure.Elab.Union do
   def member_key({:binary_type}), do: "Binary"
   def member_key({:atom_type}), do: "Atom"
 
+  def member_key({:level_type}), do: "UniverseLevel"
+
+  def member_key({:level_value, %Cure.Core.UniverseLevel{constant: n, atoms: []}}),
+    do: "Level" <> Integer.to_string(n)
+
+  def member_key({:level_value, level}), do: "level:" <> Cure.Core.Serialize.encode({:level_value, level})
+
   def member_key({:type, {:finite, %Cure.Core.UniverseLevel{constant: n, atoms: []}}}),
     do: "Type" <> Integer.to_string(n)
 

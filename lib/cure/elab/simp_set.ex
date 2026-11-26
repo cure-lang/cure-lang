@@ -75,7 +75,15 @@ defmodule Cure.Elab.SimpSet do
 
   def orientation({:pi, _, _, body}, env), do: orientation(body, env)
 
-  def orientation({:data, equality, [_carrier], [left, right]}, env) do
+  def orientation({:data, equality, [_level, _carrier], [left, right]}, env),
+    do: orientation_eq(equality, left, right, env)
+
+  def orientation({:data, equality, [_carrier], [left, right]}, env),
+    do: orientation_eq(equality, left, right, env)
+
+  def orientation(_type, _env), do: {:error, :not_equality}
+
+  defp orientation_eq(equality, left, right, env) do
     cond do
       equality != Inductive.builtin(env, :eq) -> {:error, :not_equality}
       not first_order?(left) or not first_order?(right) -> {:error, :unsupported_binder}
@@ -84,8 +92,6 @@ defmodule Cure.Elab.SimpSet do
       true -> :ok
     end
   end
-
-  def orientation(_type, _env), do: {:error, :not_equality}
 
   def entries(env, head) do
     env

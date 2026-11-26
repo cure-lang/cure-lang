@@ -13,8 +13,8 @@ defmodule Antigen.BuiltinSigmaDriftTest do
   @group(:core)
   mod Std.Sigma
     @builtin(:sigma)
-    type Sigma(a: Type, b: (a) -> Type) indices ()
-      mk_pair : (x: a) -> b(x) -> Sigma(a, b)
+    type Sigma(la: UniverseLevel, lb: UniverseLevel, a: Type(la), b: (a) -> Type(lb)) indices ()
+      mk_pair : (x: a) -> b(x) -> Sigma(la, lb, a, b)
   """
 
   test "the seeded :sigma family exists with ctor mk_pair/2" do

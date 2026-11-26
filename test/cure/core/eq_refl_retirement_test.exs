@@ -26,10 +26,12 @@ defmodule Cure.Core.EqReflRetirementTest do
     sig
   end
 
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+
   defp eq_ty(sig, ty, a, b),
     do:
       Eval.eval(
-        {:data, :"Std.Equivalent#Equivalent", [ty], [a, b]},
+        {:data, :"Std.Equivalent#Equivalent", [@l0, ty], [a, b]},
         Context.env(Context.empty(sig))
       )
 

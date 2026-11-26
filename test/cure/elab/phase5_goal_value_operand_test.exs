@@ -218,9 +218,10 @@ defmodule Cure.Elab.Phase5GoalValueOperandTest do
   @tag :goal_value_prefix
   test "licensed full constructor prefixes preserve types and other goal fields", %{fixture: f} do
     {:data, _, _, [left, right]} = f.goal
+    l0 = {:level_value, Cure.Core.UniverseLevel.zero()}
     alias_type = {:global, q(:nat_carrier)}
-    option = {:data, :"Std.Option#Option", [alias_type], []}
-    some = fn value -> {:ctor, :"Std.Option#Some", [alias_type, value]} end
+    option = {:data, :"Std.Option#Option", [l0, alias_type], []}
+    some = fn value -> {:ctor, :"Std.Option#Some", [l0, alias_type, value]} end
     goal = equivalent(option, some.(left), some.(right))
     arms = wrap_reflexive(f.arms, "Some")
     {{:ok, term}, events} = trace_operation(fn -> public_match(f, goal, arms) end)
@@ -228,14 +229,14 @@ defmodule Cure.Elab.Phase5GoalValueOperandTest do
     [[_ctx, _operand, allowed]] = calls(events, :normalize_goal_value_operand)
     refute MapSet.member?(allowed, q(:nat_carrier))
 
-    assert {:ok, {:data, family, params, [{:ctor, :"Std.Option#Some", [^alias_type, _]}, last]}} =
+    assert {:ok, {:data, family, params, [{:ctor, :"Std.Option#Some", [^l0, ^alias_type, _]}, last]}} =
              returned_value(events, :prepare_goal_value_operand, 4)
 
     assert {:data, ^family, ^params, [_first, ^last]} = goal
 
     dependent_type = call(q(:carrier), [{:var, 1}, {:var, 0}])
-    list = {:data, :"Std.List#List", [dependent_type], []}
-    nil_value = {:ctor, :"Std.List#Nil", [dependent_type]}
+    list = {:data, :"Std.List#List", [l0, dependent_type], []}
+    nil_value = {:ctor, :"Std.List#Nil", [l0, dependent_type]}
     assert_refused_before_nf(f, equivalent(list, nil_value, nil_value))
 
     fields_only = {:ctor, :"Std.Option#Some", [left]}
@@ -246,7 +247,7 @@ defmodule Cure.Elab.Phase5GoalValueOperandTest do
 
     # These malformed applications are rejected by the raw Kernel first, not
     # claimed as reachability coverage of the new constructor collector.
-    for bad <- [{:ctor, :"Std.Option#Some", []}, {:ctor, :"Std.Option#Some", [alias_type, left, right]}] do
+    for bad <- [{:ctor, :"Std.Option#Some", []}, {:ctor, :"Std.Option#Some", [l0, alias_type, left, right]}] do
       bad_goal = equivalent(option, bad, some.(right))
       assert {:error, _} = Kernel.infer(f.ctx, bad_goal)
       {_result, rejected} = trace_operation(fn -> public_match(f, bad_goal, arms) end)
@@ -443,7 +444,9 @@ defmodule Cure.Elab.Phase5GoalValueOperandTest do
   defp constructor(name, args), do: {:function_call, [name: name], args}
   defp invoke(name, args), do: constructor(name, args)
   defp call(name, args), do: Enum.reduce(args, {:global, name}, &{:app, &2, &1})
-  defp equivalent(type, left, right), do: {:data, :"Std.Equivalent#Equivalent", [type], [left, right]}
+
+  defp equivalent(type, left, right),
+    do: {:data, :"Std.Equivalent#Equivalent", [{:level_value, Cure.Core.UniverseLevel.zero()}, type], [left, right]}
 
   defp public_match(f, goal \\ nil, arms \\ nil, major \\ nil) do
     Elaborator.elaborate_match(

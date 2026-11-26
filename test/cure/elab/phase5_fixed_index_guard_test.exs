@@ -169,7 +169,7 @@ defmodule Cure.Elab.Phase5FixedIndexGuardTest do
           type = Quote.reify(Context.lookup(ctx, sibling.index), ctx.length, Context.signature(ctx))
 
           if not MapSet.member?(selected, sibling.index) and not Map.has_key?(visible, sibling.index) and
-               match?({:data, :"Std.List#List", [{:data, :"GuardProvider#State", _, _}], []}, type),
+               match?({:data, :"Std.List#List", [_level, {:data, :"GuardProvider#State", _, _}], []}, type),
              do: {sibling.index, ctx.length}
         end)
 

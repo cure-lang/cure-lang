@@ -411,6 +411,10 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
+  defp equality_head({:data, family, [_level, _carrier], [_left, _right]}, goal) do
+    if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
+  end
+
   defp equality_head({:data, family, [_carrier], [_left, _right]}, goal) do
     if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
   end
@@ -688,7 +692,7 @@ defmodule Cure.Elab.ProofGoal do
     count = length(telescope)
 
     case proposition do
-      {:data, equality, [carrier], [left, right]} ->
+      {:data, equality, [_level, carrier], [left, right]} ->
         if equality == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq) do
           goal_term
           |> core_subterms()

@@ -44,7 +44,9 @@ mod Std.List
   ## (so `[]`/`[h | t]` literal sugar resolves without `use`), and declared here
   ## with the builtin decorator; `builtin_list_drift_test.exs` pins the two equal.
   @builtin(:list)
-  type List(a) = Nil | Cons(a, List(a))
+  type List(l: UniverseLevel, a: Type(l)) indices ()
+    Nil : List(l, a)
+    Cons : a -> List(l, a) -> List(l, a)
 
   # -- Basic queries ----------------------------------------------------------
 

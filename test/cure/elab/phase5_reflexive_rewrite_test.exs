@@ -298,7 +298,7 @@ defmodule Cure.Elab.Phase5ReflexiveRewriteTest do
   defp global(name), do: {:global, q(name)}
   defp nat, do: {:data, :"Std.Nat#Nat", [], []}
   defp bool, do: {:data, :"Std.Bool#Bool", [], []}
-  defp list(type), do: {:data, :"Std.List#List", [type], []}
+  defp list(type), do: {:data, :"Std.List#List", [{:level_value, Cure.Core.UniverseLevel.zero()}, type], []}
   defp variable(name), do: {:variable, [], name}
   defp invoke(name, args), do: {:function_call, [name: name], args}
 

@@ -447,18 +447,27 @@ defmodule Cure.Core.Builtins do
   # unification when matching `reflexive` and dropped at runtime, while the surface
   # still supplies it explicitly at construction (`reflexive(x)`). K/UIP is
   # inherited from the existing index unifier — operator-signed-off 2026-07-04.
-  defp eq_family(env),
-    do:
-      Inductive.family(
-        Env.owned_name(env, :Equivalent),
-        [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
-        [x: {:var, 0}, y: {:var, 1}],
-        Cure.Core.Sort.finite_closed(0)
-      )
+  defp eq_family(env) do
+    level_var_0 = Cure.Core.UniverseLevel.atom({:var, 0})
+    level_var_3 = Cure.Core.UniverseLevel.atom({:var, 3})
+
+    Inductive.family(
+      Env.owned_name(env, :Equivalent),
+      [l: {:level_type}, a: {:type, Cure.Core.Sort.finite(level_var_0)}],
+      [x: {:var, 0}, y: {:var, 1}],
+      Cure.Core.Sort.finite(level_var_3)
+    )
+  end
 
   defp eq_ctors(env),
     do: [
-      Inductive.ctor(Env.owned_name(env, :reflexive), [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])
+      Inductive.ctor(
+        Env.owned_name(env, :reflexive),
+        [w: {:var, 0}],
+        [{:var, 0}, {:var, 0}],
+        [:erased],
+        [{:var, 2}, {:var, 1}]
+      )
     ]
 
   # Sigma : (a : Type) -> (b : (a) -> Type) -> Type   (2 params, no indices)
@@ -467,18 +476,24 @@ defmodule Cure.Core.Builtins do
   # primitive {:sigma}/{:pair}/{:fst}/{:snd} Core forms. Level-0 like Equivalent.
   # Source of truth is the @builtin(:sigma) decl in Std.Sigma; this seed is its
   # byte-for-byte mirror, pinned by the conformance drift test.
-  defp sigma_family(env),
-    do:
-      Inductive.family(
-        Env.owned_name(env, :Sigma),
-        [
-          a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
-          b:
-            {:pi, Grade.unrestricted(), {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
-        ],
-        [],
-        Cure.Core.Sort.finite_closed(0)
-      )
+  defp sigma_family(env) do
+    la_for_a = Cure.Core.UniverseLevel.atom({:var, 1})
+    lb_for_b = Cure.Core.UniverseLevel.atom({:var, 2})
+    la_sort = Cure.Core.UniverseLevel.atom({:var, 3})
+    lb_sort = Cure.Core.UniverseLevel.atom({:var, 2})
+
+    Inductive.family(
+      Env.owned_name(env, :Sigma),
+      [
+        la: {:level_type},
+        lb: {:level_type},
+        a: {:type, Cure.Core.Sort.finite(la_for_a)},
+        b: {:pi, Grade.unrestricted(), {:var, 0}, {:type, Cure.Core.Sort.finite(lb_for_b)}}
+      ],
+      [],
+      Cure.Core.Sort.finite(Cure.Core.UniverseLevel.max(la_sort, lb_sort))
+    )
+  end
 
   defp sigma_ctors(env),
     do: [
@@ -489,7 +504,7 @@ defmodule Cure.Core.Builtins do
         [x: {:var, 1}, _a1: {:app, {:var, 1}, {:var, 0}}],
         [],
         [:unrestricted, :unrestricted],
-        [{:var, 3}, {:var, 2}]
+        [{:var, 5}, {:var, 4}, {:var, 3}, {:var, 2}]
       )
     ]
 
@@ -500,28 +515,30 @@ defmodule Cure.Core.Builtins do
   # references List itself, like nat's S). Source of truth is the @builtin(:list)
   # decl in Std.List; this seed is its byte-for-byte mirror, pinned by
   # builtin_list_drift_test.exs.
-  defp list_family(env),
-    do:
-      Inductive.family(
-        Env.owned_name(env, :List),
-        [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
-        [],
-        Cure.Core.Sort.finite_closed(0)
-      )
+  defp list_family(env) do
+    level_var_0 = Cure.Core.UniverseLevel.atom({:var, 0})
+    level_var_1 = Cure.Core.UniverseLevel.atom({:var, 1})
+
+    Inductive.family(
+      Env.owned_name(env, :List),
+      [l: {:level_type}, a: {:type, Cure.Core.Sort.finite(level_var_0)}],
+      [],
+      Cure.Core.Sort.finite(level_var_1)
+    )
+  end
 
   # Field names auto-generated positionally by the elaborator (`_a0`/`_a1`); the
-  # result-param term is the family's own param `a` reindexed under the ctor's
-  # field binders (Nil: {:var, 0}; Cons: {:var, 2} beneath its two fields). The
-  # drift test pins both spellings against the source declaration.
+  # result-param terms are the family's own params `[l, a]` reindexed under the
+  # ctor's field binders (Nil: `[1, 0]`; Cons: `[3, 2]` beneath its two fields).
   defp list_ctors(env),
     do: [
-      Inductive.ctor(Env.owned_name(env, :Nil), [], [], [], [{:var, 0}]),
+      Inductive.ctor(Env.owned_name(env, :Nil), [], [], [], [{:var, 1}, {:var, 0}]),
       Inductive.ctor(
         Env.owned_name(env, :Cons),
-        [_a0: {:var, 0}, _a1: {:data, Env.owned_name(env, :List), [{:var, 1}], []}],
+        [_a0: {:var, 0}, _a1: {:data, Env.owned_name(env, :List), [{:var, 2}, {:var, 1}], []}],
         [],
         [:unrestricted, :unrestricted],
-        [{:var, 2}]
+        [{:var, 3}, {:var, 2}]
       )
     ]
 end

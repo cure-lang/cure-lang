@@ -451,7 +451,7 @@ defmodule Cure.Elab.Phase5ComputedWithGoalTest do
   @tag :computed_with_scope
   test "constructors binders and case branches never supply a blocking-head discovery path", %{fixture: f} do
     {:data, family, params, [operand]} = f.goal
-    list_type = {:data, :"Std.List#List", [nat()], []}
+    list_type = {:data, :"Std.List#List", [{:level_value, Cure.Core.UniverseLevel.zero()}, nat()], []}
 
     hidden = [
       {:let, :unrestricted, list_type, operand, {:var, 0}},

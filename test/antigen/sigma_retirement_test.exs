@@ -19,7 +19,8 @@ defmodule Antigen.SigmaRetirementTest do
   @nat {:data, :"Std.Nat#Nat", [], []}
   @z {:ctor, :"Std.Nat#Z", []}
   @sz {:ctor, :"Std.Nat#S", [@z]}
-  @sigma {:data, :"Std.Sigma#Sigma", [@nat, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}], []}
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+  @sigma {:data, :"Std.Sigma#Sigma", [@l0, @l0, @nat, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}], []}
 
   defp seeded_ctx, do: Context.empty(Builtins.seed(Env.empty()))
 

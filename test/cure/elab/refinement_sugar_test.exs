@@ -60,7 +60,7 @@ defmodule Cure.Elab.RefinementSugarTest do
     # Sigma(Int, λp. IsTrue(<and ...>)) — the codomain body must be the IsTrue data,
     # not a bare Bool value.
     assert {:data, :"Std.Sigma#Sigma",
-            [{:data, :"Std.Int#Int", [], []}, {:lam, _g, {:data, :"Std.Int#Int", [], []}, body}], []} = domain
+            [_la, _lb, {:data, :"Std.Int#Int", [], []}, {:lam, _g, {:data, :"Std.Int#Int", [], []}, body}], []} = domain
 
     assert {:data, :"Std.Proof.IntMath#IsTrue", [], [_claim]} = body
   end
@@ -80,7 +80,7 @@ defmodule Cure.Elab.RefinementSugarTest do
     domain = param_type(env, "ident")
 
     assert {:data, :"Std.Sigma#Sigma",
-            [{:data, :"Std.Int#Int", [], []}, {:lam, _g, {:data, :"Std.Int#Int", [], []}, body}], []} = domain
+            [_la, _lb, {:data, :"Std.Int#Int", [], []}, {:lam, _g, {:data, :"Std.Int#Int", [], []}, body}], []} = domain
 
     assert {:data, :"SugarNamed#NamedPredicate", [], [{:var, 0}]} = body
     # A Type-valued predicate remains itself, not IsTrue applied to a type.

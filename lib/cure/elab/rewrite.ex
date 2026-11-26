@@ -10,6 +10,12 @@ defmodule Cure.Elab.Rewrite do
     defstruct [:term, :source_path, :traversal_path, :number]
   end
 
+  def eq_parts({:vdata, family, [_level, ty, a, b]}, signature) do
+    if family == Inductive.builtin(signature, :eq),
+      do: {:ok, Normalise.whnf_value(ty, signature), a, b},
+      else: {:error, :rewrite_proof_not_equality}
+  end
+
   def eq_parts({:vdata, family, [ty, a, b]}, signature) do
     if family == Inductive.builtin(signature, :eq),
       do: {:ok, Normalise.whnf_value(ty, signature), a, b},
@@ -273,8 +279,12 @@ defmodule Cure.Elab.Rewrite do
     rebuild(term, updated)
   end
 
-  def mk_eq(ty, a, b), do: {:data, :"Std.Equivalent#Equivalent", [ty], [a, b]}
+  def mk_eq(ty, a, b), do: {:data, :"Std.Equivalent#Equivalent", [eq_level(ty), ty], [a, b]}
+  def mk_eq(level, ty, a, b), do: {:data, :"Std.Equivalent#Equivalent", [level, ty], [a, b]}
   def mk_refl(x), do: {:ctor, :"Std.Equivalent#reflexive", [x]}
+
+  defp eq_level({:type, {:finite, level}}), do: {:level_value, Cure.Core.UniverseLevel.succ(level)}
+  defp eq_level(_ty), do: {:level_value, Cure.Core.UniverseLevel.zero()}
 
   @doc "An ordinary constant transport motive using the existing carrier-grade policy."
   def constant_motive(ty, expected),
@@ -282,7 +292,8 @@ defmodule Cure.Elab.Rewrite do
 
   def transport_case(proof, ty, motive, left) do
     scrutinee_type =
-      {:data, :"Std.Equivalent#Equivalent", [Subst.shift(ty, 2, 0)], [{:var, 1}, {:var, 0}]}
+      {:data, :"Std.Equivalent#Equivalent", [Subst.shift(eq_level(ty), 2, 0), Subst.shift(ty, 2, 0)],
+       [{:var, 1}, {:var, 0}]}
 
     arrow =
       {:pi, Grade.unrestricted(), {:app, Subst.shift(motive, 3, 0), {:var, 2}},

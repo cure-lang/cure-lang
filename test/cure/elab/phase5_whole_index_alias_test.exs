@@ -140,7 +140,7 @@ defmodule Cure.Elab.Phase5WholeIndexAliasTest do
     {:case, _, new_motive, ^old_branches} = term
     {_, {:data, _, old_params, _}} = peel(old_motive, [])
     {_, {:data, _, new_params, _}} = peel(new_motive, [])
-    assert old_params == [alias_type]
+    assert old_params == [{:level_value, Cure.Core.UniverseLevel.zero()}, alias_type]
     assert new_params == old_params
     tag = call(q(:id_tag), [global(:fixed_tag)])
     dependent_goal = {:data, q(:DependentGoal), [], [tag, false_term(), {:var, 0}]}
@@ -269,7 +269,11 @@ defmodule Cure.Elab.Phase5WholeIndexAliasTest do
     }
 
     assert {:error, _} =
-             Kernel.check(ctx, global(:nil_bools), Eval.eval({:data, :"Std.List#List", [nat()], []}, []))
+             Kernel.check(
+               ctx,
+               global(:nil_bools),
+               Eval.eval({:data, :"Std.List#List", [{:level_value, Cure.Core.UniverseLevel.zero()}, nat()], []}, [])
+             )
 
     assert_rejected(frame, false)
   end
@@ -566,7 +570,10 @@ defmodule Cure.Elab.Phase5WholeIndexAliasTest do
   defp call(name, args), do: Enum.reduce(args, {:global, name}, &{:app, &2, &1})
   defp call_term(function, args), do: Enum.reduce(args, function, &{:app, &2, &1})
   defp project(value, flag, proof), do: call(q(:project), [value, flag, proof])
-  defp equality(left, right, type \\ nat()), do: {:data, :"Std.Equivalent#Equivalent", [type], [left, right]}
+
+  defp equality(left, right, type \\ nat()),
+    do: {:data, :"Std.Equivalent#Equivalent", [{:level_value, Cure.Core.UniverseLevel.zero()}, type], [left, right]}
+
   defp variable(name), do: {:variable, [], name}
   defp invoke(name, args), do: {:function_call, [name: name], args}
   defp arm(name, args, body), do: {:match_arm, [pattern: invoke(name, args)], [body]}

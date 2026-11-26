@@ -529,7 +529,8 @@ defmodule Cure.Elab.Elaborator do
              equivalent = Inductive.ctor_family(env, reflexive),
              term = {:ctor, reflexive, [arg_term]},
              arg_val = Eval.eval(arg_term, Context.env(ctx)),
-             type = {:vdata, equivalent, [arg_type, arg_val, arg_val]},
+             level_val = infer_carrier_level_value(ctx, arg_type),
+             type = {:vdata, equivalent, [level_val, arg_type, arg_val, arg_val]},
              :ok <- Kernel.check(ctx, term, type) do
           {:ok, term, type}
         end
@@ -1872,7 +1873,7 @@ defmodule Cure.Elab.Elaborator do
   # supplies the codomain family); synthesis is the non-dependent product, which
   # is exactly a Tuple. Folds from the right so each accumulated type shifts +1
   # under the fresh Σ binder (non-dependent, so the binder is unused).
-  defp build_telescope_value(parts, _ctx, env) do
+  defp build_telescope_value(parts, ctx, env) do
     mk_pair = sigma_ctor_name(env)
     fam = Inductive.builtin(env, :sigma)
     unit_ctor = unit_ctor_name(env)
@@ -1882,9 +1883,18 @@ defmodule Cure.Elab.Elaborator do
       {core, type_term}, {val_acc, type_acc} ->
         value = {:ctor, mk_pair, [core, val_acc]}
         cod = {:lam, Cure.Core.Grade.unrestricted(), type_term, Cure.Core.Term.shift(type_acc, 1)}
-        type = {:data, fam, [type_term, cod], []}
+        la = sigma_level_term(ctx, type_term)
+        lb = sigma_level_term(ctx, type_acc)
+        type = {:data, fam, [la, lb, type_term, cod], []}
         {value, type}
     end)
+  end
+
+  defp sigma_level_term(ctx, term) do
+    case infer_finite_level(ctx, term) do
+      {:ok, level} -> {:level_value, level}
+      :error -> {:level_value, Cure.Core.UniverseLevel.zero()}
+    end
   end
 
   # Desugar a concatenation operator to the `Std.Semigroup.combine` method call,
@@ -2516,6 +2526,10 @@ defmodule Cure.Elab.Elaborator do
   defp telescope_prefix(type, remaining, ctx, sigma_fam, unit_ctor, components)
        when remaining > 0 do
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma_fam, [_la, _lb, domain, codomain], []} ->
+        tail = Kernel.normalize(ctx, {:app, codomain, {:ctor, unit_ctor, []}})
+        telescope_prefix(tail, remaining - 1, ctx, sigma_fam, unit_ctor, [domain | components])
+
       {:data, ^sigma_fam, [domain, codomain], []} ->
         tail = Kernel.normalize(ctx, {:app, codomain, {:ctor, unit_ctor, []}})
         telescope_prefix(tail, remaining - 1, ctx, sigma_fam, unit_ctor, [domain | components])
@@ -2551,6 +2565,10 @@ defmodule Cure.Elab.Elaborator do
   # so the applied argument is discarded) until a `Unit` terminator is reached.
   defp count_tele(type, ctx, sigma_fam, unit_fam, unit_ctor, n) do
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma_fam, [_la, _lb, _dom, cod], []} ->
+        next = Kernel.normalize(ctx, {:app, cod, {:ctor, unit_ctor, []}})
+        count_tele(next, ctx, sigma_fam, unit_fam, unit_ctor, n + 1)
+
       {:data, ^sigma_fam, [_dom, cod], []} ->
         tail = Kernel.normalize(ctx, {:app, cod, {:ctor, unit_ctor, []}})
         count_tele(tail, ctx, sigma_fam, unit_fam, unit_ctor, n + 1)
@@ -3156,6 +3174,12 @@ defmodule Cure.Elab.Elaborator do
     sigma_fam = Inductive.builtin(env, :sigma)
 
     case Kernel.normalize(ctx, expected_core) do
+      {:data, fam, [_la, _lb, _dom, _b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
+        with {:ok, term} <- check_tuple_against(elems, expected_core, names, ctx, env),
+             :ok <- Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
+          {:ok, term}
+        end
+
       {:data, fam, [_dom, _b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
         with {:ok, term} <- check_tuple_against(elems, expected_core, names, ctx, env),
              :ok <- Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
@@ -3228,6 +3252,13 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:list, meta, elements} = node, expected_core, names, ctx, env) do
     result =
       case Kernel.normalize(ctx, expected_core) do
+        {:data, family, [_level, element_type], []} ->
+          if family == Inductive.builtin(env, :list) do
+            check_list_literal(meta, elements, expected_core, element_type, names, ctx, env)
+          else
+            elaborate_expr_checked(desugar_list(node), expected_core, names, ctx, env)
+          end
+
         {:data, family, [element_type], []} ->
           if family == Inductive.builtin(env, :list) do
             check_list_literal(meta, elements, expected_core, element_type, names, ctx, env)
@@ -4279,8 +4310,8 @@ defmodule Cure.Elab.Elaborator do
   defp check_tuple_against([e | rest], expected_core, names, ctx, env, index) do
     sigma_fam = Inductive.builtin(env, :sigma)
 
-    case Kernel.normalize(ctx, expected_core) do
-      {:data, fam, [dom, b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
+    case sigma_data_dom_cod(Kernel.normalize(ctx, expected_core), sigma_fam) do
+      {:ok, dom, b_fn} ->
         if rest == [] and not telescope_terminator?(b_fn, ctx, env) do
           # Last element, tail is an ordinary type → e IS the whole second
           # component (a bare pair, possibly itself a nested tuple).
@@ -4906,7 +4937,7 @@ defmodule Cure.Elab.Elaborator do
     sigma_fam = Inductive.builtin(env, :sigma)
 
     with false <- is_nil(sigma_fam),
-         {:data, ^sigma_fam, [dom, cod], []} <- Kernel.normalize(ctx, expected_core),
+         {:ok, dom, cod} <- sigma_data_dom_cod(Kernel.normalize(ctx, expected_core), sigma_fam),
          # Exclude a flat tuple / bare nested-pair Σ (`Tuple(T1,…,Tn)` lowers to a
          # unit-terminated Σ telescope that shares this shape). Its instantiated
          # second component is itself a Σ, which `ProofSearch` would happily "prove"
@@ -5012,18 +5043,43 @@ defmodule Cure.Elab.Elaborator do
     sig = Context.signature(ctx)
 
     with false <- is_nil(sigma_fam),
-         {:vdata, ^sigma_fam, [dom_value, predicate_value]} <- Normalise.whnf_value(type, sig),
+         {:ok, la_val, lb_val, dom_value, predicate_value} <-
+           sigma_vdata_parts(Normalise.whnf_value(type, sig), sigma_fam),
          # Do not coerce when the expected type is itself that Sigma (no coercion
          # needed) — only when expected is the base component type.
          false <- sigma_typed?(expected_core, sigma_fam, ctx),
          dom_term <- Quote.reify(dom_value, depth, sig),
          true <- convertible?(dom_term, expected_core, ctx, env) do
       predicate_term = Quote.reify(predicate_value, depth, sig)
-      build_app({:global, first_projection_head(env)}, [dom_term, predicate_term, term])
+      head = first_projection_head(env)
+
+      args =
+        if head == :sigma_first do
+          la_term = Quote.reify(la_val, depth, sig)
+          lb_term = Quote.reify(lb_val, depth, sig)
+          [la_term, lb_term, dom_term, predicate_term, term]
+        else
+          [dom_term, predicate_term, term]
+        end
+
+      build_app({:global, head}, args)
     else
       _ -> term
     end
   end
+
+  defp sigma_data_dom_cod({:data, fam, [_la, _lb, dom, cod], []}, fam), do: {:ok, dom, cod}
+  defp sigma_data_dom_cod({:data, fam, [dom, cod], []}, fam), do: {:ok, dom, cod}
+  defp sigma_data_dom_cod(_, _), do: :error
+
+  defp sigma_vdata_parts({:vdata, fam, [la, lb, dom, pred]}, fam), do: {:ok, la, lb, dom, pred}
+
+  defp sigma_vdata_parts({:vdata, fam, [dom, pred]}, fam),
+    do:
+      {:ok, {:vlevel, %Cure.Core.LevelValue{constant: 0, atoms: []}},
+       {:vlevel, %Cure.Core.LevelValue{constant: 0, atoms: []}}, dom, pred}
+
+  defp sigma_vdata_parts(_, _), do: :error
 
   # The global to head the first projection with: `Std.Refine.refined_value` when
   # the refinement API is in scope (the idiomatic accessor a human writes,
@@ -5141,7 +5197,7 @@ defmodule Cure.Elab.Elaborator do
     sig = Context.signature(ctx)
 
     not is_nil(sigma_fam) and
-      match?({:vdata, ^sigma_fam, [_dom, _pred]}, Normalise.whnf_value(type, sig))
+      match?({:ok, _, _, _, _}, sigma_vdata_parts(Normalise.whnf_value(type, sig), sigma_fam))
   end
 
   # A refinement / bare dependent-pair Σ and a flat tuple Σ share ONE Core shape
@@ -13601,7 +13657,8 @@ defmodule Cure.Elab.Elaborator do
     sigma = Inductive.builtin(env, :sigma)
     tail = dependent_pack_type(rest, env)
     family = {:lam, Cure.Core.Grade.unrestricted(), domain, tail}
-    {:data, sigma, [domain, family], []}
+    zero = {:level_value, Cure.Core.UniverseLevel.zero()}
+    {:data, sigma, [zero, zero, domain, family], []}
   end
 
   defp dependent_pack_value([value], _env), do: value
@@ -13621,9 +13678,16 @@ defmodule Cure.Elab.Elaborator do
     sigma = Inductive.builtin(env, :sigma)
 
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma, [la, lb, domain, family], []} ->
+        first = core_sigma_projection(:sigma_first, la, lb, domain, family, value, env)
+        second = core_sigma_projection(:sigma_second, la, lb, domain, family, value, env)
+        tail_type = Kernel.normalize(ctx, {:app, family, first})
+        [first | dependent_pack_projections(tail_type, second, count - 1, ctx, env)]
+
       {:data, ^sigma, [domain, family], []} ->
-        first = core_sigma_projection(:sigma_first, domain, family, value, env)
-        second = core_sigma_projection(:sigma_second, domain, family, value, env)
+        zero = {:level_value, Cure.Core.UniverseLevel.zero()}
+        first = core_sigma_projection(:sigma_first, zero, zero, domain, family, value, env)
+        second = core_sigma_projection(:sigma_second, zero, zero, domain, family, value, env)
         tail_type = Kernel.normalize(ctx, {:app, family, first})
         [first | dependent_pack_projections(tail_type, second, count - 1, ctx, env)]
 
@@ -13632,10 +13696,10 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  defp core_sigma_projection(name, domain, family, value, env) do
+  defp core_sigma_projection(name, la, lb, domain, family, value, env) do
     key = Env.resolve_key(env, env.defs, name)
 
-    {:app, {:app, {:app, {:global, key}, domain}, family}, value}
+    {:app, {:app, {:app, {:app, {:app, {:global, key}, la}, lb}, domain}, family}, value}
   end
 
   defp rebind_carried_sibling_term(term, siblings, prior_count, scope_shift) do
@@ -15259,12 +15323,19 @@ defmodule Cure.Elab.Elaborator do
         if is_nil(family) do
           :fallback
         else
-          expected = {:data, family, [element_type], []}
+          level_term =
+            case infer_finite_level(ctx, element_type) do
+              {:ok, level} -> {:level_value, level}
+              :error -> {:level_value, Cure.Core.UniverseLevel.zero()}
+            end
+
+          level_value = Eval.eval(level_term, Context.env(ctx))
+          expected = {:data, family, [level_term, element_type], []}
           cons = resolve_ctor_key(env, :Cons)
 
           with {:ok, tail_core} <- infer_list_tail(meta, rest, expected, element_type, names, ctx, env, cons),
                term = {:ctor, cons, [head_core, tail_core]} do
-            {:ok, term, {:vdata, family, [element_value]}}
+            {:ok, term, {:vdata, family, [level_value, element_value]}}
           end
         end
 
@@ -16838,6 +16909,7 @@ defmodule Cure.Elab.Elaborator do
     do: {:error, :too_many_arguments}
 
   defp finish_ctor_app({:ok, mctx, chosen, []}, cname, family, ctor, pc, ctx) do
+    mctx = solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx)
     all = Enum.map(chosen, &Unify.zonk(&1, mctx))
 
     if Enum.any?(all, &has_meta?/1) do
@@ -17793,20 +17865,39 @@ defmodule Cure.Elab.Elaborator do
             resolve_ctor_fields_state(state)
 
           true ->
-            {:error,
-             {:unsolved_field_type,
-              %{
-                constructor: state.cname,
-                fields: Map.keys(state.pending) |> Enum.sort(),
-                revision: MetaCtx.revision(state.mctx),
-                field_diagnostics:
-                  state.pending
-                  |> Map.keys()
-                  |> Enum.sort()
-                  |> Enum.map(&constructor_field_diagnostic(state, &1))
-              }}}
+            family = Inductive.ctor_family(state.env, state.cname)
+
+            level_mctx =
+              if family != nil,
+                do: solve_ctor_universe_level_metas(family, state.params, state.pc, state.mctx, state.ctx),
+                else: state.mctx
+
+            if level_mctx != state.mctx do
+              state
+              |> Map.put(:mctx, level_mctx)
+              |> wake_constructor_fields(changed_meta_ids(state.mctx, level_mctx))
+              |> enqueue_all_pending()
+              |> resolve_ctor_fields_state()
+            else
+              resolve_ctor_fields_fallback(state)
+            end
         end
     end
+  end
+
+  defp resolve_ctor_fields_fallback(state) do
+    {:error,
+     {:unsolved_field_type,
+      %{
+        constructor: state.cname,
+        fields: Map.keys(state.pending) |> Enum.sort(),
+        revision: MetaCtx.revision(state.mctx),
+        field_diagnostics:
+          state.pending
+          |> Map.keys()
+          |> Enum.sort()
+          |> Enum.map(&constructor_field_diagnostic(state, &1))
+      }}}
   end
 
   defp resolve_ctor_field_queue(%{queue: []} = state), do: {state, false}
@@ -18334,6 +18425,7 @@ defmodule Cure.Elab.Elaborator do
 
         case resolve_ctor_argument_values(slots, arg_asts, seed, pc, params, mctx, names, ctx, env, cname, []) do
           {:ok, vals, mctx} ->
+            mctx = solve_ctor_universe_level_metas(family, params, pc, mctx, ctx)
             param_vals = params |> Enum.map(&Unify.zonk(&1, mctx))
 
             if Enum.any?(param_vals, &has_meta?/1) do
@@ -18559,73 +18651,96 @@ defmodule Cure.Elab.Elaborator do
   # sorts of solved type arguments (least upper bound via `UniverseLevel.max`),
   # defaulting unconstrained use-site level metas to `universe_zero`. The
   # kernel independently checks the assembled explicit application afterward.
+  defp solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx) do
+    if ctx != nil do
+      env = Context.signature(ctx)
+      param_tele = Inductive.param_telescope(env, family) || []
+      domains = Enum.map(param_tele, fn {_name, dom} -> dom end)
+      solve_level_metas_from_domains(domains, Enum.take(chosen, pc), mctx, ctx, env)
+    else
+      mctx
+    end
+  end
+
   defp solve_universe_level_metas(name, chosen, mctx, ctx, env) do
     case Env.get_def(env, name) do
       %{type: def_type} ->
         {domains, _cod} = peel_pi(def_type, length(chosen))
-
-        level_metas =
-          domains
-          |> Enum.zip(chosen)
-          |> Enum.flat_map(fn
-            {{:level_type}, {:meta, id}} ->
-              if Unify.zonk({:meta, id}, mctx) == {:meta, id}, do: [id], else: []
-
-            _ ->
-              []
-          end)
-
-        if level_metas == [] do
-          mctx
-        else
-          level_meta_set = MapSet.new(level_metas)
-
-          bounds =
-            domains
-            |> Enum.with_index()
-            |> Enum.reduce(%{}, fn {dom, pos}, acc ->
-              arg = Unify.zonk(Enum.at(chosen, pos), mctx)
-
-              if not has_meta?(arg) do
-                inst_dom =
-                  dom
-                  |> Subst.instantiate(Enum.take(chosen, pos))
-                  |> Unify.zonk(mctx)
-
-                case inst_dom do
-                  {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}}} ->
-                    if MapSet.member?(level_meta_set, id) do
-                      case infer_finite_level(ctx, arg) do
-                        {:ok, level} ->
-                          Map.update(acc, id, level, &Cure.Core.UniverseLevel.max(&1, level))
-
-                        :error ->
-                          acc
-                      end
-                    else
-                      acc
-                    end
-
-                  _ ->
-                    acc
-                end
-              else
-                acc
-              end
-            end)
-
-          Enum.reduce(level_metas, mctx, fn id, current_mctx ->
-            level = Map.get(bounds, id, Cure.Core.UniverseLevel.zero())
-
-            case Unify.unify({:meta, id}, {:level_value, level}, current_mctx, env) do
-              {:ok, next_mctx} -> next_mctx
-              {:error, _} -> current_mctx
-            end
-          end)
-        end
+        solve_level_metas_from_domains(domains, chosen, mctx, ctx, env)
 
       _ ->
         mctx
+    end
+  end
+
+  defp solve_level_metas_from_domains(domains, chosen, mctx, ctx, env) do
+    level_metas =
+      domains
+      |> Enum.zip(chosen)
+      |> Enum.flat_map(fn
+        {{:level_type}, {:meta, id}} ->
+          if Unify.zonk({:meta, id}, mctx) == {:meta, id}, do: [id], else: []
+
+        _ ->
+          []
+      end)
+
+    if level_metas == [] do
+      mctx
+    else
+      level_meta_set = MapSet.new(level_metas)
+
+      bounds =
+        domains
+        |> Enum.with_index()
+        |> Enum.reduce(%{}, fn {dom, pos}, acc ->
+          arg = Unify.zonk(Enum.at(chosen, pos), mctx)
+
+          if not has_meta?(arg) do
+            inst_dom =
+              dom
+              |> Subst.instantiate(Enum.take(chosen, pos))
+              |> Unify.zonk(mctx)
+
+            case inst_dom do
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}}} ->
+                if MapSet.member?(level_meta_set, id) do
+                  case infer_finite_level(ctx, arg) do
+                    {:ok, level} ->
+                      Map.update(acc, id, level, &Cure.Core.UniverseLevel.max(&1, level))
+
+                    :error ->
+                      acc
+                  end
+                else
+                  acc
+                end
+
+              _ ->
+                acc
+            end
+          else
+            acc
+          end
+        end)
+
+      Enum.reduce(level_metas, mctx, fn id, current_mctx ->
+        level = Map.get(bounds, id, Cure.Core.UniverseLevel.zero())
+
+        case Unify.unify({:meta, id}, {:level_value, level}, current_mctx, env) do
+          {:ok, next_mctx} -> next_mctx
+          {:error, _} -> current_mctx
+        end
+      end)
+    end
+  end
+
+  defp infer_carrier_level_value(ctx, arg_type) do
+    arg_type_term = Quote.reify(arg_type, Context.length(ctx), Context.signature(ctx))
+
+    case infer_finite_level(ctx, arg_type_term) do
+      {:ok, level} -> Eval.eval({:level_value, level}, Context.env(ctx))
+      :error -> Eval.eval({:level_value, Cure.Core.UniverseLevel.zero()}, [])
     end
   end
 
@@ -18903,7 +19018,19 @@ defmodule Cure.Elab.Elaborator do
         # where the family needs parameters → a false `:arg_arity`.
         name not in scope and Inductive.family?(env, atom) ->
           family_key = Env.resolve_key(env, env.families, atom)
-          {params, indices} = Enum.split(core_args, Inductive.param_count(env, family_key))
+          ptele = Inductive.param_telescope(env, family_key) || []
+          itele = Inductive.index_telescope(env, family_key) || []
+          level_prefix = Enum.take_while(ptele, fn {_n, d} -> d == {:level_type} end) |> length()
+
+          full_args =
+            if level_prefix > 0 and length(core_args) + level_prefix == length(ptele) + length(itele) do
+              levels = List.duplicate({:level_value, Cure.Core.UniverseLevel.zero()}, level_prefix)
+              levels ++ core_args
+            else
+              core_args
+            end
+
+          {params, indices} = Enum.split(full_args, Inductive.param_count(env, family_key))
           {:ok, {:data, family_key, params, indices}}
 
         true ->

@@ -5591,6 +5591,9 @@ defmodule Cure.Elab.Program do
       {:container, meta, _variants} = declaration when is_list(meta) ->
         constructor_bindings(declaration) != []
 
+      {:indexed_type, meta, _ctors} = declaration when is_list(meta) ->
+        Keyword.get(meta, :index_params, []) == [] and constructor_bindings(declaration) != []
+
       _indexed_or_non_constructor ->
         false
     end)
@@ -5662,6 +5665,9 @@ defmodule Cure.Elab.Program do
   end
 
   defp sibling_signature_dependency?({:source_context, reason, _context}, local_names),
+    do: sibling_signature_dependency?(reason, local_names)
+
+  defp sibling_signature_dependency?({:index_mismatch, {:in_field_of, _family, reason}}, local_names),
     do: sibling_signature_dependency?(reason, local_names)
 
   defp sibling_signature_dependency?({:unknown_global, name}, local_names) when is_atom(name) do

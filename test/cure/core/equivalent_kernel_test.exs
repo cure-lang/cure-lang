@@ -22,6 +22,8 @@ defmodule Cure.Core.EquivalentKernelTest do
   @equiv :"Std.Equivalent#Equivalent"
   @refl :"Std.Equivalent#reflexive"
 
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+  @v_l0 {:vlevel, %Cure.Core.LevelValue{constant: 0, atoms: []}}
   @dec {:data, :Dec, [], []}
   @causal {:ctor, :Causal, []}
   @dcoupled {:ctor, :Dcoupled, []}
@@ -38,13 +40,13 @@ defmodule Cure.Core.EquivalentKernelTest do
     ])
   end
 
-  defp eq_val(ty, a, b), do: Eval.eval({:data, @equiv, [ty], [a, b]}, [])
+  defp eq_val(ty, a, b), do: Eval.eval({:data, @equiv, [@l0, ty], [a, b]}, [])
   defp box(d), do: Eval.eval({:data, :Box, [], [d]}, [])
 
   # J/subst transport for CLOSED ty/motive/l (shifts of closed terms elided) —
   # mirrors the elaborator's `transport_case/4` and the antibody's twin helper.
   defp transport(proof, ty, motive, l) do
-    scrut_ty = {:data, @equiv, [ty], [{:var, 1}, {:var, 0}]}
+    scrut_ty = {:data, @equiv, [@l0, ty], [{:var, 1}, {:var, 0}]}
     arrow = {:pi, Cure.Core.Grade.unrestricted(), {:app, motive, {:var, 2}}, {:app, motive, {:var, 2}}}
 
     arrow_motive =
@@ -61,7 +63,7 @@ defmodule Cure.Core.EquivalentKernelTest do
 
   test "Equivalent formation is a type at the level of its carrier" do
     assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} ==
-             Kernel.infer(Context.empty(env()), {:data, @equiv, [@dec], [@causal, @causal]})
+             Kernel.infer(Context.empty(env()), {:data, @equiv, [@l0, @dec], [@causal, @causal]})
   end
 
   test "reflexive checks against a reflexive equation" do
@@ -95,15 +97,15 @@ defmodule Cure.Core.EquivalentKernelTest do
   end
 
   test "infers a params-on-spine reflexive as a reflexive equation (K6 §E.1)" do
-    assert {:ok, {:vdata, @equiv, [{:vdata, :Dec, []}, {:vctor, :Causal, []}, {:vctor, :Causal, []}]}} =
-             Kernel.infer(Context.empty(env()), {:ctor, @refl, [@dec, @causal]})
+    assert {:ok, {:vdata, @equiv, [@v_l0, {:vdata, :Dec, []}, {:vctor, :Causal, []}, {:vctor, :Causal, []}]}} =
+             Kernel.infer(Context.empty(env()), {:ctor, @refl, [@l0, @dec, @causal]})
   end
 
   # ---- elimination: the J/subst transport (rewrite_test twins) ---------------
 
   test "the :case transport along reflexive types at M[b/x]" do
     ctx = Context.extend(Context.empty(env()), box(@causal))
-    proof = {:ctor, @refl, [@dec, @causal]}
+    proof = {:ctor, @refl, [@l0, @dec, @causal]}
     node = {:app, transport(proof, @dec, @motive, @causal), {:var, 0}}
     assert {:ok, {:vdata, :Box, [{:vctor, :Causal, []}]}} = Kernel.infer(ctx, node)
   end
@@ -116,7 +118,7 @@ defmodule Cure.Core.EquivalentKernelTest do
 
   test "negative: a transported body not of type M[a/x] is rejected" do
     ctx = Context.extend(Context.empty(env()), box(@dcoupled))
-    proof = {:ctor, @refl, [@dec, @causal]}
+    proof = {:ctor, @refl, [@l0, @dec, @causal]}
     node = {:app, transport(proof, @dec, @motive, @causal), {:var, 0}}
     assert {:error, _} = Kernel.infer(ctx, node)
   end

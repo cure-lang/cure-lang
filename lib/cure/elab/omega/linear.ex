@@ -97,6 +97,7 @@ defmodule Cure.Elab.Omega.Linear do
   defp comparisons(term, ctx, env) do
     case Normalise.whnf(ctx, term) do
       {:data, family, [], [left, right]} -> comparison(family, left, right, ctx, env)
+      {:data, @equivalent, [_level, carrier], [left, right]} -> equivalence(carrier, left, right, ctx, env)
       {:data, @equivalent, [carrier], [left, right]} -> equivalence(carrier, left, right, ctx, env)
       _ -> :outside_fragment
     end

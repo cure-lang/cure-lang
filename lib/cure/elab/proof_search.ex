@@ -391,6 +391,7 @@ defmodule Cure.Elab.ProofSearch do
 
       sigma_fam ->
         case Cure.Core.Normalise.whnf_value(type_value, Context.signature(ctx)) do
+          {:vdata, ^sigma_fam, [_la, _lb, a_value, predicate_value]} -> {:ok, a_value, predicate_value}
           {:vdata, ^sigma_fam, [a_value, predicate_value]} -> {:ok, a_value, predicate_value}
           _ -> :error
         end
@@ -416,7 +417,17 @@ defmodule Cure.Elab.ProofSearch do
     sig = Context.signature(ctx)
     a_term = Cure.Core.Quote.reify(a_value, depth, sig)
     predicate_term = Cure.Core.Quote.reify(predicate_value, depth, sig)
-    build_app({:global, second_projection_head(env)}, [a_term, predicate_term, var_term])
+    head = second_projection_head(env)
+
+    args =
+      if head == :sigma_second do
+        zero = {:level_value, Cure.Core.UniverseLevel.zero()}
+        [zero, zero, a_term, predicate_term, var_term]
+      else
+        [a_term, predicate_term, var_term]
+      end
+
+    build_app({:global, head}, args)
   end
 
   # The global to head the second projection with: `Std.Refine.refinement_proof`

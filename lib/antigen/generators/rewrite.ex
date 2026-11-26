@@ -86,16 +86,24 @@ defmodule Antigen.Generators.Rewrite do
   # transport motive family in 4.3/4.4.
   defp p_family, do: {Inductive.family(:P, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)), []}
 
+  @l0 {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}
+
   # Equivalent itself — byte-mirror of core/builtins.ex's eq_family/eq_ctors
   # (the challenge env is rebuilt from Env.empty, which has no builtins).
-  defp eq_family,
-    do:
-      {Inductive.family(
-         :Equivalent,
-         [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
-         [x: {:var, 0}, y: {:var, 1}],
-         Cure.Core.Sort.finite_closed(0)
-       ), [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
+  defp eq_family do
+    level_var_0 = Cure.Core.UniverseLevel.atom({:var, 0})
+    level_var_3 = Cure.Core.UniverseLevel.atom({:var, 3})
+
+    {Inductive.family(
+       :Equivalent,
+       [l: {:level_type}, a: {:type, Cure.Core.Sort.finite(level_var_0)}],
+       [x: {:var, 0}, y: {:var, 1}],
+       Cure.Core.Sort.finite(level_var_3)
+     ),
+     [
+       Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 2}, {:var, 1}])
+     ]}
+  end
 
   @doc "Rebuild the Env: declare every family, then add the def under test."
   @spec env_of(Challenge.t()) :: Env.t()
@@ -107,7 +115,7 @@ defmodule Antigen.Generators.Rewrite do
   # J/subst transport for CLOSED ty/motive/l (shifts of closed terms elided) —
   # mirrors the elaborator's `transport_case/4`.
   defp transport(proof, ty, motive, l) do
-    scrut_ty = {:data, :Equivalent, [ty], [{:var, 1}, {:var, 0}]}
+    scrut_ty = {:data, :Equivalent, [@l0, ty], [{:var, 1}, {:var, 0}]}
     arrow = {:pi, Cure.Core.Grade.unrestricted(), {:app, motive, {:var, 2}}, {:app, motive, {:var, 2}}}
 
     arrow_motive =
@@ -125,7 +133,7 @@ defmodule Antigen.Generators.Rewrite do
   """
   @spec eq_formation(:well_typed | :ill_typed) :: Challenge.t()
   def eq_formation(:well_typed) do
-    eq = {:data, :Equivalent, [@dec], [@causal, @dcoupled]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@causal, @dcoupled]}
 
     challenge(
       :well_typed,
@@ -139,7 +147,7 @@ defmodule Antigen.Generators.Rewrite do
   end
 
   def eq_formation(:ill_typed) do
-    eq = {:data, :Equivalent, [@dec], [@causal, {:ctor, :MkFoo, []}]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@causal, {:ctor, :MkFoo, []}]}
 
     challenge(
       :ill_typed,
@@ -156,7 +164,7 @@ defmodule Antigen.Generators.Rewrite do
   @spec refl_typing(:base | :redex | :conjunct1_violation | :conjunct2_violation) :: Challenge.t()
   # base: reflexive Causal : Equivalent Dec Causal Causal, checked in a def.
   def refl_typing(:base) do
-    eq = {:data, :Equivalent, [@dec], [@causal, @causal]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@causal, @causal]}
 
     challenge(
       :well_typed,
@@ -172,7 +180,7 @@ defmodule Antigen.Generators.Rewrite do
   # redex: endpoint is a redex that normalizes to Causal — conv is up-to-nf.
   def refl_typing(:redex) do
     redex = {:app, {:lam, Cure.Core.Grade.unrestricted(), @dec, {:var, 0}}, @causal}
-    eq = {:data, :Equivalent, [@dec], [@causal, redex]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@causal, redex]}
 
     challenge(
       :well_typed,
@@ -187,7 +195,7 @@ defmodule Antigen.Generators.Rewrite do
 
   # conjunct-1 violation: endpoints not convertible (Causal vs Dcoupled).
   def refl_typing(:conjunct1_violation) do
-    eq = {:data, :Equivalent, [@dec], [@causal, @dcoupled]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@causal, @dcoupled]}
 
     challenge(
       :ill_typed,
@@ -203,7 +211,7 @@ defmodule Antigen.Generators.Rewrite do
   # conjunct-2 violation: endpoints equal to each other (Dcoupled,Dcoupled) so
   # conjunct 1 holds, but reflexive's witness Causal isn't convertible to them.
   def refl_typing(:conjunct2_violation) do
-    eq = {:data, :Equivalent, [@dec], [@dcoupled, @dcoupled]}
+    eq = {:data, :Equivalent, [@l0, @dec], [@dcoupled, @dcoupled]}
 
     challenge(
       :ill_typed,
@@ -223,7 +231,7 @@ defmodule Antigen.Generators.Rewrite do
   @p_causal {:data, :P, [], [{:ctor, :Causal, []}]}
   @p_dcoupled {:data, :P, [], [{:ctor, :Dcoupled, []}]}
   @motive {:lam, Cure.Core.Grade.unrestricted(), @dec, {:data, :P, [], [{:var, 0}]}}
-  @eq_cd {:data, :Equivalent, [@dec], [{:ctor, :Causal, []}, {:ctor, :Dcoupled, []}]}
+  @eq_cd {:data, :Equivalent, [@l0, @dec], [{:ctor, :Causal, []}, {:ctor, :Dcoupled, []}]}
 
   @spec rewrite_premise(:well_typed | :proof_not_eq | :body_mismatch) :: Challenge.t()
   # def : Π(p:Equivalent Dec Causal Dcoupled). Π(h:P Causal). P Dcoupled

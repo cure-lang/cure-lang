@@ -2289,9 +2289,20 @@ defmodule Cure.Elab.Declarations do
 
         _ ->
           {pc, ptele} =
-            if Inductive.family?(env, fam),
-              do: {Inductive.param_count(env, fam), Inductive.param_telescope(env, fam) || []},
-              else: {0, []}
+            if Inductive.family?(env, fam) do
+              raw_ptele = Inductive.param_telescope(env, fam) || []
+              itele_len = length(Inductive.index_telescope(env, fam) || [])
+              level_prefix = Enum.take_while(raw_ptele, fn {_n, d} -> d == {:level_type} end) |> length()
+
+              if level_prefix > 0 and length(args) + level_prefix == length(raw_ptele) + itele_len do
+                dropped = Enum.drop(raw_ptele, level_prefix)
+                {length(dropped), dropped}
+              else
+                {length(raw_ptele), raw_ptele}
+              end
+            else
+              {0, []}
+            end
 
           args
           |> Enum.with_index()
@@ -3437,7 +3448,7 @@ defmodule Cure.Elab.Declarations do
     with {:ok, dom} <- idx_to_core(dom_ast, scope, fam, env, ctx),
          {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
          {:ok, body} <- idx_to_core(body_ast, [bname | scope], fam, env, body_ctx) do
-      {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, body}], []}}
+      {:ok, build_sigma_data(env, dom, body, ctx, body_ctx)}
     end
   end
 
@@ -3463,7 +3474,7 @@ defmodule Cure.Elab.Declarations do
          {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
          {:ok, proposition} <-
            idx_to_core(reflect_boolean_proposition(proposition_ast), [bname | scope], fam, env, body_ctx) do
-      {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, proposition}], []}}
+      {:ok, build_sigma_data(env, dom, proposition, ctx, body_ctx)}
     end
   end
 
@@ -3868,21 +3879,108 @@ defmodule Cure.Elab.Declarations do
   # deferred the failure to a bare kernel `:ctor_arity` during body checking.
   defp lower_applied_arguments(args, family, _definition, scope, fam, env, ctx) do
     tele = (Inductive.param_telescope(env, family) || []) ++ (Inductive.index_telescope(env, family) || [])
+    level_prefix_count = Enum.take_while(tele, fn {_name, dom} -> dom == {:level_type} end) |> length()
 
-    if length(args) == length(tele) do
-      Enum.zip(args, tele)
-      |> Enum.reduce_while({:ok, []}, fn {arg, {_name, dom}}, {:ok, actuals} ->
-        expected = Subst.instantiate(dom, actuals)
+    cond do
+      length(args) == length(tele) ->
+        lower_arguments_against_telescope(args, tele, [], scope, fam, env, ctx)
 
-        case idx_to_core_expected(arg, expected, scope, fam, env, ctx) do
-          {:ok, core} -> {:cont, {:ok, actuals ++ [core]}}
-          {:error, _} = error -> {:halt, error}
+      level_prefix_count > 0 and length(args) + level_prefix_count == length(tele) ->
+        rest_tele = Enum.drop(tele, level_prefix_count)
+
+        with {:ok, raw_rest} <- map_idx_to_core(args, scope, fam, env, ctx) do
+          level_cores = infer_omitted_family_levels(level_prefix_count, rest_tele, raw_rest, ctx)
+          lower_arguments_against_telescope(args, rest_tele, level_cores, scope, fam, env, ctx)
         end
-      end)
-    else
-      map_idx_to_core(args, scope, fam, env, ctx)
+
+      true ->
+        map_idx_to_core(args, scope, fam, env, ctx)
     end
   end
+
+  defp lower_arguments_against_telescope(args, tele, initial_actuals, scope, fam, env, ctx) do
+    Enum.zip(args, tele)
+    |> Enum.reduce_while({:ok, initial_actuals}, fn {arg, {_name, dom}}, {:ok, actuals} ->
+      expected = Subst.instantiate(dom, actuals)
+
+      case idx_to_core_expected(arg, expected, scope, fam, env, ctx) do
+        {:ok, core} -> {:cont, {:ok, actuals ++ [core]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp infer_omitted_family_levels(k, rest_tele, raw_rest, ctx) do
+    for i <- 0..(k - 1)//1 do
+      bounds =
+        rest_tele
+        |> Enum.with_index()
+        |> Enum.flat_map(fn {{_name, dom}, j} ->
+          target_db = k - 1 - i + j
+          arg_core = Enum.at(raw_rest, j)
+
+          case dom do
+            {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:var, ^target_db}, 0}]}}} ->
+              [infer_level_of_type_term(arg_core, ctx)]
+
+            {:pi, _, _, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:var, cod_db}, 0}]}}}}
+            when cod_db == target_db + 1 ->
+              [infer_codomain_level_of_family_term(arg_core, ctx)]
+
+            _ ->
+              []
+          end
+        end)
+
+      level =
+        case bounds do
+          [] -> Cure.Core.UniverseLevel.zero()
+          many -> Enum.reduce(many, &Cure.Core.UniverseLevel.max/2)
+        end
+
+      {:level_value, level}
+    end
+  end
+
+  defp infer_level_of_type_term({:type, {:finite, level}}, _ctx),
+    do: Cure.Core.UniverseLevel.succ(level)
+
+  defp infer_level_of_type_term(term, %Context{} = ctx) do
+    case Kernel.infer(ctx, term) do
+      {:ok, {:vtype, _} = sort_val} ->
+        case Cure.Core.Normalise.nf(ctx, Quote.reify(sort_val, Context.length(ctx), Context.signature(ctx))) do
+          {:type, {:finite, %Cure.Core.UniverseLevel{} = level}} -> level
+          _ -> Cure.Core.UniverseLevel.zero()
+        end
+
+      _ ->
+        Cure.Core.UniverseLevel.zero()
+    end
+  end
+
+  defp infer_level_of_type_term(_term, _ctx), do: Cure.Core.UniverseLevel.zero()
+
+  defp infer_codomain_level_of_family_term({:lam, _g, _dom, body}, _ctx) do
+    case body do
+      {:type, {:finite, level}} -> Cure.Core.UniverseLevel.succ(level)
+      _ -> Cure.Core.UniverseLevel.zero()
+    end
+  end
+
+  defp infer_codomain_level_of_family_term(term, %Context{} = ctx) do
+    case Kernel.infer(ctx, term) do
+      {:ok, {:vpi, _g, _dom, cod}} ->
+        case Cure.Core.Normalise.nf(ctx, Quote.reify(cod, Context.length(ctx) + 1, Context.signature(ctx))) do
+          {:type, {:finite, %Cure.Core.UniverseLevel{} = level}} -> level
+          _ -> Cure.Core.UniverseLevel.zero()
+        end
+
+      _ ->
+        Cure.Core.UniverseLevel.zero()
+    end
+  end
+
+  defp infer_codomain_level_of_family_term(_term, _ctx), do: Cure.Core.UniverseLevel.zero()
 
   defp lower_definition_arguments(args, type, scope, fam, env, ctx) do
     if pi_arity(type) == length(args) do
@@ -4465,8 +4563,23 @@ defmodule Cure.Elab.Declarations do
     with {:ok, dom} <- idx_to_core(ast, scope, fam, env, ctx),
          {:ok, body_ctx} <- extend_annotation_context(ctx, dom),
          {:ok, body} <- build_telescope_type(rest, [bname | scope], fam, env, body_ctx) do
-      {:ok, {:data, sigma_family_name(env), [dom, {:lam, Cure.Core.Grade.unrestricted(), dom, body}], []}}
+      {:ok, build_sigma_data(env, dom, body, ctx, body_ctx)}
     end
+  end
+
+  defp build_sigma_data(env, dom, body, ctx, body_ctx) do
+    la = infer_level_of_type_term(dom, ctx)
+    raw_lb = infer_level_of_type_term(body, body_ctx)
+    lb = strengthen_sigma_codomain_level(raw_lb)
+
+    {:data, sigma_family_name(env),
+     [{:level_value, la}, {:level_value, lb}, dom, {:lam, Cure.Core.Grade.unrestricted(), dom, body}], []}
+  end
+
+  defp strengthen_sigma_codomain_level(level) do
+    if 0 in Cure.Core.UniverseLevel.free_vars(level),
+      do: Cure.Core.UniverseLevel.zero(),
+      else: Cure.Core.UniverseLevel.shift(level, -1, 1)
   end
 
   defp sigma_family_name(env), do: Inductive.builtin(env, :sigma) || :Sigma
@@ -4888,28 +5001,32 @@ defmodule Cure.Elab.Declarations do
 
     param_depth = Context.length(param_ctx)
 
-    Enum.reduce(ctors, Cure.Core.Sort.finite_zero(), fn ctor, acc_sort ->
-      {_final_ctx, ctor_sort} =
-        Enum.reduce(ctor.args, {param_ctx, acc_sort}, fn {_fname, ftype}, {c, current_sort} ->
-          next_sort =
-            case Kernel.infer(c, ftype) do
-              {:ok, {:vtype, _} = sort_val} ->
-                {:type, raw_sort} =
-                  Cure.Core.Normalise.nf(c, Quote.reify(sort_val, Context.length(c), Context.signature(c)))
+    param_sort =
+      Enum.reduce(ctors, Cure.Core.Sort.finite_zero(), fn ctor, acc_sort ->
+        {_final_ctx, ctor_sort} =
+          Enum.reduce(ctor.args, {param_ctx, acc_sort}, fn {_fname, ftype}, {c, current_sort} ->
+            next_sort =
+              case Kernel.infer(c, ftype) do
+                {:ok, {:vtype, _} = sort_val} ->
+                  {:type, raw_sort} =
+                    Cure.Core.Normalise.nf(c, Quote.reify(sort_val, Context.length(c), Context.signature(c)))
 
-                field_depth = Context.length(c) - param_depth
-                shifted = strengthen_field_sort(raw_sort, field_depth)
-                Cure.Core.Sort.join(current_sort, shifted)
+                  field_depth = Context.length(c) - param_depth
+                  shifted = strengthen_field_sort(raw_sort, field_depth)
+                  Cure.Core.Sort.join(current_sort, shifted)
 
-              _ ->
-                current_sort
-            end
+                _ ->
+                  current_sort
+              end
 
-          {Context.extend(c, Eval.eval(ftype, Context.env(c))), next_sort}
-        end)
+            {Context.extend(c, Eval.eval(ftype, Context.env(c))), next_sort}
+          end)
 
-      ctor_sort
-    end)
+        ctor_sort
+      end)
+
+    # `family.sort` lives in the `params ++ indices` frame (`Kernel.check_family/2`).
+    Cure.Core.Sort.shift(param_sort, length(index_tele), 0)
   end
 
   defp strengthen_field_sort(sort, 0), do: sort

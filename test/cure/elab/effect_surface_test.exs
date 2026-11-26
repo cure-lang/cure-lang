@@ -82,7 +82,9 @@ defmodule Cure.Elab.EffectSurfaceTest do
       inner = {:function_call, [name: "List"], [{:variable, [scope: :local], "Int"}]}
       ast = {:function_call, [name: "Effect"], [inner]}
 
-      assert {:ok, {:effect_type, {:data, :"Std.List#List", [{:data, :"Std.Int#Int", [], []}], []}}} =
+      l0 = {:level_value, Cure.Core.UniverseLevel.zero()}
+
+      assert {:ok, {:effect_type, {:data, :"Std.List#List", [^l0, {:data, :"Std.Int#Int", [], []}], []}}} =
                Declarations.lower_type(ast, [], prelude_env())
     end
   end

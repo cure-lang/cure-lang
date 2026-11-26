@@ -46,11 +46,27 @@ defmodule Cure.Elab.Simplifier do
   end
 
   defp close_definitionally(
+         {:data, family, [_level, _carrier], [_left, right]} = normalized,
+         expected,
+         context,
+         command_span
+       ) do
+    close_definitionally_eq(family, right, normalized, expected, context, command_span)
+  end
+
+  defp close_definitionally(
          {:data, family, [_carrier], [_left, right]} = normalized,
          expected,
          context,
          command_span
        ) do
+    close_definitionally_eq(family, right, normalized, expected, context, command_span)
+  end
+
+  defp close_definitionally(normalized, expected, _context, command_span),
+    do: residual(expected, normalized, command_span, :goal_is_not_equality)
+
+  defp close_definitionally_eq(family, right, normalized, expected, context, command_span) do
     equality = Cure.Core.Inductive.builtin(Context.signature(context), :eq)
     evidence = Rewrite.mk_refl(right)
 
@@ -68,9 +84,6 @@ defmodule Cure.Elab.Simplifier do
         residual(expected, normalized, command_span, :not_definitionally_equal)
     end
   end
-
-  defp close_definitionally(normalized, expected, _context, command_span),
-    do: residual(expected, normalized, command_span, :goal_is_not_equality)
 
   defp residual(before, after_goal, command_span, cause) do
     {:error,
