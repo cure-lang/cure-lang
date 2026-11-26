@@ -1,6 +1,6 @@
 @group(:core)
 mod Std.Proof.LinearArithmetic
-  ## Executable affine syntax for verified LIA reflection. This module is total
+  ## Executable affine syntax and Boolean candidate checking for LIA. This module is total
   ## and deliberately rejects malformed dimensions instead of inheriting
   ## List.zip_with's truncating semantics.
 
@@ -184,8 +184,13 @@ mod Std.Proof.LinearArithmetic
         all_zero(atom.coefficients),
         lt_int(atom.constant, int_zero()))
 
-  ## Executable P1 candidate check. Task 6 wraps the same computation in
-  ## proof-relevant ValidFarkasCertificate evidence and exports check_lia.
+  ## Executable candidate check only. A general proof-relevant certificate and
+  ## checker-to-goal soundness theorem remain separate, unfinished work.
+  ##
+  ## `@reducible` publishes the body for certified candidate validation, not an
+  ## unchecked route from a Bool to a goal. Certification is still required.
+  ## `by omega` also reconstructs actual evidence from checked order lemmas.
+  @reducible
   fn check_lia_candidate(hypotheses: Hypotheses, goal: LinearAtom, witness: FarkasWitness) -> Bool =
     let dimension = nat_length(goal.coefficients)
     let atoms = append_goal(hypotheses, goal)

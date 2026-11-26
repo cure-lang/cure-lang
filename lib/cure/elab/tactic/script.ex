@@ -18,11 +18,10 @@ defmodule Cure.Elab.Tactic.Script do
     * `repeat` is a fixpoint loop. Exposing it to authored source would make
       "how many steps did this proof take" depend on the simplifier's internal
       progress heuristic.
-    * `focus`/`all_goals` only mean something once a command produces more than
-      one goal. Today every Cure command is single-goal, so they would be
-      vacuous vocabulary.
+    * `focus`/`all_goals` are explicit host controls rather than implicit
+      broadcasts over the premises of an authored proof.
 
-  A script sequences checked commands using `Tactic.run_all/2`. A failed step
+  A script sequences checked commands using `Tactic.run_focused/2`. A failed step
   fails the script. Unlike goal-list sequencing, a source statement after
   closure is an unreachable-statement error, just as in a justification block.
   Open goals are returned for the caller's next command to finish.
@@ -48,8 +47,14 @@ defmodule Cure.Elab.Tactic.Script do
   def run({:command, node}, goal), do: Tactic.command(node).(goal)
 
   def run({:sequence, steps}, goal) do
-    run_steps(steps, %Tactic.Result{goals: [goal]}, goal)
+    Cure.Elab.ProofState.with_session(fn ->
+      run_steps(steps, %Tactic.Result{goals: [goal]}, goal)
+    end)
   end
+
+  defp run_steps(_steps, %Tactic.Result{goals: [], pending: pending}, goal)
+       when map_size(pending) > 0,
+       do: Cure.Elab.ProofGoal.pending_application(goal)
 
   defp run_steps([], result, _goal), do: {:ok, result}
 
@@ -59,7 +64,23 @@ defmodule Cure.Elab.Tactic.Script do
   end
 
   defp run_steps([step | rest], result, goal) do
-    with {:ok, next} <- run_all(step, result), do: run_steps(rest, next, goal)
+    statement = first_command(step)
+    Cure.Elab.ProofState.observe_session(:before, statement, goal, result.goals)
+
+    executed =
+      Cure.Elab.ProofState.within_statement(statement, fn ->
+        Tactic.run_focused(&run(step, &1), result)
+      end)
+
+    case executed do
+      {:ok, next} ->
+        Cure.Elab.ProofState.observe_session(:after, statement, goal, next.goals)
+        run_steps(rest, next, goal)
+
+      {:error, _} = error ->
+        Cure.Elab.ProofState.observe_session(:failed, statement, goal, result.goals)
+        error
+    end
   end
 
   defp first_command({:command, node}), do: node
@@ -68,8 +89,8 @@ defmodule Cure.Elab.Tactic.Script do
   @doc """
   Run a step over a whole result, threading remaining goals.
 
-  A script is single-goal in practice, but the result shape is a list, and
-  `Tactic.run_all/2` is what keeps a future multi-goal command honest.
+  This is an explicit host broadcast. Authored source sequences instead use
+  `Tactic.run_focused/2`, preserving siblings and settling pending parents.
   """
   @spec run_all(Step.step(), [Tactic.goal()] | Tactic.Result.t()) :: Tactic.result()
   def run_all(step, goals_or_result), do: Tactic.run_all(&run(step, &1), goals_or_result)

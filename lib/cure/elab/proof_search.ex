@@ -18,12 +18,17 @@ defmodule Cure.Elab.ProofSearch do
   @depth_limit 5
 
   @spec resolve(goal(), Context.t(), Cure.Core.Env.t()) :: result()
-  def resolve(goal, ctx, env), do: resolve(goal, ctx, env, %{depth: 0, trying: []})
+  def resolve(goal, ctx, env) do
+    resolve(goal, ctx, env, %{depth: 0, trying: []})
+    |> Cure.Elab.ProofAdmission.observe_result()
+  end
 
   @doc "Resolve with only the selected strategy, including recursive premises."
-  @spec resolve_strategy(goal(), Context.t(), Cure.Core.Env.t(), :search | :positivity) :: result()
-  def resolve_strategy(goal, ctx, env, strategy) when strategy in [:search, :positivity],
-    do: resolve(goal, ctx, env, %{depth: 0, trying: [], strategy: strategy})
+  @spec resolve_strategy(goal(), Context.t(), Cure.Core.Env.t(), :search | :positivity | :assumption) :: result()
+  def resolve_strategy(goal, ctx, env, strategy) when strategy in [:search, :positivity, :assumption] do
+    resolve(goal, ctx, env, %{depth: 0, trying: [], strategy: strategy})
+    |> Cure.Elab.ProofAdmission.observe_result()
+  end
 
   # Depth-bound guard: abandon a branch that has descended past the ceiling.
   def resolve(_goal, _ctx, _env, %{depth: d}) when d > @depth_limit, do: :none
@@ -81,6 +86,15 @@ defmodule Cure.Elab.ProofSearch do
           else
             :none
           end
+
+        :assumption ->
+          # Local hypotheses ONLY. This is the deliberately narrow sibling of
+          # `:search`: it never consults tagged lemmas, refinement projections or
+          # the positivity procedure, so "the goal is one of my hypotheses" is a
+          # decision the author can predict from the goal state alone. The
+          # proposition gate inside `local_candidates/3` still applies, so a
+          # proof-relevant value type is never silently inhabited by a local.
+          decide(local_candidates(goal, ctx, env), goal)
 
         :auto ->
           run_solvers(

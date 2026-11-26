@@ -33,6 +33,7 @@ defmodule Cure.Elab.MacroExpand do
   # parameter would have to be threaded through every one of them, and a strategy
   # that only some call sites honour is not a policy.
   @policy_key {__MODULE__, :execution}
+  @callback_cache_key {__MODULE__, :callback_cache}
 
   @spec with_execution(:compiled | :core_fallback | nil, (-> result)) :: result when result: term()
   def with_execution(nil, fun), do: fun.()
@@ -47,11 +48,244 @@ defmodule Cure.Elab.MacroExpand do
     end
   end
 
+  defp definition_site_expander({:variable, meta, name} = ast, [home]) when is_binary(name) do
+    if String.contains?(name, ["#", "."]) do
+      {:ok, ast}
+    else
+      with {:ok, source} <- File.read(home),
+           {:ok, tokens} <- Cure.Compiler.Lexer.tokenize(source, file: home, emit_events: false),
+           {:ok, ast} <- Cure.Compiler.BufferParse.parse(source, tokens, file: home, emit_events: false),
+           1 <- source_module_count(ast),
+           {:ok, index} <- Cure.Compiler.ModuleIndex.build([home], validate_dependencies: false),
+           [owner] <- Cure.Compiler.ModuleIndex.module_names(index) do
+        {:ok, {:variable, meta, Atom.to_string(Cure.Elab.Name.qualify(owner, name))}}
+      else
+        {:error, _} = error -> error
+        _ -> {:error, :ambiguous_computed_tactic_home}
+      end
+    end
+  end
+
+  defp definition_site_expander(ast, _homes), do: {:ok, ast}
+
+  defp source_module_count({:container, meta, children}) do
+    own = if Keyword.get(meta, :container_type) == :module, do: 1, else: 0
+    own + source_module_count(children)
+  end
+
+  defp source_module_count({_tag, _meta, children}) when is_list(children), do: source_module_count(children)
+  defp source_module_count(children) when is_list(children), do: Enum.sum(Enum.map(children, &source_module_count/1))
+  defp source_module_count(_), do: 0
+
+  # Only the rule's resolved home, authored declaration metadata, and canonical
+  # stdlib filenames participate. ModuleIndex validates their declared identity
+  # and refuses duplicates. There is no first-match scan of user source roots.
+  defp callback_provider_paths(name, homes) do
+    paths =
+      case String.split(Cure.Elab.Name.owner(name) || "", ".") do
+        ["Std" | segments] ->
+          stem = Enum.map_join(segments, "_", &Macro.underscore/1)
+
+          [Cure.Stdlib.Paths.source_dir(), List.first(Cure.Stdlib.Paths.embedded_source_dirs())]
+          |> Enum.reject(&is_nil/1)
+          |> Enum.map(&Path.join(&1, stem <> ".cure"))
+
+        _ ->
+          case Cure.Elab.SourceMetadata.declaration_span(name) do
+            %{path: path} when is_binary(path) -> [path]
+            _ -> []
+          end
+      end
+
+    (homes ++ paths) |> Enum.filter(&File.regular?/1) |> Enum.map(&Path.expand/1) |> Enum.uniq()
+  end
+
+  defp check_hydrated_bodies(original, hydrated) do
+    Enum.reduce_while(original.defs, :ok, fn
+      {name, %{body: {:hole, "__interface_opaque__"}}}, :ok ->
+        case Cure.Core.Env.get_def(hydrated, name) do
+          %{body: {:hole, "__interface_opaque__"}} ->
+            {:cont, :ok}
+
+          _ ->
+            case Kernel.check_def(hydrated, name) do
+              :ok -> {:cont, :ok}
+              {:error, reason} -> {:halt, {:error, {:compile_time_body_rejected, name, reason}}}
+            end
+        end
+
+      _, :ok ->
+        {:cont, :ok}
+    end)
+  end
+
+  # Source interfaces intentionally hide runtime bodies. Compile-time callbacks
+  # need those implementations, but never an opaque placeholder masquerading as
+  # a result. Load only providers reached by the callback, retain the caller's
+  # signatures and visibility, then submit the completed closure to the ordinary
+  # kernel-backed totality checker above.
+  @spec hydrate_callback(Cure.Core.Env.t(), [atom()], %{optional(atom()) => true}, [String.t()]) ::
+          {:ok, Cure.Core.Env.t()} | {:error, term()}
+  defp hydrate_callback(env, [], _seen, _homes), do: {:ok, env}
+
+  defp hydrate_callback(env, [name | rest], seen, homes) do
+    if Map.has_key?(seen, name) do
+      hydrate_callback(env, rest, seen, homes)
+    else
+      seen = Map.put(seen, name, true)
+
+      with {:ok, env} <- hydrate_definition(env, name, homes) do
+        dependencies =
+          case Cure.Core.Env.get_def(env, name) do
+            %{body: body} -> global_names(body)
+            _ -> []
+          end
+
+        hydrate_callback(env, dependencies ++ rest, seen, homes)
+      end
+    end
+  end
+
+  defp hydrate_definition(env, name, homes) do
+    case Cure.Core.Env.get_def(env, name) do
+      %{body: {:hole, "__interface_opaque__"}} ->
+        with {:ok, path} <- callback_source(name, homes),
+             {:ok, source} <- File.read(path),
+             {:ok, loaded} <- callback_source_env(path, source) do
+          hydrated =
+            Enum.reduce(env.defs, env, fn {key, definition}, current ->
+              case {definition, Map.get(loaded.defs, key)} do
+                {%{body: {:hole, "__interface_opaque__"}, type: type}, %{type: type, body: body} = implementation}
+                when elem(body, 0) != :hole ->
+                  if Map.take(definition, [:type, :quantities, :plicities]) ==
+                       Map.take(implementation, [:type, :quantities, :plicities]) do
+                    registered =
+                      Cure.Core.Env.add_def(
+                        current,
+                        key,
+                        type,
+                        body,
+                        Map.get(definition, :quantities),
+                        Map.get(definition, :plicities)
+                      )
+
+                    %{registered | defs: Map.put(registered.defs, key, %{definition | body: body})}
+                  else
+                    current
+                  end
+
+                _ ->
+                  current
+              end
+            end)
+
+          case Cure.Core.Env.get_def(hydrated, name) do
+            %{body: {:hole, "__interface_opaque__"}} ->
+              {:error, {:compile_time_signature_mismatch, name}}
+
+            _ ->
+              {:ok, hydrated}
+          end
+        end
+
+      _ ->
+        {:ok, env}
+    end
+  end
+
+  defp callback_source_env(path, source) do
+    key = {path, :crypto.hash(:sha256, source)}
+    cache = Process.get(@callback_cache_key, %{})
+
+    case Map.get(cache, key) do
+      nil ->
+        result = Cure.Elab.Program.elaborate(source, file: path)
+
+        if match?({:ok, _}, result),
+          do: Process.put(@callback_cache_key, Map.put(Process.get(@callback_cache_key, %{}), key, result))
+
+        result
+
+      result ->
+        result
+    end
+  end
+
+  defp callback_source(name, homes) do
+    owner = Cure.Elab.Name.owner(name)
+    cache = Process.get(@callback_cache_key, %{})
+
+    case Map.fetch(cache, {:provider, owner}) do
+      {:ok, result} ->
+        result
+
+      :error ->
+        paths = callback_provider_paths(name, homes)
+
+        result =
+          with {:ok, index} <- Cure.Compiler.ModuleIndex.build(paths, validate_dependencies: false),
+               {:ok, entry} <- Cure.Compiler.ModuleIndex.fetch(index, owner) do
+            {:ok, entry.source_path}
+          end
+
+        Process.put(@callback_cache_key, Map.put(cache, {:provider, owner}, result))
+        result
+    end
+  end
+
   @spec execution_policy() :: :compiled | :core_fallback
   def execution_policy, do: Process.get(@policy_key, :compiled)
 
   @spec expand(term(), Cure.Core.Env.t()) :: {:ok, term()} | {:error, term()}
   def expand(ast, env), do: expand(ast, env, [])
+
+  @doc """
+  Execute a compile-time callback on closed, explicitly typed Core inputs.
+
+  This uses the ordinary macro application checker, transitive totality
+  certification and result decoder. It does not elaborate returned evidence:
+  callers must interpret the returned surface syntax through their own checked
+  frontend. In particular, a computed tactic receives a real `Std.Tactic.Goal`,
+  not a Syntax node pretending to be that record.
+  """
+  def expand_typed(meta, elab_ast, inputs, env) when is_list(inputs) do
+    previous = Process.put(@callback_cache_key, %{})
+
+    try do
+      expand_typed_scoped(meta, elab_ast, inputs, env)
+    after
+      if is_nil(previous),
+        do: Process.delete(@callback_cache_key),
+        else: Process.put(@callback_cache_key, previous)
+    end
+  end
+
+  defp expand_typed_scoped(meta, elab_ast, inputs, env) do
+    homes = List.wrap(Keyword.get(meta, :home_source))
+
+    env =
+      case Keyword.get(meta, :home_source) do
+        home when is_binary(home) -> Cure.Elab.Program.env_with_macro_home(env, home)
+        _ -> env
+      end
+
+    with {:ok, elab_ast} <- definition_site_expander(elab_ast, homes),
+         {:ok, _evidence} <- check_capture_obligations(meta, env),
+         {:ok, elab_core, _type} <-
+           Elaborator.elaborate_expr_typed(elab_ast, [], Context.empty(env), env),
+         {:ok, hydrated} <- hydrate_callback(env, global_names(elab_core), %{}, homes),
+         :ok <- check_hydrated_bodies(env, hydrated),
+         {:ok, eval_env} <- TotalityClosure.certify_roots(hydrated, global_names(elab_core)),
+         {:ok, ast} <- execute_application(Context.empty(eval_env), elab_core, [inputs]),
+         {ast, _counter} <- Parser.freshen_generated(ast) do
+      # Requests cannot declare globals, but proof-expression payloads can bind
+      # locals. The shared pass rewrites explicit fresh markers only, preserving
+      # captured authored names, with a counter local to this returned tree.
+      {:ok, ast}
+    else
+      {:error, reason} -> {:error, {:computed_macro_error, meta, reason}}
+    end
+  end
 
   @doc "Expand computed syntax recursively from the inside out under explicit budgets."
   @type expansion_frame :: %{
@@ -83,6 +317,7 @@ defmodule Cure.Elab.MacroExpand do
   @doc "True when an AST contains a deferred Tier-3 use-site."
   @spec contains_computed_use?(term()) :: boolean()
   def contains_computed_use?({:computed_use, _meta, _children}), do: true
+  def contains_computed_use?({:tactic_computed_use, _meta, _children}), do: true
   def contains_computed_use?({:quoted_syntax, _meta, _children}), do: false
 
   def contains_computed_use?(term) when is_tuple(term),

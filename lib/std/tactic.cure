@@ -1,0 +1,255 @@
+@group(:core)
+mod Std.Tactic
+  ## Goal inspection for computed proof tactics.
+  ##
+  ## This is the goal analogue of `Std.Syntax`. A `tactic ... computed by`
+  ## expander written over this module receives a *goal value* and can decide
+  ## what to do from what it sees, instead of expanding captures into a fixed
+  ## script.
+  ##
+  ## ## What a goal value is
+  ##
+  ## `Goal` carries the current proof state in a form ordinary Cure code can
+  ## inspect: the target proposition, the local hypotheses in scope, and an
+  ## opaque `state` handle that ties the value to the elaborator's checked goal.
+  ## The handle is not a proof and carries no evidence; it is only a key.
+  ## Every operation below is therefore a *request*, never a proof step.
+  ##
+  ## ## The firewall
+  ##
+  ## Nothing here produces evidence. Each operation names an existing checked
+  ## proof command (`simplify`, `rewrite using e`, `by search`, ...); the
+  ## elaborator runs that command against the goal the handle names and
+  ## kernel-checks the resulting evidence at the ORIGINAL goal. A tactic that
+  ## asks for the wrong thing gets a diagnostic, not a proof. `reject_goal`
+  ## exists so an expander can refuse in its own words.
+  ##
+  ## ## Example
+  ##
+  ## ```cure
+  ## mod MyTactics
+  ##   use Std.Tactic
+  ##   use Std.Syntax
+  ##   use Std.Bool
+  ##
+  ##   macro Tactics
+  ##     tactic close computed by close_goal
+  ##
+  ##   fn close_goal(g: Goal) -> MacroResult = match is_equality(g)
+  ##     True() -> expand(Std.Tactic.simplify(g))
+  ##     False() -> expand(Std.Tactic.search(g))
+  ## end
+  ## ```
+  ##
+  ## ## Limits
+  ##
+  ## A goal value exposes its target and hypotheses as quoted `Syntax`, which is
+  ## what an expander can pattern-match on. It does not expose a kernel term, a
+  ## proof object, or a way to build evidence directly: those would be a second,
+  ## unchecked path into the kernel. Operations run in the order the expander
+  ## emits them, and a failed operation fails the whole expansion.
+  ##
+  ## ## Structural inspection schema
+  ##
+  ## Family and constructor applications are `Node(short_name, attrs, children)`.
+  ## `attrs` includes `KV(:name, SAtom(qualified_name))`; family applications
+  ## additionally carry `KV(:parameters, SInt(parameter_count))`, and children
+  ## are parameters followed by indices. Thus `Equivalent(Int, x, y)` has tag
+  ## `:Equivalent` and three children. Qualified identity stays available in
+  ## `:name`; short head matching is an inspection convenience, not evidence.
+  ## A local variable is `Leaf(:variable, [KV(:index, SInt(index))], SStr(name))`,
+  ## using its authored context name. Globals are `Leaf(:global, attrs, SAtom(name))`.
+  ## Other Core forms are Nodes tagged with their form (`:app`, `:pi`, `:lam`,
+  ## `:let`, `:case`, literal form, or effect form), with structural children;
+  ## scalar children use Raw literals and lists use `Node(:list, [], children)`.
+  ## Pi/lambda/let and case-branch bodies introduce the synthetic inspection
+  ## name `$binder`. Case nodes hold scrutinee, motive, then `:branch` Nodes
+  ## carrying `:name` and `:arity` attributes and their body child.
+  ## This is an inspection schema, not parser syntax to use as proof evidence.
+  ##
+  ## A callback takes one Syntax argument per capture, in declaration order,
+  ## followed by a typed Goal. Return `expand(operation)` or
+  ## `expand(Node(:list, [], operations))`. MacroResult is already unwrapped by
+  ## the executor; `reject_goal` preserves author diagnostics. Every operation
+  ## must retain the supplied Goal's state handle, including custom requests
+  ## made with `operation`. State handles from other invocations are refused.
+  ## At most 256 requests may be returned. Operation arguments cannot generate
+  ## another deferred computed use: compose ordinary checked commands instead.
+  ##
+  ## Invoke a rule in a `because` block, or use `by close` as a checked function
+  ## body. Qualify `Std.Tactic.simplify(g)` to distinguish the helper function
+  ## from the contextual proof command. `apply` can open ordered premises;
+  ## following operations focus the first one, and dependent domains become
+  ## available after their earlier witnesses close. Unresolved implicit
+  ## witnesses are explicit typed obligations, not automatic proof search.
+  ## An imported bare callback reference requires a single-module provider file.
+  ## Multi-module homes must use an explicitly qualified callback reference;
+  ## an unavailable or ambiguous canonical provider is refused, never guessed.
+
+  use Std.Syntax
+  use Std.Bool
+
+  ## A goal value: the target, its local hypotheses, and the opaque handle the
+  ## elaborator uses to find the checked goal this value describes.
+  rec Goal
+    target: Syntax
+    hypotheses: List(Hypothesis)
+    state: Syntax
+
+  ## One local hypothesis: the name the author can refer to, and its type.
+  rec Hypothesis
+    name: String
+    type: Syntax
+
+  ## The target proposition of `g`.
+  fn goal_target(g: Goal) -> Syntax = g.target
+
+  ## The local hypotheses of `g`, most recent first.
+  fn goal_hypotheses(g: Goal) -> List(Hypothesis) = g.hypotheses
+
+  ## The name of a hypothesis.
+  fn hypothesis_name(h: Hypothesis) -> String = h.name
+
+  ## The type of a hypothesis.
+  fn hypothesis_type(h: Hypothesis) -> Syntax = h.type
+
+  ## Whether the target's head constructor is named `name`.
+  ##
+  ## The comparison is on the target's own head tag, so `is_head(g, :Equivalent)`
+  ## holds exactly when the goal is an `Equivalent(…)` proposition. A target that
+  ## is a variable or a literal has no head and answers `False()`.
+  fn is_head(g: Goal, name: Atom) -> Bool = match goal_target(g)
+    Node(tag, _, _) -> atom_eq(tag, name)
+    _ -> False()
+
+  ## Whether the goal is a propositional equality (`Equivalent`).
+  fn is_equality(g: Goal) -> Bool = is_head(g, :Equivalent)
+
+  ## How many local hypotheses are in scope.
+  fn hypothesis_count(g: Goal) -> Nat = count(goal_hypotheses(g))
+
+  ## Whether a local hypothesis with exactly this name is in scope.
+  fn has_hypothesis(g: Goal, name: String) -> Bool =
+    has_hypothesis_in(goal_hypotheses(g), name)
+
+  ## The type of the named hypothesis, when it is in scope.
+  fn hypothesis_type_of(g: Goal, name: String) -> Option(Syntax) =
+    lookup_hypothesis(goal_hypotheses(g), name)
+
+  ## Whether the named hypothesis's type has head constructor `name`.
+  fn hypothesis_is(g: Goal, hypothesis: String, name: Atom) -> Bool =
+    match hypothesis_type_of(g, hypothesis)
+      Some(t) -> match t
+        Node(tag, _, _) -> atom_eq(tag, name)
+        _ -> False()
+      None() -> False()
+
+  ## -- Operations -----------------------------------------------------------
+  ##
+  ## Each operation names one existing checked proof command. The elaborator
+  ## runs it against `g` and kernel-checks the result at the original goal.
+
+  ## `simplify` at `g`: beta, iota, zeta, certified delta, and the ambient
+  ## `@simp` set.
+  fn simplify(g: Goal) -> Syntax = operation(:simplify, g, [])
+
+  ## `simplify using [rules]` at `g`, with the rules named by the expander.
+  fn simplify_using(g: Goal, rules: List(Syntax)) -> Syntax =
+    operation(:simplify_using, g, [node(:list, [], rules)])
+
+  ## `rewrite using proof` at `g` (forward, single occurrence).
+  fn rewrite(g: Goal, proof: Syntax) -> Syntax = operation(:rewrite, g, [proof])
+
+  ## `rewrite backwards using proof` at `g`.
+  fn rewrite_backwards(g: Goal, proof: Syntax) -> Syntax =
+    operation(:rewrite_backwards, g, [proof])
+
+  ## `rewrite using proof all` at `g`: every original occurrence.
+  fn rewrite_all(g: Goal, proof: Syntax) -> Syntax = operation(:rewrite_all, g, [proof])
+
+  ## `exact proof` at `g`.
+  fn exact(g: Goal, proof: Syntax) -> Syntax = operation(:exact, g, [proof])
+
+  ## `apply proof` at `g`.
+  fn apply(g: Goal, proof: Syntax) -> Syntax = operation(:apply, g, [proof])
+
+  ## `by search` at `g`: local evidence, checked projections, tagged lemmas.
+  fn search(g: Goal) -> Syntax = operation(:search, g, [])
+
+  ## `by assumption` at `g`: close with a local hypothesis whose type is the
+  ## goal. Deliberately narrower than `search` -- it consults no lemmas and no
+  ## projections, so its outcome is predictable from the goal state alone.
+  fn assumption(g: Goal) -> Syntax = operation(:assumption, g, [])
+
+  ## `by positivity` at `g`: the curated natural-number sign fragment.
+  fn positivity(g: Goal) -> Syntax = operation(:positivity, g, [])
+
+  ## `by decide` at `g`: infer the certified Boolean-equality decider.
+  fn decide(g: Goal) -> Syntax = operation(:decide, g, [])
+
+  ## `by decide using decision` at `g`.
+  fn decide_using(g: Goal, decision: Syntax) -> Syntax =
+    operation(:decide_using, g, [decision])
+
+  ## `by omega` at `g`: the bounded, checked non-strict IntOrder fragment.
+  fn omega(g: Goal) -> Syntax = operation(:omega, g, [])
+
+  ## Refuse the goal with a diagnostic of the expander's own making.
+  fn reject_goal(reason: String) -> MacroResult =
+    reject(diagnostic_details(Failure(:tactic_rejected, []), reason, ""))
+
+  ## Refuse the goal with a reason and a repair hint.
+  fn reject_with(reason: String, hint: String) -> MacroResult =
+    reject(diagnostic_details(Failure(:tactic_rejected, []), reason, hint))
+
+  ## Build the operation request node. The elaborator validates the name against
+  ## its own closed vocabulary; an unknown name is a diagnostic, never a silent
+  ## no-op.
+  fn operation(kind: Atom, g: Goal, arguments: List(Syntax)) -> Syntax =
+    node(
+      :tactic_operation,
+      [KV(:kind, SAtom(kind)), KV(:state, SSyntax(g.state))],
+      arguments
+    )
+
+  ## -- Small helpers --------------------------------------------------------
+
+  fn count(values: List(a)) -> Nat = match values
+    [] -> Z()
+    [_ | rest] -> S(count(rest))
+
+  fn atom_eq(left: Atom, right: Atom) -> Bool = Std.Builtin.struct_eq(Atom, left, right)
+
+  fn has_hypothesis_in(hypotheses: List(Hypothesis), name: String) -> Bool = match hypotheses
+    [] -> False()
+    [h | rest] -> match string_eq(hypothesis_name(h), name)
+      True() -> True()
+      False() -> has_hypothesis_in(rest, name)
+
+  fn lookup_hypothesis(hypotheses: List(Hypothesis), name: String) -> Option(Syntax) =
+    match hypotheses
+      [] -> None()
+      [h | rest] -> match string_eq(hypothesis_name(h), name)
+        True() -> Some(hypothesis_type(h))
+        False() -> lookup_hypothesis(rest, name)
+
+  ## String equality through the structural primitive, so `Std.Tactic` needs no
+  ## `Equatable` instance in scope at the expander's use site. `String` is
+  ## nominally a character list, so the comparison is on its characters -- the
+  ## same lowering `Std.String`'s own `Equatable` instance uses.
+  fn string_eq(left: String, right: String) -> Bool =
+    characters_eq(characters(left), characters(right))
+
+  fn characters_eq(left: List(Char), right: List(Char)) -> Bool = match left
+    [] -> match right
+      [] -> True()
+      [_ | _] -> False()
+    [x | xs] -> match right
+      [] -> False()
+      [y | ys] -> match Std.Builtin.struct_eq(Char, x, y)
+        True() -> characters_eq(xs, ys)
+        False() -> False()
+
+  fn characters(value: String) -> List(Char) = match value
+    String(chars) -> chars
+end

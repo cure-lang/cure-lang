@@ -1,0 +1,44 @@
+## Indexed evidence wrappers, not a checker-to-goal soundness theorem.
+##
+## `check_lia_candidate` computes a Boolean certificate verdict. Evidence of
+## that verdict is not evidence of an arbitrary integer comparison. In
+## particular, IsTrue(True()) must never be used in place of the original goal.
+##
+## The omega tactic currently reconstructs a bounded fragment with ordinary
+## checked IntOrder lemmas. A general theorem relating successful certificate
+## checking, holding hypotheses, and the goal's semantics remains separate work.
+@group(:core)
+mod Std.Proof.LinearArithmetic.Reflection
+  use Std.Bool
+  use Std.Int
+  use Std.List
+  use Std.Nat
+  use Std.Proof.IntMath
+  use Std.Proof.IntOrder
+  use Std.Proof.LinearArithmetic
+
+  ## Preserve the exact checker application in the evidence's type. This
+  ## wrapper does not produce a proof from a Bool or establish goal soundness.
+  fn checked_holds(
+    hypotheses: Hypotheses, goal: LinearAtom, witness: FarkasWitness,
+    checked: IsTrue(check_lia_candidate(hypotheses, goal, witness))
+  ) -> IsTrue(check_lia_candidate(hypotheses, goal, witness)) = checked
+
+  ## Preserve evidence of this atom's actual semantics. Callers must supply
+  ## that evidence; a successful Farkas check alone is not an argument here.
+  fn goal_evaluates_true(
+    goal: LinearAtom, valuation: Valuation,
+    evidence: IsTrue(evaluate_atom(goal, valuation))
+  ) -> IsTrue(evaluate_atom(goal, valuation)) = evidence
+
+  ## The exact Boolean comparison evidence is required by the constructor.
+  fn close_less_than_or_equal(
+    {left: Int}, {right: Int},
+    evidence: IsTrue(le_int(left, right))
+  ) -> IsLessThanOrEqual(left, right) = AtMost(evidence)
+
+  fn close_less_than(
+    {left: Int}, {right: Int},
+    evidence: IsTrue(lt_int(left, right))
+  ) -> IsLessThan(left, right) = StrictlyBelow(evidence)
+end

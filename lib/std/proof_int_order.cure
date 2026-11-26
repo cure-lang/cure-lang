@@ -341,21 +341,32 @@ mod Std.Proof.IntOrder
     scale_nat_int(S(scalar), value), add_int(value, scale_nat_int(scalar, value))) =
     reflexive(add_int(value, scale_nat_int(scalar, value)))
 
+  ## Recurse on the actual Nat field rather than reconstructing an Int in a
+  ## recursive argument. The existing size-change checker can then replay the
+  ## strict decrease directly; no extra termination rule is assumed.
+  local fn add_int_commutative_from_nat(count: Nat, right: Int) -> Equivalent(Int,
+    add_int(FromNat(count), right), add_int(right, FromNat(count))) =
+    match count
+      Z() -> sym(add_int_zero_right(right))
+      S(k) -> rewrite add_int_commutative_from_nat(k, right) in
+        rewrite add_int_right_succ(right, FromNat(k)) in
+        reflexive(succ_int(add_int(right, FromNat(k))))
+
+  local fn add_int_commutative_negative_successor(count: Nat, right: Int) -> Equivalent(Int,
+    add_int(NegativeSuccessor(count), right), add_int(right, NegativeSuccessor(count))) =
+    match count
+      Z() -> trans(
+        cong(fn(x) -> pred_int(x), sym(add_int_zero_right(right))),
+        sym(add_int_right_pred(right, FromNat(Z()))))
+      S(k) -> rewrite add_int_commutative_negative_successor(k, right) in
+        rewrite add_int_right_pred(right, NegativeSuccessor(k)) in
+        reflexive(pred_int(add_int(right, NegativeSuccessor(k))))
+
   fn add_int_commutative(left: Int, right: Int) -> Equivalent(Int,
     add_int(left, right), add_int(right, left)) =
     match left
-      FromNat(n) -> match n
-        Z() -> sym(add_int_zero_right(right))
-        S(k) -> rewrite add_int_commutative(FromNat(k), right) in
-          rewrite add_int_right_succ(right, FromNat(k)) in
-          reflexive(succ_int(add_int(right, FromNat(k))))
-      NegativeSuccessor(k) -> match k
-        Z() -> trans(
-          cong(fn(x) -> pred_int(x), sym(add_int_zero_right(right))),
-          sym(add_int_right_pred(right, FromNat(Z()))))
-        S(j) -> rewrite add_int_commutative(NegativeSuccessor(j), right) in
-          rewrite add_int_right_pred(right, NegativeSuccessor(j)) in
-          reflexive(pred_int(add_int(right, NegativeSuccessor(j))))
+      FromNat(n) -> add_int_commutative_from_nat(n, right)
+      NegativeSuccessor(k) -> add_int_commutative_negative_successor(k, right)
 
   fn add_int_left_succ(left: Int, right: Int) -> Equivalent(Int,
     add_int(succ_int(left), right), succ_int(add_int(left, right))) =
@@ -373,21 +384,29 @@ mod Std.Proof.IntOrder
         add_int_right_pred(right, left),
         cong(fn(x) -> pred_int(x), add_int_commutative(right, left))))
 
+  local fn add_int_associative_from_nat(count: Nat, b: Int, c: Int) -> Equivalent(Int,
+    add_int(FromNat(count), add_int(b, c)), add_int(add_int(FromNat(count), b), c)) =
+    match count
+      Z() -> reflexive(add_int(b, c))
+      S(k) -> trans(
+        cong(fn(x) -> succ_int(x), add_int_associative_from_nat(k, b, c)),
+        sym(add_int_left_succ(add_int(FromNat(k), b), c)))
+
+  local fn add_int_associative_negative_successor(count: Nat, b: Int, c: Int) -> Equivalent(Int,
+    add_int(NegativeSuccessor(count), add_int(b, c)), add_int(add_int(NegativeSuccessor(count), b), c)) =
+    match count
+      Z() -> trans(
+        cong(fn(x) -> pred_int(x), add_int_associative_from_nat(Z(), b, c)),
+        sym(add_int_left_pred(add_int(FromNat(Z()), b), c)))
+      S(k) -> trans(
+        cong(fn(x) -> pred_int(x), add_int_associative_negative_successor(k, b, c)),
+        sym(add_int_left_pred(add_int(NegativeSuccessor(k), b), c)))
+
   fn add_int_associative(a: Int, b: Int, c: Int) -> Equivalent(Int,
     add_int(a, add_int(b, c)), add_int(add_int(a, b), c)) =
     match a
-      FromNat(n) -> match n
-        Z() -> reflexive(add_int(b, c))
-        S(k) -> trans(
-          cong(fn(x) -> succ_int(x), add_int_associative(FromNat(k), b, c)),
-          sym(add_int_left_succ(add_int(FromNat(k), b), c)))
-      NegativeSuccessor(k) -> match k
-        Z() -> trans(
-          cong(fn(x) -> pred_int(x), add_int_associative(FromNat(Z()), b, c)),
-          sym(add_int_left_pred(add_int(FromNat(Z()), b), c)))
-        S(j) -> trans(
-          cong(fn(x) -> pred_int(x), add_int_associative(NegativeSuccessor(j), b, c)),
-          sym(add_int_left_pred(add_int(NegativeSuccessor(j), b), c)))
+      FromNat(n) -> add_int_associative_from_nat(n, b, c)
+      NegativeSuccessor(k) -> add_int_associative_negative_successor(k, b, c)
 
   fn add_int_cong_left(a: Int, b: Int, c: Int, proof: Equivalent(Int, a, b)) -> Equivalent(Int,
     add_int(a, c), add_int(b, c)) =

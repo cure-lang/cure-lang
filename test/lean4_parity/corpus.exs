@@ -43,7 +43,8 @@ defmodule Cure.Lean4Parity.Corpus do
   """
   @spec all() :: [Case.t()]
   def all do
-    g3() ++ g4() ++ g5() ++ g9() ++ g1() ++ g2() ++ g10() ++ phase_one_two()
+    g3() ++
+      g4() ++ g5() ++ g9() ++ g1() ++ g2() ++ g10() ++ phase_one_two() ++ phase_four()
   end
 
   @doc """
@@ -543,6 +544,424 @@ defmodule Cure.Lean4Parity.Corpus do
               plus(S(k), Z()) == S(k)
               because
                 simplify using [ih]
+        end
+        """
+      )
+    ]
+  end
+
+  # ---------------------------------------------------------------------------
+  # Phase 4 — C1.2, C6, C7 (axis L3/L4)
+  #
+  # These pins are the review of the Phase 4 reach change. Each `:accept` was
+  # observed to compile through the real pipeline before being recorded, and
+  # each `:reject` was observed to fail. A `:reject` pin here is a deliberate
+  # safety boundary, not an unfinished feature, unless its reason says so.
+  # ---------------------------------------------------------------------------
+
+  defp phase_four do
+    [
+      parity_case(
+        id: "g2-computed-tactic-inspects-goal",
+        gap: :g2,
+        axis: :l4,
+        title: "a library tactic inspects the goal through a computed expander (C1.2)",
+        expect: :accept,
+        module: "Cure.Parity.G2ComputedTacticInspectsGoal",
+        source: """
+        mod Parity.G2ComputedTacticInspectsGoal
+          use Std.Tactic
+          use Std.Equivalent
+          use Std.Syntax
+          use Std.Bool
+
+          type Nat = Z | S(Nat)
+
+          fn identity(value: Nat) -> Nat = value
+
+          macro Tactics
+            tactic close computed by close_goal
+
+          fn close_goal(g: Goal) -> MacroResult = match is_equality(g)
+            True() -> expand(Std.Tactic.simplify(g))
+            False() -> reject_goal("only equalities")
+
+          fn theorem(value: Nat) -> Equivalent(Nat, identity(value), value) = proof chain
+            identity(value) == value
+            because close
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-computed-tactic-refuses-false-goal",
+        gap: :g2,
+        axis: :l4,
+        title: "a goal-inspecting tactic cannot close a false equality",
+        expect: :reject,
+        reason:
+          "The expander returns requests, not evidence. `simplify` at the false goal " <>
+            "fails, so the tactic fails. This is the C1.2 firewall: a computed tactic " <>
+            "has exactly the power of the commands it names.",
+        source: """
+        mod Parity.G2ComputedTacticFalseGoal
+          use Std.Tactic
+          use Std.Equivalent
+          use Std.Syntax
+          use Std.Bool
+
+          type Nat = Z | S(Nat)
+
+          macro Tactics
+            tactic close computed by close_goal
+
+          fn close_goal(g: Goal) -> MacroResult = match is_equality(g)
+            True() -> expand(Std.Tactic.simplify(g))
+            False() -> reject_goal("only equalities")
+
+          fn wrong() -> Equivalent(Nat, Z(), S(Z())) = proof chain
+            Z() == S(Z())
+            because close
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-computed-tactic-closed-vocabulary",
+        gap: :g2,
+        axis: :l4,
+        title: "a computed tactic naming an unknown operation is refused",
+        expect: :reject,
+        reason:
+          "`Tactic.Computed` validates every returned operation against a fixed " <>
+            "table. An unknown name is a diagnostic, never a silent no-op, so the " <>
+            "expander cannot invent a proof step.",
+        source: """
+        mod Parity.G2ComputedTacticClosedVocabulary
+          use Std.Tactic
+          use Std.Equivalent
+          use Std.Syntax
+
+          type Nat = Z | S(Nat)
+
+          macro Tactics
+            tactic cheat computed by cheat_goal
+
+          fn cheat_goal(g: Goal) -> MacroResult =
+            expand(operation(:prove_everything, g, []))
+
+          fn wrong(value: Nat) -> Equivalent(Nat, value, value) = proof chain
+            value == value
+            because cheat
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-closes",
+        gap: :g2,
+        axis: :l3,
+        title: "fully supplied `apply` preserves its checked closing behavior",
+        expect: :accept,
+        module: "Cure.Parity.G2BackwardApplyCloses",
+        source: """
+        mod Parity.G2BackwardApplyCloses
+          use Std.Equivalent
+
+          type Nat = Z | S(Nat)
+
+          fn identity(value: Nat) -> Nat = value
+
+          fn theorem(value: Nat) -> Equivalent(Nat, identity(value), value) = proof chain
+            identity(value) == value
+            because
+              apply reflexive(identity(value))
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-mismatch",
+        gap: :g2,
+        axis: :l3,
+        title: "closing `apply` that does not fit reports the residual goal",
+        expect: :reject,
+        reason:
+          "`apply` elaborates the proof and checks it against the goal's expected " <>
+            "type. A proof whose conclusion does not unify is E110 with the residual " <>
+            "goal surfaced, never a silent success.",
+        source: """
+        mod Parity.G2BackwardApplyMismatch
+          use Std.Equivalent
+
+          type Nat = Z | S(Nat)
+
+          fn wrong(value: Nat) -> Equivalent(Nat, S(value), value) = proof chain
+            S(value) == value
+            because
+              apply reflexive(value)
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-premise-still-open",
+        gap: :g2,
+        axis: :l3,
+        title: "backward apply generates a premise and reconstructs its checked parent",
+        expect: :accept,
+        module: "Cure.Parity.G2BackwardApplyPremise",
+        source: """
+        mod Parity.G2BackwardApplyPremise
+          use Std.Equivalent
+          fn need(x: Int, h: Equivalent(Int, x, x)) -> Equivalent(Int, x, x) = h
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because
+              apply need(x)
+              reflexive(x)
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-unsolved-premise",
+        gap: :g2,
+        axis: :l3,
+        title: "an unsolved application premise is not a closed proof",
+        expect: :reject,
+        reason: "Application creates a checked obligation, not invented evidence. An unfinished premise refuses E110.",
+        source: """
+        mod Parity.G2BackwardApplyUnsolved
+          use Std.Equivalent
+          fn need(x: Int, h: Equivalent(Int, x, x)) -> Equivalent(Int, x, x) = h
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because apply need(x)
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-ordered-premises",
+        gap: :g2,
+        axis: :l3,
+        title: "source commands close independent application premises in order",
+        expect: :accept,
+        module: "Cure.Parity.G2ApplyOrdered",
+        source: """
+        mod Parity.G2ApplyOrdered
+          use Std.Equivalent
+          fn theorem(
+            x: Int, y: Int, z: Int,
+            consume: (Equivalent(Int, x, y), Equivalent(Int, y, z)) -> Equivalent(Int, x, z),
+            left: Equivalent(Int, x, y), right: Equivalent(Int, y, z)
+          ) -> Equivalent(Int, x, z) = proof chain
+            x == z
+            because
+              apply consume
+              exact left
+              exact right
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-backward-apply-dependent-witness",
+        gap: :g2,
+        axis: :l3,
+        title: "an application premise is instantiated from its earlier explicit witness",
+        expect: :accept,
+        module: "Cure.Parity.G2ApplyDependent",
+        source: """
+        mod Parity.G2ApplyDependent
+          use Std.Equivalent
+          use Std.Nat
+          fn need(x: Int, witness: Nat, evidence: Equivalent(Nat, witness, Z())) -> Equivalent(Int, x, x) =
+            reflexive(x)
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because
+              apply need(x)
+              exact Z()
+              exact reflexive(Z())
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-induction-template-executes",
+        gap: :g2,
+        axis: :l4,
+        title: "a genuine induction template uses a checked recursive hypothesis",
+        expect: :accept,
+        module: "Cure.Parity.G2InductionTemplate",
+        source: """
+        mod Parity.G2InductionTemplate
+          use Std.Equivalent
+          type Nat = Z | S(Nat)
+          fn plus(left: Nat, right: Nat) -> Nat = match left
+            Z() -> right
+            S(k) -> S(plus(k, right))
+          macro Tactics
+            tactic induct <value: Code> becomes induction value
+              case Z => simplify
+              case S(previous, ih) => simplify using [ih]
+          fn theorem(n: Nat) -> Equivalent(Nat, plus(n, Z()), n) = proof chain
+            plus(n, Z()) == n
+            because induct n
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-divergent-proof-evidence-refused",
+        gap: :g2,
+        axis: :l3,
+        title: "uncertified divergence cannot discharge a false equality",
+        expect: :reject,
+        reason:
+          "Completed proof-command declarations require ordinary kernel-backed totality certification; typing a self-call is not logical evidence.",
+        source: """
+        mod Parity.G2DivergentProof
+          use Std.Equivalent
+          use Std.Nat
+          fn loop() -> Equivalent(Nat, Z(), S(Z())) = loop()
+          fn theorem() -> Equivalent(Nat, Z(), S(Z())) = proof chain
+            Z() == S(Z())
+            because exact loop()
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-assumption-closes",
+        gap: :g5,
+        axis: :l6,
+        title: "`by assumption` closes a goal that is a local hypothesis",
+        expect: :accept,
+        module: "Cure.Parity.G5AssumptionCloses",
+        source: """
+        mod Parity.G5AssumptionCloses
+          use Std.Proof.Math
+
+          fn theorem(value: Nat, h: IsPositive(value)) -> IsPositive(value) = by assumption
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-assumption-refuses",
+        gap: :g5,
+        axis: :l6,
+        title: "`by assumption` refuses a goal that is not a local hypothesis",
+        expect: :reject,
+        reason:
+          "`assumption` consults local hypotheses only -- no lemmas, no projections. " <>
+            "A goal that is not one of them fails closed.",
+        source: """
+        mod Parity.G5AssumptionRefuses
+          use Std.Proof.Math
+
+          fn theorem(value: Nat) -> IsPositive(S(value)) = by assumption
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-assumption-value-type-refused",
+        gap: :g5,
+        axis: :l6,
+        title: "`by assumption` does not inhabit a proof-relevant value type from a local",
+        expect: :reject,
+        reason:
+          "`Nat` is proof-RELEVANT: a local `n: Nat` is a value, not a proof. " <>
+            "`assumption` gates on `proposition?/3`, so it never silently chooses " <>
+            "an inhabitant the author did not write.",
+        source: """
+        mod Parity.G5AssumptionValueType
+          fn identity(n: Nat) -> Nat = by assumption
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-omega-linear",
+        gap: :g5,
+        axis: :l6,
+        title: "`by omega` discharges a linear integer goal with a checked proof object",
+        expect: :accept,
+        module: "Cure.Parity.G5OmegaLinear",
+        source: """
+        mod Parity.G5OmegaLinear
+          use Std.Proof.LinearArithmetic
+          use Std.Proof.IntOrder
+
+          fn theorem(a: Int, b: Int, c: Int, ab: IsLessThanOrEqual(a, b), bc: IsLessThanOrEqual(b, c)) -> IsLessThanOrEqual(a, c) =
+            by omega
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-omega-outside-fragment",
+        gap: :g5,
+        axis: :l6,
+        title: "`by omega` refuses a goal outside the linear fragment",
+        expect: :reject,
+        reason:
+          "Natural-number sign goals are outside the stated integer-order reconstruction fragment. " <>
+            "Neither a host witness nor a Boolean candidate verdict can substitute for checked goal evidence.",
+        source: """
+        mod Parity.G5OmegaOutsideFragment
+          use Std.Proof.LinearArithmetic
+          use Std.Proof.Math
+
+          fn theorem(a: Nat, b: Nat) -> IsPositive(plus(a, b)) = by omega
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-omega-refuses-false-order",
+        gap: :g5,
+        axis: :l6,
+        title: "omega refuses a false canonical integer-order goal",
+        expect: :reject,
+        reason: "Candidate validation and original-goal evidence checks cannot prove one is at most zero.",
+        source: """
+        mod Parity.G5OmegaFalseOrder
+          use Std.Proof.LinearArithmetic
+          use Std.Proof.IntOrder
+          fn wrong() -> IsLessThanOrEqual(int_one(), int_zero()) = by omega
+        end
+        """
+      ),
+      parity_case(
+        id: "g5-omega-strict-reconstruction-open",
+        gap: :g5,
+        axis: :l6,
+        title: "a valid strict candidate without checked reconstruction is refused",
+        expect: :reject,
+        reason:
+          "Zero is below one, but the current checked reconstruction subset handles only non-strict order. Full reflection remains open.",
+        source: """
+        mod Parity.G5OmegaStrictOpen
+          use Std.Proof.LinearArithmetic
+          use Std.Proof.IntOrder
+          fn theorem() -> IsLessThan(int_zero(), int_one()) = by omega
+        end
+        """
+      ),
+      parity_case(
+        id: "g10-simp-trace-closes",
+        gap: :g10,
+        axis: :l3,
+        title: "`simp?` closes the same goal as `simplify` and reports the fired lemmas",
+        expect: :accept,
+        module: "Cure.Parity.G10SimpTraceCloses",
+        source: """
+        mod Parity.G10SimpTraceCloses
+          use Std.Equivalent
+
+          type Nat = Z | S(Nat)
+
+          fn plus(left: Nat, right: Nat) -> Nat = match left
+            Z() -> right
+            S(previous) -> S(plus(previous, right))
+
+          @simp
+          fn plus_zero(value: Nat) -> Equivalent(Nat, plus(value, Z()), value) = induction value
+            case Z => reflexive(Z())
+            case S(previous, ih) => rewrite ih in reflexive(S(previous))
+
+          fn reduced(value: Nat) -> Equivalent(Nat, plus(plus(value, Z()), Z()), value) = proof chain
+            plus(plus(value, Z()), Z()) == value
+            because simp?
         end
         """
       )

@@ -103,6 +103,12 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:usage_violation, details} = error, opts) when is_map(details),
     do: StaticAnalysis.from_error(error, opts)
 
+  def from_error({:proof_totality_required, _name} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
+  def from_error({:source_context, {:proof_totality_required, _name}, _context} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
   def from_error({kind, name}, opts)
       when kind in [
              :duplicate_type,
@@ -190,6 +196,29 @@ defmodule Cure.Diagnostic.Adapter do
 
   def from_error({:proof_chain_syntax, %ProofChainSyntaxProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:proof_chain_syntax, problem}, opts)
+
+  def from_error(
+        {:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {:computed_macro_error, _, _} = cause}},
+        opts
+      ),
+      do: from_error(cause, opts)
+
+  def from_error({:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {kind, _, meta} = cause}}, opts)
+      when is_list(meta) and
+             kind in [
+               :invalid_tactic_state,
+               :unknown_tactic_operation,
+               :invalid_tactic_result,
+               :invalid_tactic_operation,
+               :invalid_tactic_operation_argument
+             ],
+      do: from_error(cause, opts)
+
+  def from_error(
+        {:proof_chain_mismatch, %ProofChainMismatchProblem{cause: {:invalid_tactic_operation_arity, _, _, _} = cause}},
+        opts
+      ),
+      do: from_error(cause, opts)
 
   def from_error({:proof_chain_mismatch, %ProofChainMismatchProblem{} = problem}, opts),
     do: ProofAdapter.from_error({:proof_chain_mismatch, problem}, opts)
@@ -410,6 +439,9 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:codegen_error, reason}, opts), do: Codegen.from_error({:codegen_error, reason}, opts)
 
   def from_error({:parse_error, [reason | _]}, opts), do: from_error(reason, opts)
+
+  def from_error({:parse_error, reason}, opts) when is_tuple(reason),
+    do: from_error(reason, opts)
 
   def from_error(
         {:source_context, {:unsupported_pattern, %{reason: :shadowed_sub_union, name: _name} = details}, context},
@@ -2273,6 +2305,20 @@ defmodule Cure.Diagnostic.Adapter do
 
   def from_error({:computed_macro_error, meta, reason}, opts) when is_list(meta),
     do: MacroAdapter.computed_macro_error(meta, reason, opts)
+
+  def from_error({kind, detail, meta}, opts)
+      when is_list(meta) and
+             kind in [
+               :invalid_tactic_state,
+               :unknown_tactic_operation,
+               :invalid_tactic_result,
+               :invalid_tactic_operation,
+               :invalid_tactic_operation_argument
+             ],
+      do: MacroAdapter.computed_macro_error(meta, {kind, detail}, opts)
+
+  def from_error({:invalid_tactic_operation_arity, kind, actual, meta}, opts) when is_list(meta),
+    do: MacroAdapter.computed_macro_error(meta, {:invalid_tactic_operation_arity, kind, actual}, opts)
 
   def from_error({:invalid_macro_family, details}, opts) when is_map(details),
     do: MacroAdapter.from_error({:invalid_macro_family, details}, opts)

@@ -13,6 +13,18 @@ defmodule Cure.Compiler.SourceResolver do
   alias Cure.Compiler.Parser.FixityScan
   alias Cure.Compiler.Parser.FixityTable
 
+  @doc false
+  def with_fresh_user_paths(fun) do
+    key = {:source_resolver_user_paths, Process.get(:cure_source_roots, [])}
+    previous = Process.delete(key)
+
+    try do
+      fun.()
+    after
+      if previous, do: Process.put(key, previous), else: Process.delete(key)
+    end
+  end
+
   @spec module_path(String.t()) :: {:ok, Path.t()} | :not_found
   def module_path(name) when is_binary(name) do
     case indexed_path(name) do

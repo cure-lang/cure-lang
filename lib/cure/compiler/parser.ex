@@ -135,7 +135,13 @@ defmodule Cure.Compiler.Parser do
   # collision would silently disable the existing form for the rest of the
   # module with no error raised. Reserved names simply keep today's
   # soft-keyword behavior; they are never macro-usable.
-  @reserved_macro_keywords ~w(assert_type rewrite with macro have)
+  @reserved_macro_keywords ~w(assert_type rewrite with macro have simp?)
+
+  # The solver vocabulary behind the contextual `by` head. One table, because the
+  # `by` dispatch guard and `solver_name/1` must agree: a solver missing from the
+  # guard parses as an ordinary call to a function of that name, and one missing
+  # from `solver_name/1` crashes when the node is built.
+  @solver_names ["search", "positivity", "decide", "omega", "assumption"]
 
   # Decorators that describe the *module*, not the declaration that follows.
   # A `@name(...)` in this set NEVER attaches to the next `fn`/`rec`/`type`;
@@ -468,6 +474,9 @@ defmodule Cure.Compiler.Parser do
         %{kind: :tactic, keyword: keyword} = rule, acc2 when is_binary(keyword) ->
           Map.update(acc2, keyword, [rule], &(&1 ++ [rule]))
 
+        %{kind: :tactic_computed, keyword: keyword} = rule, acc2 when is_binary(keyword) ->
+          Map.update(acc2, keyword, [rule], &(&1 ++ [rule]))
+
         _, acc2 ->
           acc2
       end)
@@ -493,7 +502,15 @@ defmodule Cure.Compiler.Parser do
   defp computed_macro_rules(rules) when is_map(rules), do: filter_macro_rules(rules, :computed)
   defp computed_macro_rules(_rules), do: %{}
 
-  defp tactic_macro_rules(rules) when is_map(rules), do: filter_macro_rules(rules, :tactic)
+  defp tactic_macro_rules(rules) when is_map(rules) do
+    for {keyword, candidates} <- rules,
+        selected = Enum.filter(List.wrap(candidates), &(&1[:kind] in [:tactic, :tactic_computed])),
+        selected != [],
+        into: %{} do
+      {keyword, selected}
+    end
+  end
+
   defp tactic_macro_rules(_rules), do: %{}
 
   defp filter_macro_rules(rules, kind) do
@@ -628,6 +645,9 @@ defmodule Cure.Compiler.Parser do
     |> Enum.reduce(%{}, fn {:macro_def, _meta, rules}, acc ->
       Enum.reduce(rules, acc, fn
         %{kind: :tactic, keyword: kw} = rule, acc2 when is_binary(kw) ->
+          Map.update(acc2, kw, [rule], &(&1 ++ [rule]))
+
+        %{kind: :tactic_computed, keyword: kw} = rule, acc2 when is_binary(kw) ->
           Map.update(acc2, kw, [rule], &(&1 ++ [rule]))
 
         _rule, acc2 ->
@@ -2465,6 +2485,18 @@ defmodule Cure.Compiler.Parser do
     {{:match_arm, meta, new_children}, state}
   end
 
+  # Constructor fields and IH binders scope only this induction case's body.
+  defp scoped_freshen({:induction_case, meta, [pattern, body]}, rename, holes, used, state) do
+    {pattern, case_rename, state} =
+      case pattern do
+        {:variable, _meta, _name} -> {pattern, rename, state}
+        _ -> bind_pattern(pattern, rename, holes, used, state)
+      end
+
+    {body, state} = scoped_freshen(body, case_rename, holes, used, state)
+    {{:induction_case, meta, [pattern, body]}, state}
+  end
+
   # Expression-position lambda: params bind the body only.
   defp scoped_freshen({:lambda, meta, children}, rename, holes, used, state) do
     {new_params, lam_rename, state} = bind_params(Keyword.get(meta, :params, []), rename, holes, used, state)
@@ -3627,10 +3659,29 @@ defmodule Cure.Compiler.Parser do
           "simplify" ->
             parse_simplify(state, token)
 
+          # `simp?` — the debugging companion of `simplify` (gap G10). It runs the
+          # SAME simplification and then reports which lemmas fired. The `?` is
+          # part of the token (Cure's hole sigil), so this head is unambiguous
+          # and needs no lookahead; `simp` alone is not a command, and `simp?`
+          # never occurs as an ordinary identifier.
+          "simp?" ->
+            parse_simp_trace(state, token)
+
           "by" ->
             case peek_at(state, 1) do
-              %Token{type: :identifier, value: solver} when solver in ["search", "positivity", "decide"] ->
+              %Token{type: :identifier, value: solver} when solver in @solver_names ->
                 parse_solver(state, token, solver)
+
+              %Token{type: :identifier, value: name} when is_map_key(state.tactic_macros, name) ->
+                tactic_state = %{advance(state) | proof_context: true}
+
+                if tactic_application_ahead?(tactic_state, name) and
+                     Enum.all?(Map.fetch!(state.tactic_macros, name), &(&1.kind == :tactic_computed)) do
+                  {{tag, meta, children}, next_state} = parse_tactic_use(tactic_state, name)
+                  {{tag, Keyword.put(meta, :explicit_by, true), children}, next_state}
+                else
+                  {variable(token), advance(state)}
+                end
 
               _ ->
                 {variable(token), advance(state)}
@@ -4314,21 +4365,37 @@ defmodule Cure.Compiler.Parser do
 
     case match_macro_rule(rules, state) do
       {:ok, rule, bindings, state} ->
-        {expanded, state} = expand_tactic_rule(rule, bindings, state)
+        {expanded, state} =
+          case rule do
+            %{kind: :tactic_computed} ->
+              # A computed tactic defers to the elaborator: only it has the goal.
+              # Re-dispatch through the computed use-site path with the tokens
+              # rewound so the invocation span is captured once, in one place.
+              parse_computed_tactic_use(%{state | pos: invocation_start}, name)
 
-        meta =
-          [keyword: name, line: keyword_token.line, col: keyword_token.col]
-          |> put_token_source_info(keyword_token)
-          |> Keyword.put(:tactic_rule_span, Map.get(rule, :head_span))
-          |> Keyword.put(:tactic_use_tokens, Enum.map(invocation_start..(state.pos - 1), &token_at(state, &1)))
-
-        meta =
-          case Range.through(keyword_token.span, macro_match_span(bindings) || keyword_token.span) do
-            {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, name: keyword_token.span})
-            _ -> meta
+            _ ->
+              expand_tactic_rule(rule, bindings, state)
           end
 
-        {{:tactic_script, meta, [expanded]}, state}
+        case expanded do
+          {:tactic_computed_use, _meta, _arguments} = node ->
+            {node, state}
+
+          expanded ->
+            meta =
+              [keyword: name, line: keyword_token.line, col: keyword_token.col]
+              |> put_token_source_info(keyword_token)
+              |> Keyword.put(:tactic_rule_span, Map.get(rule, :head_span))
+              |> Keyword.put(:tactic_use_tokens, Enum.map(invocation_start..(state.pos - 1), &token_at(state, &1)))
+
+            meta =
+              case Range.through(keyword_token.span, macro_match_span(bindings) || keyword_token.span) do
+                {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, name: keyword_token.span})
+                _ -> meta
+              end
+
+            {{:tactic_script, meta, [expanded]}, state}
+        end
 
       {:error, rule, progress, state} ->
         t = peek(state)
@@ -4353,6 +4420,68 @@ defmodule Cure.Compiler.Parser do
         {variable(%Cure.Compiler.Token{type: :identifier, value: name, line: t.line, col: t.col}), state}
     end
   end
+
+  # A computed tactic's use-site. The expander is NOT run here: it needs the
+  # goal, which only the elaborator has. The parser therefore emits a
+  # `tactic_computed_use` node carrying the expander reference and the captured
+  # arguments, and `Cure.Elab.Tactic.Computed` builds the goal value, runs the
+  # expander, validates the operations it returns, and executes them through
+  # `Cure.Elab.Tactic.Script` -- so every operation is an ordinary checked
+  # command whose evidence is kernel-checked at the ORIGINAL goal.
+  defp parse_computed_tactic_use(state, name) do
+    rules = Map.fetch!(state.tactic_macros, name)
+    keyword_token = peek(state)
+    invocation_start = state.pos
+    state = advance(state)
+
+    case match_macro_rule(rules, state) do
+      {:ok, rule, bindings, state} ->
+        arguments = Enum.flat_map(rule.segments, &segment_inputs(&1, bindings))
+
+        meta =
+          [keyword: name, line: keyword_token.line, col: keyword_token.col]
+          |> put_token_source_info(keyword_token)
+          |> Keyword.put(:tactic_rule_span, Map.get(rule, :head_span))
+          |> Keyword.put(:tactic_use_tokens, Enum.map(invocation_start..(state.pos - 1), &token_at(state, &1)))
+          |> Keyword.put(:tactic_expander, Map.get(rule, :template))
+          |> put_home_source(Map.get(rule, :source_path))
+
+        meta =
+          case Range.through(keyword_token.span, macro_match_span(bindings) || keyword_token.span) do
+            {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, name: keyword_token.span})
+            _ -> meta
+          end
+
+        {{:tactic_computed_use, meta, arguments}, state}
+
+      {:error, rule, progress, state} ->
+        t = peek(state)
+
+        state =
+          add_error(
+            state,
+            {:macro_use_mismatch,
+             %{
+               keyword: name,
+               expected: macro_expected_at(rule, progress),
+               got: macro_got_desc(t),
+               token_type: t.type,
+               span: t.span,
+               invocation_span: keyword_token.span,
+               definition_span: Map.get(rule, :source_span),
+               line: t.line,
+               column: t.col
+             }}
+          )
+
+        {variable(%Token{type: :identifier, value: name, line: t.line, col: t.col}), state}
+    end
+  end
+
+  # The provider file of an imported rule, attached only when present so a local
+  # rule's node shape stays unchanged.
+  defp put_home_source(meta, nil), do: meta
+  defp put_home_source(meta, path), do: Keyword.put(meta, :home_source, path)
 
   defp expand_tactic_rule(rule, bindings, state) do
     identity = {rule.keyword, Map.get(rule, :source_path), rule.line, rule.segments}
@@ -4382,13 +4511,15 @@ defmodule Cure.Compiler.Parser do
     end
   end
 
-  # The solver vocabulary is a fixed, closed set (`by search|positivity|decide`),
+  # The solver vocabulary is a fixed, closed set (`by search|positivity|decide|omega`),
   # so map it explicitly rather than through `String.to_existing_atom/1`: the
   # atom may not exist yet in a fresh VM, which made parsing a `by decide`
   # template crash with ArgumentError instead of producing a node.
   defp solver_name("search"), do: :search
   defp solver_name("positivity"), do: :positivity
   defp solver_name("decide"), do: :decide
+  defp solver_name("omega"), do: :omega
+  defp solver_name("assumption"), do: :assumption
 
   defp parse_solver(state, token, solver) do
     solver_token = peek_at(state, 1)
@@ -4429,6 +4560,14 @@ defmodule Cure.Compiler.Parser do
         meta = put_token_source_info([line: token.line, col: token.col], token)
         {{:simplify_command, meta, []}, state}
     end
+  end
+
+  # `simp?` is the same command with the trace requested. It shares
+  # `parse_simplify`'s grammar exactly -- the ONLY difference is the `:trace`
+  # flag -- so the two can never drift into different rule syntax.
+  defp parse_simp_trace(state, token) do
+    {command, state} = parse_simplify(state, token)
+    {put_elem(command, 1, Keyword.put(elem(command, 1), :trace, true)), state}
   end
 
   # `induction` and its `case` introducers are contextual vocabulary. Keeping
@@ -12440,8 +12579,11 @@ defmodule Cure.Compiler.Parser do
     {segments, _segment_span, state} = parse_rule_segments(state, [])
     field_spans = macro_rule_field_spans(state, segment_start, state.pos)
 
-    state = expect_macro_rule_keyword(state, :becomes, :tactic_rule_becomes_missing, kw_token)
-    body_tokens = tactic_body_tokens(state)
+    # The closing verb is `becomes` for a template rule and `computed by` for a
+    # goal-aware one (the same two verbs a `syntax` rule accepts). A computed
+    # tactic is the C1.2 form: its expander receives a GOAL value and returns
+    # the checked operations to perform, instead of a fixed command script.
+    {rule_kind, body_tokens, state} = tactic_rule_verb(state, kw_token)
 
     # A tactic body is either ONE command (`becomes simplify`) or an indented
     # SEQUENCE of them. Its block reader stops at example pins rather than
@@ -12451,8 +12593,10 @@ defmodule Cure.Compiler.Parser do
     # that is the only position a tactic body is ever written in. Without it a
     # contextual command such as `exact evidence` would parse as a bare
     # variable followed by a stray identifier, and the rule would never match.
+    # For a computed rule the body is an ordinary EXPRESSION (the expander
+    # reference), so it is parsed in expression position instead.
     previous = state.proof_context
-    state = %{state | proof_context: true}
+    state = %{state | proof_context: rule_kind == :tactic}
     {body, examples, state} = parse_tactic_body(state, kw_token)
     state = %{state | proof_context: previous}
 
@@ -12460,7 +12604,7 @@ defmodule Cure.Compiler.Parser do
     terminal_span = examples |> List.last() |> then(&(&1 && &1.source_span)) || body_span
 
     rule = %{
-      kind: :tactic,
+      kind: rule_kind,
       tactic_body_tokens: body_tokens,
       keyword: keyword,
       segments: segments,
@@ -12481,6 +12625,25 @@ defmodule Cure.Compiler.Parser do
     {rule, state}
   end
 
+  # Which closing verb a `tactic` rule used, and the raw body tokens after it.
+  #
+  # `computed by` is deliberately the SAME spelling `syntax` rules use for a
+  # Tier-3 expander, so a reader who knows one form knows the other. The verb
+  # decides the rule's `kind`, and the kind is what selects the validation and
+  # execution path downstream -- there is no second flag to keep in sync.
+  defp tactic_rule_verb(state, kw_token) do
+    case peek(state) do
+      %Token{type: :identifier, value: "computed"} ->
+        state = advance(state)
+        state = expect_macro_rule_keyword(state, :by, :tactic_rule_by_missing, kw_token)
+        {:tactic_computed, [], state}
+
+      _ ->
+        state = expect_macro_rule_keyword(state, :becomes, :tactic_rule_becomes_missing, kw_token)
+        {:tactic, tactic_body_tokens(state), state}
+    end
+  end
+
   defp tactic_body_tokens(state) do
     state = skip_newlines(state)
 
@@ -12489,8 +12652,17 @@ defmodule Cure.Compiler.Parser do
         take_tactic_block(tokens_from(state, state.pos), 0, [])
 
       _ ->
-        tokens_from(state, state.pos)
-        |> Enum.take_while(&(&1.type not in [:newline, :dedent, :eof]))
+        {head, rest} =
+          tokens_from(state, state.pos)
+          |> Enum.split_while(&(&1.type not in [:newline, :dedent, :eof]))
+
+        case rest do
+          [%Token{type: :newline}, %Token{type: :indent} | _] ->
+            head ++ take_tactic_block(rest, 0, [])
+
+          _ ->
+            head
+        end
     end
   end
 

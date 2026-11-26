@@ -92,9 +92,10 @@ defmodule Cure.Elab.ProofChain do
         #
         # `tactic_script` is the same shape of thing: a user-defined proof
         # command (Phase 3) used as an inline justification. It is a command, so
-        # it takes the command path.
+        # it takes the command path. `tactic_computed_use` is its goal-inspecting
+        # sibling (C1.2) and takes the same path.
         {kind, command_meta, _args} = command
-        when kind in [:proof_application, :solver_command, :tactic_script] ->
+        when kind in [:proof_application, :solver_command, :tactic_script, :tactic_computed_use] ->
           block = {:proof_justification, command_meta, [command]}
 
           case Cure.Elab.ProofGoal.run(block, expected, names, ctx, env, index) do

@@ -367,13 +367,38 @@ defmodule Cure.REPL.Session do
   def hole_goals([]), do: {:ok, []}
 
   def hole_goals(defs) when is_list(defs) do
-    defs
-    |> build_source()
-    |> Cure.Elab.Program.elaborate()
-    |> case do
-      {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env)}
-      {:error, reason} -> {:error, reason}
+    case Cure.Elab.SourceContext.analyze(build_source(defs)) do
+      {{:ok, env}, context} -> {:ok, Cure.Elab.Program.hole_goals(env, context)}
+      {{:error, reason}, _context} -> {:error, reason}
     end
+  end
+
+  @doc """
+  The remaining proof goals of the session, for the REPL's `:goals` command.
+
+  Reports actual hole checking obligations and unfinished command states with
+  their authored local names. Partial observations survive an elaboration
+  failure; a failure before any proof state is available remains an error.
+
+  Returns `{:ok, goals}` where each goal is
+  `%{function: atom, goal: String.t, context: [String.t]}`. Rendering happens
+  here rather than in the REPL so the LSP can reuse the same text.
+  """
+  @spec goals([entry()]) :: {:ok, [map()]} | {:error, term()}
+  def goals([]), do: {:ok, []}
+
+  def goals(defs) when is_list(defs) do
+    case Cure.Elab.ProofState.elaborate(build_source(defs)) do
+      {{:error, _} = error, []} -> error
+      {_result, states} -> {:ok, render_states(states)}
+    end
+  end
+
+  @doc false
+  def render_states(states) do
+    states
+    |> Cure.Elab.ProofState.remaining()
+    |> Enum.map(&Map.take(&1, [:function, :goal, :context]))
   end
 
   @doc """

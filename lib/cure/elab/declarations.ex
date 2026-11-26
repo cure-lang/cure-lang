@@ -928,18 +928,29 @@ defmodule Cure.Elab.Declarations do
            timed_body_stage(opts, :macro_expansion, fn ->
              MacroExpand.expand(body_expr, env, callback_context: Keyword.get(meta, :callback_context))
            end),
-         {:ok, sig} <- timed_body_stage(opts, :signature, fn -> function_signature(meta, env) end),
-         {:ok, body_expr} <-
-           timed_body_stage(opts, :induction, fn -> Induction.expand(body_expr, sig, env) end) do
+         {:ok, sig} <- timed_body_stage(opts, :signature, fn -> function_signature(meta, env) end) do
       ctx = build_context(env, sig.telescope, sig.quantities)
       # Qualify any hole minted while elaborating THIS body by its enclosing def
       # (`hole_id/2`) — local to this call, never merged back into `final` below,
       # so it cannot leak into another def's elaboration.
       def_env = Env.with_current_def(env, sig.name)
+      # Preserve the measured declaration stage for frame setup. Recursive
+      # lowering now runs as a checked command during typed elaboration.
+      frame = timed_body_stage(opts, :induction, fn -> Cure.Elab.Induction.Frame.new(sig, ctx, def_env) end)
 
-      with {:ok, body_term, return_core, _return_value} <-
+      with {:ok, body_term, return_core, _return_value, proof_search_used?} <-
              timed_body_stage(opts, :typed_elaboration, fn ->
-               elaborate_body_typed(body_expr, sig, ctx, def_env)
+               {result, used?} =
+                 Cure.Elab.ProofAdmission.capture(fn ->
+                   Cure.Elab.Induction.Frame.within(frame, fn ->
+                     elaborate_body_typed(body_expr, sig, ctx, def_env)
+                   end)
+                 end)
+
+               case result do
+                 {:ok, term, core, value} -> {:ok, term, core, value, used?}
+                 {:error, _} = error -> error
+               end
              end),
            # A `where`-introduced dictionary parameter is present by default but
            # SAFELY demoted to `:erased` when the body never uses it relevantly (an
@@ -993,6 +1004,7 @@ defmodule Cure.Elab.Declarations do
           timed_body_stage(opts, :environment_publication, fn ->
             env
             |> Env.add_def(sig.name, final_pi, lambda, quantities, sig.plicities)
+            |> Cure.Elab.ProofAdmission.require_total(sig.name, body_expr, lambda, proof_search_used?)
             |> maybe_register_unsafe(sig.name, meta)
             |> maybe_register_reducible(sig.name, meta)
             |> Env.put_source_holes(sig.name, collect_source_holes(body_expr, def_env, sig.return_span))
@@ -1857,6 +1869,11 @@ defmodule Cure.Elab.Declarations do
 
   # A `match` body needs the declared return type to build its motive (checking
   # mode); every other body is elaborated in inference mode.
+  defp elaborate_body({tag, _meta, _children} = expr, return_core, scope, ctx, env, _params)
+       when tag in [:induction, :tactic_script] do
+    Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
+  end
+
   defp elaborate_body({:pattern_match, meta, [scrut | arms]} = expr, return_core, scope, ctx, env, _params) do
     if Elaborator.special_match_arms?(arms) do
       Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
@@ -1895,6 +1912,12 @@ defmodule Cure.Elab.Declarations do
   end
 
   defp elaborate_body({:solver_command, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
+    Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
+  end
+
+  # A goal-inspecting computed tactic as a function body: it is a proof command,
+  # so it is checked against the declared return type like `by search`.
+  defp elaborate_body({:tactic_computed_use, _meta, _children} = expr, return_core, scope, ctx, env, _params) do
     Elaborator.elaborate_expr_checked(expr, return_core, scope, ctx, env)
   end
 

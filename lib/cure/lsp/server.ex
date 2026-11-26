@@ -25,6 +25,7 @@ defmodule Cure.LSP.Server do
   alias Cure.LSP.Positions
   alias Cure.Compiler.{Formatter, Lexer, Parser, Printer, Token}
   alias Cure.MetaAST.Metadata
+  alias Cure.Elab.SourceContext
 
   defstruct [
     :reader_pid,
@@ -32,6 +33,7 @@ defmodule Cure.LSP.Server do
     initialized: false,
     position_encoding: :utf16,
     documents: %{},
+    document_versions: %{},
     ast_cache: %{},
     buffer: ""
   ]
@@ -42,6 +44,9 @@ defmodule Cure.LSP.Server do
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
+
+  defp same_hole_span?(%{start_byte: byte}, %{start_byte: byte}), do: true
+  defp same_hole_span?(_left, _right), do: false
 
   @doc """
   Process a raw incoming message (used by the stdin reader or tests).
@@ -135,6 +140,9 @@ defmodule Cure.LSP.Server do
           "triggerCharacters" => ["(", ","]
         },
         "inlayHintProvider" => %{"resolveProvider" => false},
+        # The cursor-position goal view (C7). Advertised as a custom request so a
+        # client can render a goal panel for the document under the cursor.
+        "experimental" => %{"cure/proofState" => %{"enabled" => true}},
         "semanticTokensProvider" => %{
           "legend" => %{
             "tokenTypes" => [
@@ -195,10 +203,9 @@ defmodule Cure.LSP.Server do
     uri = Map.get(td, "uri", "")
     text = Map.get(td, "text", "")
 
-    docs = Map.get(state, :documents, %{})
-    state = Map.put(state, :documents, Map.put(docs, uri, text))
-
-    diagnostics = compute_diagnostics(uri, text, Map.get(state, :position_encoding, :utf16))
+    state = put_document(state, uri, text, Map.get(td, "version"))
+    {state, {result, context}} = document_analysis(state, uri)
+    diagnostics = analysis_diagnostics(result, uri, context.text, Map.get(state, :position_encoding, :utf16))
     publish_diagnostics(uri, diagnostics)
 
     {state, diagnostics}
@@ -216,26 +223,11 @@ defmodule Cure.LSP.Server do
         _ -> Map.get(Map.get(state, :documents, %{}), uri, "")
       end
 
-    docs = Map.get(state, :documents, %{})
-    state = Map.put(state, :documents, Map.put(docs, uri, text))
-
-    # Check AST cache -- skip reparse if version unchanged
-    cache = Map.get(state, :ast_cache, %{})
-    cached_version = get_in(cache, [uri, :version])
-
-    if cached_version == version and version != nil do
-      # Same version, skip diagnostics
-      {state, []}
-    else
-      diagnostics = compute_diagnostics(uri, text, Map.get(state, :position_encoding, :utf16))
-      publish_diagnostics(uri, diagnostics)
-
-      # Update cache
-      cache = Map.put(cache, uri, %{version: version, diagnostics: diagnostics})
-      state = Map.put(state, :ast_cache, cache)
-
-      {state, diagnostics}
-    end
+    state = put_document(state, uri, text, version)
+    {state, {result, context}} = document_analysis(state, uri)
+    diagnostics = analysis_diagnostics(result, uri, context.text, Map.get(state, :position_encoding, :utf16))
+    publish_diagnostics(uri, diagnostics)
+    {state, diagnostics}
   end
 
   defp do_handle("textDocument/didClose", _id, params, state) do
@@ -243,6 +235,9 @@ defmodule Cure.LSP.Server do
     uri = Map.get(td, "uri", "")
     docs = Map.get(state, :documents, %{})
     state = Map.put(state, :documents, Map.delete(docs, uri))
+    state = Map.update(state, :ast_cache, %{}, &Map.delete(&1, uri))
+    state = Map.update(state, :document_versions, %{}, &Map.delete(&1, uri))
+    state = Map.put(state, :ast_cache, %{})
 
     # Clear diagnostics
     publish_diagnostics(uri, [])
@@ -250,7 +245,7 @@ defmodule Cure.LSP.Server do
   end
 
   defp do_handle("textDocument/didSave", _id, _params, state) do
-    {state, []}
+    {Map.put(state, :ast_cache, %{}), []}
   end
 
   defp do_handle("textDocument/hover", id, params, state) do
@@ -321,11 +316,39 @@ defmodule Cure.LSP.Server do
   defp do_handle("textDocument/inlayHint", id, params, state) do
     td = Map.get(params, "textDocument", %{})
     uri = Map.get(td, "uri", "")
-    docs = Map.get(state, :documents, %{})
-    text = Map.get(docs, uri, "")
-    hints = compute_inlay_hints(text)
+    {state, {_result, context}} = document_analysis(state, uri)
+    hints = compute_inlay_hints(context, Map.get(state, :position_encoding, :utf16))
     Transport.send_response(id, hints)
     {state, []}
+  end
+
+  # `cure/proofState` — the editor's cursor-position goal view (C7 of
+  # docs/PATH_TO_LEAN4.md).
+  #
+  # Returns the open proof goals of the document as structured data:
+  #
+  #     %{"goals" => [%{"function" => "later", "goal" => "Equivalent(Int, x, x)",
+  #                    "context" => ["x : Int"]}]}
+  #
+  # Observations survive a refused proof; a successfully closed command has no
+  # remaining goals. A client must explicitly request and render this custom
+  # response; advertising it does not itself install an editor goal panel.
+  defp do_handle("cure/proofState", id, params, state) do
+    td = Map.get(params, "textDocument", %{})
+    uri = Map.get(td, "uri", "")
+    version = Map.get(Map.get(state, :document_versions, %{}), uri)
+    requested_version = Map.get(params, "version", Map.get(td, "version"))
+
+    if not Map.has_key?(Map.get(state, :documents, %{}), uri) or
+         (not is_nil(requested_version) and requested_version != version) do
+      Transport.send_error(id, -32801, "Document content modified or closed")
+      {state, []}
+    else
+      {state, {_result, context}} = document_analysis(state, uri)
+      goals = context_goals(context, Map.get(params, "position"), Map.get(state, :position_encoding, :utf16))
+      Transport.send_response(id, %{"goals" => goals, "version" => version})
+      {state, []}
+    end
   end
 
   defp do_handle("textDocument/signatureHelp", id, params, state) do
@@ -509,7 +532,12 @@ defmodule Cure.LSP.Server do
   (see `source_roots/2`), so a module under `test/` sees the project's `lib/`.
   """
   def compute_diagnostics(uri, text, encoding \\ :utf16) do
-    case Cure.Compiler.check_source(text, file: uri_to_path(uri) || uri, source_roots: source_roots(uri, nil)) do
+    {result, context} = SourceContext.analyze(text, file: uri_to_path(uri) || uri, source_roots: source_roots(uri, nil))
+    analysis_diagnostics(result, uri, context.text, encoding)
+  end
+
+  defp analysis_diagnostics(result, uri, text, encoding) do
+    case result do
       {:ok, _env} ->
         []
 
@@ -517,6 +545,40 @@ defmodule Cure.LSP.Server do
         reason
         |> lsp_error_list()
         |> Enum.map(&source_diagnostic(&1, uri, text, encoding))
+    end
+  end
+
+  defp put_document(state, uri, text, version) do
+    same? =
+      Map.get(Map.get(state, :documents, %{}), uri) == text and
+        Map.get(Map.get(state, :document_versions, %{}), uri) == version
+
+    state =
+      state
+      |> Map.update(:documents, %{uri => text}, &Map.put(&1, uri, text))
+      |> Map.update(:document_versions, %{uri => version}, &Map.put(&1, uri, version))
+
+    if same?, do: state, else: Map.put(state, :ast_cache, %{})
+  end
+
+  defp document_analysis(state, uri) do
+    text = Map.get(Map.get(state, :documents, %{}), uri, "")
+    version = Map.get(Map.get(state, :document_versions, %{}), uri)
+
+    case Map.get(Map.get(state, :ast_cache, %{}), uri) do
+      %{version: ^version, text: ^text, analysis: analysis} ->
+        {state, analysis}
+
+      _ ->
+        analysis =
+          SourceContext.analyze(text,
+            file: uri_to_path(uri) || uri,
+            version: version,
+            source_roots: source_roots(uri, Map.get(state, :root))
+          )
+
+        entry = %{version: version, text: text, analysis: analysis}
+        {Map.update(state, :ast_cache, %{uri => entry}, &Map.put(&1, uri, entry)), analysis}
     end
   end
 
@@ -1596,14 +1658,23 @@ defmodule Cure.LSP.Server do
   # Parameter names at positional call arguments. A declaration needs no hint:
   # its own line already shows the signature.
   @doc false
-  def compute_inlay_hints(text) do
-    case parse_to_ast(text) do
-      {:ok, ast} ->
-        named_call_inlay_hints(ast, build_symbol_table(ast)) ++ hole_goal_inlay_hints(text)
+  def compute_inlay_hints(text) when is_binary(text) do
+    {_result, context} = SourceContext.analyze(text)
+    compute_inlay_hints(context, :utf16)
+  end
 
-      _ ->
-        []
-    end
+  @doc false
+  def compute_inlay_hints(%SourceContext{text: text} = context, encoding) do
+    calls =
+      case parse_to_ast(text) do
+        {:ok, ast} ->
+          named_call_inlay_hints(ast, build_symbol_table(ast), text, encoding)
+
+        _ ->
+          []
+      end
+
+    calls ++ hole_goal_inlay_hints(context, encoding)
   end
 
   # Goal-state introspection for the editor (Phase 1 of
@@ -1615,91 +1686,63 @@ defmodule Cure.LSP.Server do
   # local context as an inlay hint at the hole's own position, so the goal state
   # is visible at the cursor.
   #
-  # Holes are found by lexing rather than by elaborating: an inlay-hint request
-  # must stay cheap and must not run the type checker on every keystroke. The
-  # goal text therefore comes from the elaborator only when the session already
-  # has a checked environment; otherwise the hint names the hole and leaves the
-  # type to `cure check`. Returning a partial hint is deliberate -- a hint that
-  # says "this is a hole" is still useful, and claiming a goal type we have not
-  # checked would be worse than saying nothing.
-  defp hole_goal_inlay_hints(text) do
-    case hole_positions(text) do
-      [] ->
-        []
-
-      holes ->
-        goals = checked_hole_goals(text)
-
-        Enum.map(holes, fn %{line: line, character: character} ->
-          %{
-            "position" => %{"line" => line, "character" => character},
-            "label" => hole_hint_label(goals),
-            "kind" => 1,
-            "paddingRight" => true
-          }
-        end)
-    end
+  # Document requests reuse the canonical versioned checking context. Tokens
+  # locate only real authored holes; an unreached checking site in a refused
+  # buffer is honestly reported as unavailable, never assigned another target.
+  # Capture at the actual command/hole checking boundary, not by splitting the
+  # enclosing function's return type. The optional position is an LSP position
+  # in the negotiated encoding. Without one, return the remaining document goals.
+  @doc false
+  def proof_state(text, position \\ nil, encoding \\ :utf16) when is_binary(text) do
+    {_result, context} = SourceContext.analyze(text)
+    context_goals(context, position, encoding)
   end
 
-  # `hole_goals/1` reports one entry per DEFINITION carrying a hole, keyed by the
-  # owner-qualified definition name (`:"Goals#later"`). That name is not the
-  # hole's own name (`?goal`), so the two cannot be matched directly.
-  #
-  # The hint therefore reports the FIRST checked goal, which is the right answer
-  # for the overwhelmingly common case of one hole per file. When a file has
-  # several holes, each hint still points at the correct position and names a
-  # real goal; attributing each goal to its exact hole would need the elaborator
-  # to report the hole's own source span, which `hole_goals/1` does not carry.
-  # Saying something true and useful beats saying nothing until that lands.
-  defp hole_hint_label([]), do: "? goal"
+  defp context_goals(context, position, encoding) do
+    goals =
+      if is_map(position),
+        do: SourceContext.at(context, position, encoding),
+        else: SourceContext.remaining(context)
 
-  defp hole_hint_label([%{goal: goal, context: context} | _rest]) do
-    rendered = Cure.Core.Printer.print(goal)
-
-    case context do
-      [] ->
-        "? " <> rendered
-
-      values ->
-        "? " <> rendered <> "  (context: " <> Enum.map_join(values, ", ", &Cure.Core.Printer.print/1) <> ")"
-    end
-  end
-
-  # Elaborate only when the source actually contains a hole, and never raise:
-  # an inlay-hint request must degrade to the name-only hint on any failure.
-  defp checked_hole_goals(text) do
-    if String.contains?(text, "?") do
-      case Cure.Elab.Program.elaborate(text) do
-        {:ok, env} -> Cure.Elab.Program.hole_goals(env)
-        _ -> []
-      end
-    else
-      []
-    end
-  rescue
-    _ -> []
-  end
-
-  # Locate typed holes in the source. `?name` and `?_` are the hole forms
-  # (docs/PROOFS.md §3.7); `??` is obsolete and rejected by the compiler, so it
-  # is not reported here.
-  defp hole_positions(text) do
-    text
-    |> String.split("\n")
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {line_text, line} ->
-      Regex.scan(~r/(?<![?\w])\?([A-Za-z_][A-Za-z0-9_]*|_)/, line_text, return: :index)
-      |> Enum.map(fn [{start, _len}, {name_start, name_len}] ->
-        %{
-          name: binary_part(line_text, name_start, name_len),
-          line: line,
-          character: start
-        }
-      end)
+    Enum.map(goals, fn %{function: function, goal: goal, context: context} ->
+      %{"function" => to_string(function), "goal" => goal, "context" => context}
     end)
   end
 
-  defp named_call_inlay_hints(ast, symbols) do
+  defp hole_goal_inlay_hints(context, encoding) do
+    checked = SourceContext.hole_goals(context)
+
+    tokens =
+      case Lexer.tokenize(context.text, file: context.file, emit_events: false) do
+        {:ok, tokens} -> Enum.filter(tokens, &(&1.type == :hole))
+        _ -> []
+      end
+
+    tokens =
+      if context.status == :checked,
+        do: Enum.filter(tokens, fn token -> Enum.any?(checked, &same_hole_span?(&1.span, token.span)) end),
+        else: tokens
+
+    Enum.map(tokens, fn token ->
+      goal = Enum.find(checked, &same_hole_span?(&1.span, token.span))
+
+      label =
+        case goal do
+          nil -> "? goal unavailable"
+          %{goal: target, context: []} -> "? " <> target
+          %{goal: target, context: names} -> "? " <> target <> "  (context: " <> Enum.join(names, ", ") <> ")"
+        end
+
+      %{
+        "position" => Positions.range(token.span, context.text, encoding)["start"],
+        "label" => label,
+        "kind" => 1,
+        "paddingRight" => true
+      }
+    end)
+  end
+
+  defp named_call_inlay_hints(ast, symbols, text, encoding) do
     ast
     |> collect_function_calls()
     |> Enum.flat_map(fn {:function_call, meta, _args} ->
@@ -1716,7 +1759,7 @@ defmodule Cure.LSP.Server do
           {%Cure.Diagnostic.Span{} = span, nil, parameter} ->
             [
               %{
-                "position" => %{"line" => span.start_line - 1, "character" => span.start_column - 1},
+                "position" => Positions.range(span, text, encoding)["start"],
                 "label" => parameter.label <> ":",
                 "kind" => 2,
                 "paddingRight" => true

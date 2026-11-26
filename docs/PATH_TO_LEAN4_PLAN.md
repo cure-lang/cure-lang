@@ -5,24 +5,37 @@
 **Corpus:** [`test/lean4_parity/`](../test/lean4_parity/)
 
 **Phase-number correction (2026-11-21):** the sequence below differs from the
-authoritative `PATH_TO_LEAN4.md` §8. Current Phase 1 is C4/C5/C8 and current
-Phase 2 is C1.1/C1.3; both are implemented. Use the scorecard for current
-measurement. In particular, certified unfolding required no TCB change, and
-`plus(n, Z()) = n` is an induction theorem, not a missing reduction.
+authoritative `PATH_TO_LEAN4.md` §8. Current Phase 1 is C4/C5/C8, implemented
+within its stated gates. Current Phase 2 implements C1.1 infrastructure,
+C1.3 solver clients and canonical-frame induction-command lowering; merged
+adequacy, reconstruction and diagnostic validation pass.
+Use the scorecard for current measurement. Certified unfolding required no TCB
+change, and `plus(n, Z()) = n` is an induction theorem, not a missing reduction.
 Later-phase descriptions and baseline findings below are retained historically,
 not as assertions about today's implementation.
 
 **Historical Phase 3 (audited 2026-11-22):** contextual `tactic ... becomes`
-templates are implemented. This is a useful command-composition slice of C1.2,
-not the full goal-inspecting `computed by` / `Std.Tactic` design. Authoritative
-Phase 3 remains C3 operator fixity; authoritative Phase 4 includes full C1.2.
+templates are implemented. This was a command-composition prerequisite, not
+the full goal-inspecting interface. The later continuation adds typed
+`computed by` / `Std.Tactic` callbacks and per-command server/REPL views.
+Authoritative Phase 3 remains C3 operator fixity; authoritative Phase 4 now
+passes its documented premise-generating `apply`, computed-tactic and
+source-aware native-editor gates. Canonical-frame induction adequacy also passes.
 See the scorecard and §4 below for the precise boundary and audit corrections.
+
+**Final closure validation (2026-11-22):** 7,310 tests, zero failures, eight
+excluded; 363 documentation snippets; 44 compiled parity pins; 71 stdlib
+checks and 40 examples. Formatting, Credo, Dialyzer, grammar, nine Node tests
+and the real rebuilt-server Extension Host pass. The scorecard records exact
+scope and counts. Proof admission also requires ordinary totality for
+hole-free declarations executing proof syntax or successful implicit search.
+Historical counts below remain historical.
 
 ---
 
 ## 0. Relationship to the other documents
 
-Three documents now describe this work. Their roles are distinct and must not
+The documents describing this work have distinct roles and must not
 be conflated:
 
 | Document | Role |
@@ -42,10 +55,12 @@ earlier audit (including this plan's first draft) got wrong.
 
 These were wrong in the first draft of this plan and are corrected here:
 
-1. **`apply`/`exact` are not missing.** `PATH_TO_LEAN4.md` C6 lists them as a
-   gap; the parser already carries `proof_application` nodes for both (see
+1. **`apply`/`exact` are not missing.** An earlier C6 description obscured that
+   the parser already carries `proof_application` nodes for both (see
    `lib/cure/compiler/parser.ex`, `parse_proof_application/3`). The real
-   remaining work is backward-reasoning *ergonomics*, not the commands.
+   closure work was specifically generating premise goals and reconstructing
+   checked evidence for an under-applied theorem. Application sessions now
+   implement that capability; closing `apply` alone was not sufficient.
 2. **`rewrite`'s single-occurrence default is a real gap (C8), not a feature.**
    The first draft treated `E111`-on-multiple-matches as correct strictness. It
    is a deliberate choice, but it is *tedium*, and `PATH_TO_LEAN4.md` §11
@@ -106,10 +121,10 @@ Both directions are pinned in `test/cure/compiler/dependent_proof_surface_test.e
 contain no `proof_application` node; `apply ih` inside a `because` block must
 produce one.
 
-**A documentation inaccuracy was also found:** `docs/PROOFS.md` §1 states that
-"`Equivalent` and `reflexive` are preluded". They are not — `lib/std/equivalent.cure`
-carries `@group(:core)` but no `@prelude` marker, so `use Std.Equivalent` is
-required. The corpus uses the explicit `use` throughout.
+The corpus uses explicit `use Std.Equivalent` where it needs the module's
+combinators. Whether a name is ambient must be checked through the canonical
+prelude and module-visibility path; a group tag or the absence of a local
+`@prelude` decorator alone is not sufficient evidence.
 
 ---
 
@@ -165,7 +180,7 @@ C1–C10. The mapping:
 | G2 (user tactics) | **C1** | the architectural gap |
 | G3 (δ-reach) | **C5**, **C9** | C9 is the guarded-lambda certificate bug |
 | G4 (`@[simp]`) | **C4** | |
-| G5 (automation as tactics) | **C4**/C1 clients | libraries exist; tactics don't |
+| G5 (automation as tactics) | **C4**/C1 clients | bounded checked clients delivered; not unrestricted arithmetic automation |
 | G6 (Agda↔kernel) | — | proof-side; not a parity item |
 | G7 (lean4lean backend) | — | locked decision 6; not a parity item |
 | G8 (emitter) | — | out of scope |
@@ -182,8 +197,10 @@ source pins, so the separation is enforced, not merely documented.
 
 ## 3. Sequencing rule
 
-`PATH_TO_LEAN4.md` §2 states the critical constraint: **C1 must land before C4,
-C6 and C7 can be built well — all three are clients of a goal API.**
+The historical plan used **C1 before C4/C6/C7** as a sequencing heuristic.
+The current dependency is more precise: the evidence-preserving C1.1 goal API
+supports computed tactics, backward application and goal views; full C1.2 was
+not a prerequisite for the already-delivered C4/C5/C8 features.
 
 This plan adds a second rule, about risk:
 
@@ -195,15 +212,18 @@ macros, simp sets) are cheap, reversible, and make the expensive phases
 like the biggest win, it is the biggest risk, and without a goal API you cannot
 tell whether it actually helped.
 
-Ordering: **0 → 1 → 2 → 3 → 4 → (5 | 8 in parallel) → 6 → 7 → 9 → 10.**
+Historical ordering: **0 → 1 → 2 → 3 → 4 → (5 | 8 in parallel) → 6 → 7 → 9 → 10.**
+This is not an alternative to the authoritative phase numbers and gates.
 
 ---
 
 ## 4. Phases
 
-Each phase names its gate. A phase is not done until its gate passes.
+The phase numbers below are historical. Each delivered slice must still meet
+the corresponding current gate; a similarly named historical phase does not
+establish authoritative Phase 4 completion.
 
-### Phase 0 — Baseline and measurement ✅
+### Phase 0 — Baseline and measurement
 
 **Scope.** Record the baseline; build the corpus; confirm the CI guards.
 
@@ -227,17 +247,26 @@ recorded behaviour.
 **Scope.** Make remaining goals visible. `PATH_TO_LEAN4.md` C7; prerequisite for
 C1.
 
-**Work.**
-1. Promote the existing `:hole_goal` pipeline event into a first-class
-   `%Cure.Elab.Goal{type, context, provenance, id}`.
-2. Emit a `:proof_state` event after each proof step in a `because` block,
-   carrying the ordered remaining-goal list.
-3. Surface it in the REPL (`:goals`), the LSP (`cure/proofState`), and the
-   terminal (print remaining goals before `E110`/`E112`).
+**Delivered boundary after the continuation.** `ProofGoal` remains the single
+checked goal state; no incompatible `%Cure.Elab.Goal{}` representation is added.
+`ProofState` captures before/after/failure observations and the residual of an
+unfinished block, and publishes `:proof_state` events. The LSP selects by cursor
+position in the negotiated UTF encoding; REPL `:goals` retains refused
+definition submissions without installing them as executable definitions.
 
-**Gate.** An open `because` block reports *which* goal is open, with type and
-context, in all three surfaces. The corpus pin `g1-open-because-block` flips to
-`:accept` only when the goal list is part of the diagnostic.
+Actual nested-hole obligations are observed where the expected type and named
+context are available, not reconstructed from a function's return type.
+An explicit ephemeral `SourceContext` now connects the canonical compiler check
+to CLI/REPL/LSP observations and inlay hints, including actual surviving hole
+occurrences. Env-only `Program.hole_goals/1` remains a coarse, deprecated
+compatibility path; precise callers use an explicit source context. The native
+VS Code tree consumes cursor states with version and lifecycle freshness checks.
+Its real merged-server Extension Host gate passes, including imported tactics,
+unsaved consumer text, provider saves and lifecycle/cursor controls.
+
+**Gate discipline.** An unfinished `because` proof remains an elaboration
+refusal even when its residual goal is successfully displayed. Do not flip a
+refusal pin to acceptance merely because the diagnostic is now useful.
 
 **TCB.** None.
 
@@ -251,16 +280,22 @@ context, in all three surfaces. The corpus pin `g1-open-because-block` flips to
 **Scope.** Extract the hard-coded proof commands into a reusable API.
 
 **Work.**
-1. `lib/cure/elab/tactic.ex`: result type
-   `{:ok, [Goal.t()]} | {:ok, []} | {:error, Diagnostic.t()}` — tactics return
-   *remaining* goals, so `[]` means closed (Lean's shape).
+1. `lib/cure/elab/tactic.ex`: `{:ok, %Tactic.Result{goals: ..., solutions: ...}}`
+   or `{:error, reason}`. Solutions retain checked evidence keyed by original
+   goal identity; goal-list-only results are legacy inspection projections.
 2. Combinators: `seq/2`, `or_else/2`, `repeat/1`, `repeat_until_fail/1`,
    `try_/1`, `focus/2`, `all_goals/1`.
 3. Re-point `simplify`, `rewrite`, `induction`, `have`, `because`,
    `apply`/`exact` as clients. **Byte-identical diagnostics** is the gate.
 
-**Gate.** Every existing `E109`–`E115` test passes unchanged; no proof command
-remains hard-coded in the elaborator.
+**Adequacy gate met.** The existing `E109`–`E115` compatibility tests and
+non-vacuous execution tests validate all six original forms as goal-API clients.
+Ordinary induction and each authored branch now execute goal commands with a
+canonical declaration frame. Templates validate case structure and hygienic
+constructor-field/IH binders. Standalone callers supply the canonical frame;
+foreign frames and unsupported changed motives refuse. Existing checked
+recursive lowering and non-parameter pre-lifted helpers remain in use; arbitrary
+new helper motives are outside scope. Accepting an AST alone is not evidence.
 
 **TCB.** None.
 
@@ -272,10 +307,11 @@ remains hard-coded in the elaborator.
 ### Phase 3 — template tactic macros (historical numbering)
 
 **Implemented boundary:** a library defines a contextual `tactic ... becomes`
-rule composing existing proof commands. It does not receive a goal value;
-goal-aware `computed by` and `Std.Tactic` remain C1.2 work under authoritative
-Phase 4. Induction templates are rejected until their recursive lowering is
-wired to this API; invoking tactics in ordinary induction arms is supported.
+rule composing existing proof commands. That template form does not receive a
+goal value; the subsequent authoritative Phase 4 continuation implements the
+separate typed `computed by` / `Std.Tactic` protocol. Induction templates now
+invoke genuine canonical-frame goal commands rather than merely allowing an
+induction tag. Final merged execution and compatibility validation pass.
 
 **Audit corrections (2026-11-22):**
 - Scripts now return transformed open goals to caller commands and report the
@@ -315,27 +351,73 @@ the original goal; no new kernel constructors or proof postulates.
 
 ### Phase 4 — Simp sets and tactic automation (G4, G5, G10 / C4)
 
-**Scope.** Close the gap from "libraries exist" to "tactics use them."
+**Historical scope.** Close the gap from "libraries exist" to checked tactic
+clients. This is not the C1.2/C6/C7 authoritative Phase 4 closure gate.
 
-**Work.**
-1. `@[simp]` attribute on `@lemma`, building a global priority-ordered set.
-   `simplify` with no arguments consults it; `using [rules]` stays explicit.
-   **Orientation check mandatory** — a non-decreasing equation is skipped, not
-   looped.
-2. Tactic wrappers over the existing sound libraries: `decide`
-   (`Std.Proof.IntMath`), `positivity` (`solver_positivity`), `omega`
-   (`Std.Proof.LinearArithmetic`), `assumption`.
-3. `simp?` — report which lemmas fired (G10).
+**Delivered slices.**
+1. `@simp` / `@lemma(:simp)` use Cure's decorator syntax and checked quantified
+   rules. Explicit non-decreasing or variable-duplicating declarations are
+   rejected; safe legacy `@lemma` behavior remains compatible.
+2. Search, local-only assumption, positivity and decision clients have explicit
+   supported fragments. `by omega` reconstructs ordinary Core for non-strict
+   integer comparisons using local evidence, reflexivity, transitivity,
+   addition and literal-natural scaling. Its limits are 128 local slots,
+   depth 12, 512 reconstruction steps and scalar 1024. Strict/equality,
+   nonlinear, unreconstructed and closed non-reflexive literal goals refuse.
+3. `simp?` preserves simplification evidence and reports only the current
+   successful invocation's progress, including explicit/adaptation trace
+   entries and actual source metadata. It does not list every registered rule.
 
-**Gate.** `simplify` closes a goal using only `@[simp]` lemmas from a `use`d
-module; `omega` discharges a linear goal with a kernel-checked proof object;
-`simp?` names the lemmas. Negative: a looping orientation is rejected; an
-out-of-fragment `omega` goal returns `Unknown`.
+**Arithmetic boundary.** The certified `check_lia_candidate` Boolean checker
+and untrusted Farkas producer/reifier are not a theorem from successful
+checking to the original proposition. Goal admission additionally requires
+checked evidence reconstruction. General checker-to-goal soundness and
+complete Presburger automation are not delivered.
+
+**Authoritative Phase 4 continuation.** Typed computed callbacks inspect real
+`Goal`/`Hypothesis` values through `MacroExpand.expand_typed`; at most 256
+authenticated operations run through existing checked commands. Explicit fresh
+markers preserve generated-binder hygiene. Source-backed imports and
+original-goal controls accompany the per-command server/REPL views described
+above. Application sessions now support focused, ordered premises and staged
+value/proof dependencies from partial global/local heads and constructors.
+Unresolved implicit witnesses become visible typed obligations: `apply trans`
+requires its unconstrained middle witness before the two equality proofs.
+Nested sessions preserve siblings and pending parents until reconstructed
+evidence checks at the original goal. Ordinary source sequencing focuses the
+first premise; explicit host all-goals combinators retain broadcast semantics.
+Canonical-frame induction and the native VS Code consumer are implemented;
+the final merged gates pass within the documented contracts.
+
+**Admission blocker addressed without a TCB change.** Kernel typing alone can
+type a nonterminating evidence application. Hole-free declarations executing
+actual proof syntax, including legacy expression rewrite and expanded tactics,
+therefore automatically require ordinary totality certification after bodies
+are checked. E013 reports an unproven proof-admission requirement distinctly
+from an authored `@total true`. Quoted syntax does not trigger execution;
+ordinary partial runtime functions remain legal. Development holes remain
+checkable, but E014 still blocks release. Pending deferrals are not certificates.
+Four private structural Nat helpers repair integer commutativity/associativity
+certification and its dependent proof cone, without changing public theorem
+types, trusted rules, or the bounded `omega` fragment.
+Successful anonymous-hole/refinement proof search is covered even without an
+explicit command; scoped effects commit only the selected overload. The
+single-buffer and imported-provider parser now share canonical grammar
+expansion, including an unsaved active consumer and saved providers without
+source writes. Unsaved sibling provider overlays remain outside that contract.
+
+**Final gate met:** focused application/induction/admission/source suites, the
+actual compiler parity corpus, full ExUnit/docs, quality/Dialyzer,
+stdlib/examples, grammar/unit checks and the real merged-server Extension Host
+pass. Authoritative Phase 4 is complete within its documented contracts, not
+unrestricted Lean metaprogramming or general arithmetic reflection.
 
 **TCB.** None — all automation is untrusted-**and**-checked.
 
-**Files.** `lib/cure/elab/proof/simp_set.ex` (new), `lib/cure/elab/tactic/*`,
-`lib/std/proof_linear_arithmetic*.cure`, `docs/PROOFS.md` §3.4.
+**Files.** `lib/cure/elab/simp_set.ex`, `lib/cure/elab/tactic/*`,
+`lib/cure/elab/proof_state.ex`, `lib/cure/elab/omega/*`,
+`lib/std/tactic.cure`, `lib/std/proof_linear_arithmetic*.cure`,
+`docs/PROOFS.md` §3.4 and §3.9.
 
 ---
 
@@ -351,19 +433,22 @@ change.
 1. `Eval.eval({:global, name})` → `{:nglobal, name}` and the sole δ-site
    `Normalise.unfold_certified_head/3` stay exactly as they are
    (`docs/SOUNDNESS.md` §3.2).
-2. Land the guarded-lambda recursion fix (`kernel/MASTER.md` §5.3, K-bug 2) —
-   **already hard-stop TCB-approved**. Highest-value reach fix: it unblocks
-   every `bind(...)` in type/index position.
+2. Follow the guarded-lambda recursion entry (`kernel/MASTER.md` §5.3,
+   K-bug 2) and its current hard-stop approval requirements. This historical
+   plan is not authorization for a new TCB change.
 3. Land order-dependent constructor injectivity (K-bug 1) — completeness only.
 4. Extend size-change to well-founded/lexicographic descent.
 5. Extend `simplify`'s rule set to generated defining equations for *certified*
    functions (`docs/PROOFS.md` §4) — the safe analogue of Lean's `rfl`-after-`whnf`.
 
-**Gate.** `plus n Z = n` closes without explicit `induction` when `plus` is
-certified. Every corpus flip justified. **No postulate, no bypass, no new kernel
-rule.**
+**Corrected gate.** A computational goal such as `plus(Z(), plus(Z(), n)) = n`
+closes through certified reduction. The old neutral `plus(n, Z()) = n` gate was
+incorrect: that theorem needs induction or a lemma in Lean too. Every actual
+reach change needs a justified corpus flip. **No postulate, bypass, or
+unreviewed kernel rule.**
 
-**TCB.** K-bug 2 pre-approved; everything else must pass the hard-stop test.
+**TCB.** Certified unfolding already exists; kernel-reach changes require their
+own current approval and validation, not historical approval by implication.
 
 **Files.** `lib/cure/core/certificate.ex`, `lib/cure/core/size_change.ex`,
 `lib/cure/core/unify.ex`, `lib/cure/elab/proof_goal.ex`.
@@ -377,8 +462,8 @@ rule.**
 
 **This is `proof/PLAN.md`'s M0 → M2 → M4 → M6 sequence, not a parity item.**
 `proof/PLAN.md` §4 warns explicitly against adding more examples while
-postponing it. The tree has grown 68 → 238 modules with M2/M4 still the
-bottleneck.
+postponing it. Earlier module-growth counts were historical observations, not
+a refreshed metatheory inventory or evidence of correspondence completion.
 
 **Gate.** A bounded release-admission theorem with an honest TCB
 (`proof/PLAN.md` §11 gate G1).
@@ -437,7 +522,8 @@ violating one is rejected:
 3. Automation stays untrusted-**and**-checked.
 4. Preserve the original expected goal; normalize to establish conversion.
 5. Do not port anything to Lean. Final Core stays Idris/Agda-shaped.
-6. Do not add `propext`/`Classical.choice`. Two postulates is better.
+6. Do not add `propext`/`Classical.choice` merely to match another prover's axiom
+   inventory. Counts alone do not establish comparative soundness.
 7. Do not change `rewrite`'s single-occurrence default — add an opt-in selector.
 8. Do not let `simplify` declare terms equal because the host computed so.
 9. Do not delete the `Proof/*Examples.agda` fixtures — they are the
@@ -455,7 +541,8 @@ computational goals (C4/C5), backward reasoning works (C6), goals are visible at
 the cursor (C7), and the open reach ledger is closed or explicitly pinned (C9,
 C10).
 
-Items 1–6 are ~35–50 engineer-weeks. Item 7 is capacity-driven.
+The original effort estimate was historical, not a measured remaining schedule.
+Use the authoritative remaining gates and fresh integration evidence instead.
 
 **A conditional result with an openly named unverified adapter must never be
 labelled universal refinement.** That distinction is the most important honesty

@@ -8,6 +8,7 @@ defmodule Cure.REPL.CompleterTest do
   describe "meta-command completion" do
     test "unique match extends the token" do
       assert {:unique, ":history"} = Completer.complete(":histo", 6)
+      assert {:unique, ":goals"} = Completer.complete(":goa", 4)
     end
 
     test "multiple matches return partial prefix" do

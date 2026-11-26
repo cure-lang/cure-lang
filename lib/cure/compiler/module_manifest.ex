@@ -50,7 +50,7 @@ defmodule Cure.Compiler.ModuleManifest do
     paths = paths |> Enum.map(&Path.expand/1) |> Enum.uniq() |> Enum.sort()
 
     with :ok <- validate_package(package),
-         {:ok, entries} <- scan_entries(paths, package),
+         {:ok, entries} <- scan_entries(paths, package, opts),
          :ok <- reject_duplicates(entries),
          entries =
            resolve_external_targets(
@@ -173,17 +173,19 @@ defmodule Cure.Compiler.ModuleManifest do
   defp validate_package(package) when is_binary(package) and package != "", do: :ok
   defp validate_package(package), do: {:error, {:invalid_package_identity, package}}
 
-  defp scan_entries(paths, package) do
+  defp scan_entries(paths, package, opts) do
     Enum.reduce_while(paths, {:ok, []}, fn path, {:ok, entries} ->
-      case scan_entry(path, package) do
+      case scan_entry(path, package, opts) do
         {:ok, entry} -> {:cont, {:ok, [entry | entries]}}
         {:error, _} = error -> {:halt, error}
       end
     end)
   end
 
-  defp scan_entry(path, package) do
-    with {:ok, source} <- File.read(path) do
+  defp scan_entry(path, package, opts) do
+    read = Keyword.get(opts, :source_reader, &File.read/1)
+
+    with {:ok, source} <- read.(path) do
       facts = FixityScan.harvest_source(source, path, BuiltinFixity.table())
 
       # A bare (mod-less) macro container (`sup Colony`, `actor Echo`, `app X`,
@@ -198,7 +200,9 @@ defmodule Cure.Compiler.ModuleManifest do
       # folds in whatever expansion reveals as it converges; duplicating that
       # work in the header scan would make the cheap pass expensive without
       # changing the manifest the round loop settles on.
-      case facts.module || FixityScan.expanded_module_name(source, path) do
+      implicit = Keyword.get(opts, :implicit_modules, %{})
+
+      case facts.module || FixityScan.expanded_module_name(source, path) || Map.get(implicit, path) do
         module_name when is_binary(module_name) ->
           identity = {package, module_name}
 

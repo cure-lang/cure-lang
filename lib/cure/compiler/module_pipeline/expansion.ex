@@ -195,16 +195,24 @@ defmodule Cure.Compiler.ModulePipeline.Expansion do
   end
 
   defp parse_unit(entry, imported, imported_fixity, manifest_options) do
-    with {:ok, source} <- File.read(entry.source_path),
+    read = Keyword.get(manifest_options, :source_reader, &File.read/1)
+    file = Map.get(Keyword.get(manifest_options, :source_names, %{}), entry.source_path, entry.source_path)
+    parser_options = Map.get(Keyword.get(manifest_options, :parser_options, %{}), entry.source_path, [])
+
+    with {:ok, source} <- read.(entry.source_path),
          {:ok, edition} <- source_edition(source, manifest_options),
-         {:ok, tokens} <- Lexer.tokenize(source, file: entry.source_path, emit_events: false, edition: edition),
+         {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false, edition: edition),
          {:ok, ast} <-
-           Parser.parse(tokens,
-             file: entry.source_path,
-             emit_events: false,
-             edition: edition,
-             imported_macros: imported,
-             imported_fixity: imported_fixity
+           Parser.parse(
+             tokens,
+             Keyword.merge(parser_options,
+               file: file,
+               emit_events: false,
+               edition: edition,
+               imported_macros: imported,
+               validate_fixity_cycles: Keyword.get(manifest_options, :validate_fixity_cycles, false),
+               imported_fixity: imported_fixity
+             )
            ) do
       {:ok,
        %{
