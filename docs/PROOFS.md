@@ -6,7 +6,7 @@ proposition elaborates to checked Core, and proof-only values are erased before
 BEAM emission.
 
 The proof *language* — `proof chain`, `because`, `have`, `rewrite`, `simplify`,
-`induction` — is elaboration syntax on top of that. It adds no Core
+`induction`, and explicit solver commands — is elaboration syntax on top of that. It adds no Core
 constructors and no kernel rules; everything below expands to terms you could
 have written by hand.
 
@@ -64,8 +64,9 @@ unification proves that no value can reach them.
 
 ## 3. The proof vocabulary
 
-These are the canonical spellings. There are no aliases — Cure does not accept
-`calc`, `by`, `simp`, `simpa`, `congr`, `exact`, or `apply`.
+These are the canonical spellings. Cure does not add Lean aliases such as
+`calc`, `simp`, `simpa`, or `congr`. `by` introduces only the three explicit
+solvers below; it is not a general tactic-block introducer.
 
 | Form | Role | §
 |---|---|---|
@@ -78,10 +79,13 @@ These are the canonical spellings. There are no aliases — Cure does not accept
 | `rewrite using <eq>` | directed rewrite, forwards | [3.5](#35-rewrite) |
 | `rewrite backwards using <eq>` | directed rewrite, reversed | [3.5](#35-rewrite) |
 | `rewrite using <eq> at <n>` | pick an occurrence | [3.5](#35-rewrite) |
+| `rewrite using <eq> all` | rewrite all original occurrences | [3.5](#35-rewrite) |
 | `rewrite using <eq> in <hyp>` | rewrite a hypothesis, not the goal | [3.5](#35-rewrite) |
 | `induction <value>` + `case <Ctor>(…) =>` | structural induction | [3.6](#36-induction) |
 | `?name`, `?_` | typed hole | [3.7](#37-holes) |
 | `f(label: value)` | named theorem arguments | [3.8](#38-named-arguments) |
+| `exact <proof>`, `apply <proof>` | close a justification with checked evidence | [3.9](#39-explicit-evidence-and-solvers) |
+| `by search`, `by positivity`, `by decide [using <decision>]` | checked solver commands | [3.9](#39-explicit-evidence-and-solvers) |
 
 All of these are **contextual**: outside their distinctive shape, `have`,
 `rewrite`, `simplify`, `induction`, `proof`, and `because` remain ordinary
@@ -212,6 +216,41 @@ equations. It terminates and builds an ordinary proof certificate — it will no
 unfold arbitrary recursive definitions or declare two terms equal because the
 host computed so.
 
+Certified recursive definitions **do** compute through the existing certified
+delta-normalization path. For example, `plus(Z(), plus(Z(), value))` simplifies
+to `value`. By contrast, `plus(value, Z())` with neutral `value` needs induction
+or an induction lemma, in Cure as in Lean; it is not a missing unfolding rule.
+
+Use `@simp` (or `@lemma(:simp)`) to register an equality for ambient
+simplification. This uses Cure's decorator syntax, not Lean's `@[simp]`.
+The declaration must strictly decrease the number of Core nodes without
+introducing or duplicating quantified variables. Equal-size, expanding, cyclic,
+and unsupported binder-containing rules are rejected at declaration with E112.
+Only certified, kernel-checked proofs participate. Safe ordinary `@lemma`
+equations remain ambient for compatibility; unsafe orientations are ignored
+unless explicitly opted into simp validation.
+
+```cure
+mod AmbientSimplification
+  type Nat = Z | S(Nat)
+  fn plus(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(previous) -> S(plus(previous, right))
+
+  @simp
+  fn plus_zero(value: Nat) -> Equivalent(Nat, plus(value, Z()), value) = induction value
+    case Z => reflexive(Z())
+    case S(previous, ih) => rewrite ih in reflexive(S(previous))
+
+  fn nested(value: Nat) -> Equivalent(Nat, plus(plus(value, Z()), Z()), value) = proof chain
+    plus(plus(value, Z()), Z()) == value
+    because simplify
+end
+```
+
+The ambient set is imported with its checked module interface and runs in
+deterministic registry order to a fixed point, with a resource guard.
+
 Supply extra rules as a **bracketed list**:
 
 ```cure
@@ -304,6 +343,13 @@ end
 An out-of-range selector is `REWRITE OCCURRENCE DOES NOT EXIST [E111]`. Note
 that the occurrence count depends on direction: an equality with two backwards
 matches may have only one forwards.
+
+Use `rewrite using theorem all` (or `rewrite backwards using theorem all`) to
+select every occurrence found in the **original** normalized goal, in
+left-to-right order. Each replacement produces an ordinary equality transport;
+new occurrences introduced by the replacement are not revisited. The command
+still leaves the transformed goal open. Zero matches is still an error.
+The single-occurrence default is unchanged.
 
 To rewrite a **hypothesis** instead of the goal, use `in`:
 
@@ -405,7 +451,50 @@ Core. Unknown, duplicate, missing, misplaced, and ambiguous labels are all
 `UNKNOWN NAMED ARGUMENT [E115]` names the offending label and the value it was
 given.
 
-This is why the proof language has no `apply`: there is nothing for it to do.
+Ordinary calls cover forward reasoning; they do not replace backward reasoning.
+The currently supported `apply` closes a goal with supplied evidence, like
+`exact`; generating new premise goals from an under-applied theorem is later
+goal-API work, not an implemented feature.
+
+### 3.9 Explicit evidence and solvers
+
+Inside a `because` justification, `exact expression` checks the expression
+against the goal. `apply expression` currently requires that application to
+close the goal too. Both inline and block forms are supported; neither creates
+unchecked evidence.
+
+The explicit solvers also work as function bodies and in checked expression
+positions, including non-equality propositions:
+
+```cure
+mod ExplicitSolvers
+  use Std.Proof.Math
+  use Std.Decision
+
+  fn reuse(n: Nat, h: IsPositive(n)) -> IsPositive(n) = by search
+  fn positive_sum(n: Nat, m: Nat, h: IsPositive(n)) -> IsPositive(plus(n, m)) = by positivity
+  fn decided() -> Equivalent(Bool, True(), True()) = by decide
+  fn explicit_decision() -> IsPositive(S(Z())) = by decide using decide_is_positive(S(Z()))
+end
+```
+
+- `by search` uses local evidence, checked projections, and tagged lemmas.
+  Missing or ambiguous evidence fails with E110.
+- `by positivity` uses the `Std.Proof.Math.IsPositive` fragment: successors,
+  addition, multiplication, and available sign evidence. It is not generic
+  lemma search, and refuses zero or an unknown sign.
+- `by decide` infers the certified `Std.Decision` Boolean-equality decider.
+  `by decide using expression` handles a supplied `Decision(P)` for any goal
+  `P`. Certified reduction must expose `Yes(evidence)`, and that evidence is
+  checked against the original goal. `No`, stuck decisions, unsupported
+  fragments, and resource exhaustion fail closed. A host Boolean is not proof.
+
+Internally, `ProofGoal.new/5` preserves the original obligation and
+`ProofGoal.inspect_goal/1` exposes its target and hypotheses.
+`Tactic.command/1`, sequencing, focus, all-goals, choice, and bounded repetition
+retain checked solutions in `Tactic.Result`; an empty goal list alone is not
+enough to reconstruct a proof. User-defined goal tactic macros and per-command
+editor views remain later work.
 
 ## 4. Generated defining equations
 

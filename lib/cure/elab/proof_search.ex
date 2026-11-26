@@ -20,6 +20,11 @@ defmodule Cure.Elab.ProofSearch do
   @spec resolve(goal(), Context.t(), Cure.Core.Env.t()) :: result()
   def resolve(goal, ctx, env), do: resolve(goal, ctx, env, %{depth: 0, trying: []})
 
+  @doc "Resolve with only the selected strategy, including recursive premises."
+  @spec resolve_strategy(goal(), Context.t(), Cure.Core.Env.t(), :search | :positivity) :: result()
+  def resolve_strategy(goal, ctx, env, strategy) when strategy in [:search, :positivity],
+    do: resolve(goal, ctx, env, %{depth: 0, trying: [], strategy: strategy})
+
   # Depth-bound guard: abandon a branch that has descended past the ceiling.
   def resolve(_goal, _ctx, _env, %{depth: d}) when d > @depth_limit, do: :none
 
@@ -55,13 +60,37 @@ defmodule Cure.Elab.ProofSearch do
       # projections + `@lemma`-tagged theorems) runs first; `solver_positivity`
       # (the syntax-directed arithmetic-sign procedure over the stdlib's
       # untagged sign lemmas) is the fallback.
-      run_solvers(
-        [
-          fn -> solver_lemma(goal, ctx, env, state) end,
-          fn -> solver_positivity(goal, ctx, env, state) end
-        ],
-        goal
-      )
+      case Map.get(state, :strategy, :auto) do
+        :search ->
+          solver_lemma(goal, ctx, env, state)
+
+        :positivity ->
+          if head_of(goal) == :"Std.Proof.Math#IsPositive" do
+            run_solvers(
+              [
+                fn ->
+                  decide(
+                    local_candidates(goal, ctx, env) ++ projection_candidates(goal, ctx, env),
+                    goal
+                  )
+                end,
+                fn -> solver_positivity(goal, ctx, env, state) end
+              ],
+              goal
+            )
+          else
+            :none
+          end
+
+        :auto ->
+          run_solvers(
+            [
+              fn -> solver_lemma(goal, ctx, env, state) end,
+              fn -> solver_positivity(goal, ctx, env, state) end
+            ],
+            goal
+          )
+      end
     end
   end
 
@@ -127,12 +156,22 @@ defmodule Cure.Elab.ProofSearch do
   ]
 
   defp solver_positivity(goal, ctx, env, state) do
+    lemmas =
+      if Map.get(state, :strategy) == :positivity,
+        do: @positivity_lemmas ++ ["multiplying_positive_numbers_is_positive"],
+        else: @positivity_lemmas
+
     case head_of(goal) do
       nil ->
         :none
 
       _head ->
-        @positivity_lemmas
+        lemmas
+        |> Enum.map(fn name ->
+          if Map.get(state, :strategy) == :positivity,
+            do: "Std.Proof.Math#" <> name,
+            else: name
+        end)
         |> Enum.map(&virtual_lemma_entry(env, &1))
         |> Enum.reject(&is_nil/1)
         |> Enum.reduce_while(:none, fn entry, _acc ->

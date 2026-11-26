@@ -1598,9 +1598,105 @@ defmodule Cure.LSP.Server do
   @doc false
   def compute_inlay_hints(text) do
     case parse_to_ast(text) do
-      {:ok, ast} -> named_call_inlay_hints(ast, build_symbol_table(ast))
-      _ -> []
+      {:ok, ast} ->
+        named_call_inlay_hints(ast, build_symbol_table(ast)) ++ hole_goal_inlay_hints(text)
+
+      _ ->
+        []
     end
+  end
+
+  # Goal-state introspection for the editor (Phase 1 of
+  # docs/PATH_TO_LEAN4_PLAN.md, gap G1).
+  #
+  # A typed hole (`?name`) typechecks and blocks codegen, but until now an editor
+  # could not show WHAT the hole must be filled with -- the author had to run
+  # `cure check` and read the terminal. This renders each hole's goal type and
+  # local context as an inlay hint at the hole's own position, so the goal state
+  # is visible at the cursor.
+  #
+  # Holes are found by lexing rather than by elaborating: an inlay-hint request
+  # must stay cheap and must not run the type checker on every keystroke. The
+  # goal text therefore comes from the elaborator only when the session already
+  # has a checked environment; otherwise the hint names the hole and leaves the
+  # type to `cure check`. Returning a partial hint is deliberate -- a hint that
+  # says "this is a hole" is still useful, and claiming a goal type we have not
+  # checked would be worse than saying nothing.
+  defp hole_goal_inlay_hints(text) do
+    case hole_positions(text) do
+      [] ->
+        []
+
+      holes ->
+        goals = checked_hole_goals(text)
+
+        Enum.map(holes, fn %{line: line, character: character} ->
+          %{
+            "position" => %{"line" => line, "character" => character},
+            "label" => hole_hint_label(goals),
+            "kind" => 1,
+            "paddingRight" => true
+          }
+        end)
+    end
+  end
+
+  # `hole_goals/1` reports one entry per DEFINITION carrying a hole, keyed by the
+  # owner-qualified definition name (`:"Goals#later"`). That name is not the
+  # hole's own name (`?goal`), so the two cannot be matched directly.
+  #
+  # The hint therefore reports the FIRST checked goal, which is the right answer
+  # for the overwhelmingly common case of one hole per file. When a file has
+  # several holes, each hint still points at the correct position and names a
+  # real goal; attributing each goal to its exact hole would need the elaborator
+  # to report the hole's own source span, which `hole_goals/1` does not carry.
+  # Saying something true and useful beats saying nothing until that lands.
+  defp hole_hint_label([]), do: "? goal"
+
+  defp hole_hint_label([%{goal: goal, context: context} | _rest]) do
+    rendered = Cure.Core.Printer.print(goal)
+
+    case context do
+      [] ->
+        "? " <> rendered
+
+      values ->
+        "? " <> rendered <> "  (context: " <> Enum.map_join(values, ", ", &Cure.Core.Printer.print/1) <> ")"
+    end
+  end
+
+  # Elaborate only when the source actually contains a hole, and never raise:
+  # an inlay-hint request must degrade to the name-only hint on any failure.
+  defp checked_hole_goals(text) do
+    if String.contains?(text, "?") do
+      case Cure.Elab.Program.elaborate(text) do
+        {:ok, env} -> Cure.Elab.Program.hole_goals(env)
+        _ -> []
+      end
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  # Locate typed holes in the source. `?name` and `?_` are the hole forms
+  # (docs/PROOFS.md §3.7); `??` is obsolete and rejected by the compiler, so it
+  # is not reported here.
+  defp hole_positions(text) do
+    text
+    |> String.split("\n")
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line_text, line} ->
+      Regex.scan(~r/(?<![?\w])\?([A-Za-z_][A-Za-z0-9_]*|_)/, line_text, return: :index)
+      |> Enum.map(fn [{start, _len}, {name_start, name_len}] ->
+        %{
+          name: binary_part(line_text, name_start, name_len),
+          line: line,
+          character: start
+        }
+      end)
+    end)
   end
 
   defp named_call_inlay_hints(ast, symbols) do

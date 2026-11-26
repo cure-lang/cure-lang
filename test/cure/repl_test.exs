@@ -486,6 +486,15 @@ defmodule Cure.REPLTest do
 
   describe ":edit meta-command" do
     setup do
+      visual = System.get_env("VISUAL")
+      editor = System.get_env("EDITOR")
+      System.delete_env("VISUAL")
+
+      on_exit(fn ->
+        restore_env("VISUAL", visual)
+        restore_env("EDITOR", editor)
+      end)
+
       Session.clear()
       on_exit(&Session.clear/0)
       :ok

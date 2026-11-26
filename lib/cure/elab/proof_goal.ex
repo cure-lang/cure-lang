@@ -7,11 +7,14 @@ defmodule Cure.Elab.ProofGoal do
   alias Cure.MetaAST.Metadata
 
   @enforce_keys [:expected, :names, :context, :env, :source, :status, :builders, :trace]
-  defstruct [:expected, :names, :context, :env, :source, :status, :builders, :trace]
+  defstruct [:expected, :names, :context, :env, :source, :status, :builders, :trace, :id, :root_expected, :root_context]
 
   @type status :: :open | :closed
   @type t :: %__MODULE__{
           expected: Cure.Core.Term.t(),
+          id: reference() | nil,
+          root_expected: Cure.Core.Term.t() | nil,
+          root_context: Cure.Core.Context.t() | nil,
           names: [String.t()],
           context: Cure.Core.Context.t(),
           env: Cure.Core.Env.t(),
@@ -24,18 +27,59 @@ defmodule Cure.Elab.ProofGoal do
   @type command_result :: {:open, t()} | {:closed, Cure.Core.Term.t(), [term()]} | {:error, term()}
 
   def run({:proof_justification, meta, statements}, expected, names, context, env, step_index) do
-    goal = %__MODULE__{
+    execute(statements, new(expected, names, context, env, meta), step_index)
+  end
+
+  @doc "Construct a goal while preserving its original checking obligation."
+  def new(expected, names, context, env, source \\ []) do
+    %__MODULE__{
+      id: make_ref(),
+      root_expected: expected,
+      root_context: context,
       expected: expected,
       names: names,
       context: context,
       env: env,
-      source: meta,
+      source: source,
       status: :open,
       builders: [],
       trace: []
     }
+  end
 
-    execute(statements, goal, step_index)
+  @doc "Inspect the remaining target and local hypotheses without modifying the goal."
+  def inspect_goal(goal) do
+    depth = Context.length(goal.context)
+    signature = Context.signature(goal.context)
+    facts = Enum.filter(goal.builders, &match?({:assignment, _, _}, &1))
+    context_names = Enum.drop(goal.names, length(facts))
+
+    hypotheses =
+      context_names
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {name, index} ->
+        case Context.lookup(goal.context, index) do
+          nil -> []
+          type -> [%{name: name, type: Quote.reify(type, depth, signature)}]
+        end
+      end)
+
+    local_facts =
+      facts
+      |> Enum.with_index(1)
+      |> Enum.flat_map(fn {{:assignment, _, [{:variable, _, name}, _]}, count} ->
+        block = {:block, [], Enum.take(facts, count) ++ [{:variable, [], name}]}
+
+        case Elaborator.elaborate_expr_typed(block, context_names, goal.context, goal.env) do
+          {:ok, _term, type} ->
+            [%{name: name, type: Quote.reify(type, depth, signature)}]
+
+          {:error, _} ->
+            [%{name: name, type: :pending}]
+        end
+      end)
+
+    %{target: goal.expected, hypotheses: Enum.reverse(local_facts) ++ hypotheses, status: goal.status}
   end
 
   defp execute([], %__MODULE__{status: :open} = goal, step_index) do
@@ -53,14 +97,16 @@ defmodule Cure.Elab.ProofGoal do
   end
 
   defp execute([statement | rest], %__MODULE__{status: :open} = goal, step_index) do
-    case command(statement, goal) do
-      {:open, next_goal} ->
+    case Cure.Elab.Tactic.command(statement).(goal) do
+      {:ok, %Cure.Elab.Tactic.Result{goals: [next_goal]}} ->
         execute(rest, next_goal, step_index)
 
-      {:closed, evidence, trace} when rest == [] ->
+      {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} when rest == [] ->
+        %{evidence: evidence, trace: trace} = Map.fetch!(solutions, goal.id)
         {:ok, evidence, trace}
 
-      {:closed, _evidence, trace} ->
+      {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} ->
+        %{trace: trace} = Map.fetch!(solutions, goal.id)
         first_unreachable = hd(rest)
         closed_at = trace |> List.last() |> trace_span()
 
@@ -79,8 +125,9 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
-  defp command({:assignment, meta, [{:variable, _, name}, _rhs]} = statement, goal)
-       when is_list(meta) do
+  @doc false
+  def command({:assignment, meta, [{:variable, _, name}, _rhs]} = statement, goal)
+      when is_list(meta) do
     if Keyword.get(meta, :have, false) do
       {:open,
        %{
@@ -94,15 +141,27 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
-  defp command({:rewrite_command, meta, [proof_ast]}, goal) do
+  def command({:rewrite_command, meta, [proof_ast]}, goal) do
     case Keyword.get(meta, :target, :goal) do
       :goal -> rewrite_goal(proof_ast, meta, goal, nil)
       {:at, occurrence} -> rewrite_goal(proof_ast, meta, goal, occurrence)
       {:in, name} -> rewrite_hypothesis(proof_ast, meta, goal, name)
+      # `rewrite using e all` -- rewrite EVERY occurrence. Opt-in; the default
+      # stays single-occurrence (an ambiguous match is E111), which is stricter
+      # than Lean's silent rewrite-all. `Rewrite.directed_plan/7` already
+      # accepts `:all`, so this only routes the selector through.
+      :all -> rewrite_goal(proof_ast, meta, goal, :all)
     end
   end
 
-  defp command({:simplify_command, meta, rules}, goal) do
+  def command({:proof_application, meta, [proof_ast]}, goal) do
+    case Keyword.get(meta, :kind) do
+      :exact -> close_with_expression(proof_ast, goal, :exact, meta)
+      :apply -> apply_proof(proof_ast, meta, goal)
+    end
+  end
+
+  def command({:simplify_command, meta, rules}, goal) do
     if Keyword.get(meta, :using) == :proof do
       adapt_existing_proof(hd(rules), meta, goal)
     else
@@ -110,10 +169,14 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
-  defp command(statement, goal), do: close_with_expression(statement, goal)
+  def command({:solver_command, meta, _arguments} = command, goal),
+    do: close_with_expression(command, goal, :solver, meta)
+
+  def command(statement, goal), do: close_with_expression(statement, goal)
 
   defp simplify_command_rules(meta, rules, goal) do
     with {:ok, simplified} <- simplify_rules(rules, goal, meta),
+         {:ok, simplified} <- simplify_lemma_set(simplified, meta),
          {:ok, evidence, trace} <-
            Cure.Elab.Simplifier.solve(simplified.expected, simplified.context, surface_span(meta)) do
       transports = Enum.reject(simplified.builders, &match?({:assignment, _, _}, &1))
@@ -126,6 +189,79 @@ defmodule Cure.Elab.ProofGoal do
       {:error, _} = error ->
         error
     end
+  end
+
+  # Explicit simp declarations are validated up front. Legacy @lemma entries
+  # remain compatible only when the same substitution-stable ordering admits them.
+  defp simplify_lemma_set(goal, meta), do: simplify_lemma_set(goal, meta, 0)
+
+  defp simplify_lemma_set(goal, meta, 256),
+    do: simplification_error(:resource_guard, meta, goal, {:step_ceiling, 256})
+
+  defp simplify_lemma_set(goal, meta, steps) do
+    normalized = Kernel.normalize(goal.context, goal.expected)
+
+    case equality_head(normalized, goal) do
+      nil ->
+        {:ok, goal}
+
+      head ->
+        next =
+          goal.env
+          |> Cure.Elab.SimpSet.entries(head)
+          |> Enum.reduce(goal, fn lemma, current ->
+            case apply_lemma_rule(lemma, current, meta) do
+              {:ok, next} -> next
+              {:error, _} -> current
+            end
+          end)
+
+        if next.expected == goal.expected,
+          do: {:ok, next},
+          else: simplify_lemma_set(next, meta, steps + 1)
+    end
+  end
+
+  defp equality_head({:data, family, [_carrier], [_left, _right]}, goal) do
+    if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
+  end
+
+  defp equality_head(_other, _goal), do: nil
+
+  defp apply_lemma_rule(%{name: name, type: type}, goal, meta) do
+    with {:ok, proof} <- lemma_proof(name, goal),
+         {:ok, specialized, ty, left, right} <-
+           instantiate_generated_rule(type, proof, Kernel.normalize(goal.context, goal.expected), goal),
+         ty = Kernel.normalize(goal.context, ty),
+         left = Kernel.normalize(goal.context, left),
+         right = Kernel.normalize(goal.context, right),
+         true <- simplification_measure(left) > simplification_measure(right),
+         {:ok, build, rewritten, _occurrences} <-
+           Rewrite.directed_plan(
+             specialized,
+             ty,
+             left,
+             right,
+             Kernel.normalize(goal.context, goal.expected),
+             :forward,
+             1
+           ) do
+      {:ok,
+       %{
+         goal
+         | expected: rewritten,
+           builders: goal.builders ++ [{:transport, build}],
+           trace: goal.trace ++ [%{id: "lemma-#{length(goal.trace) + 1}", kind: :lemma, rule: surface_span(meta)}]
+       }}
+    else
+      _ -> {:error, :not_applicable}
+    end
+  end
+
+  defp lemma_proof(name, goal) do
+    if Env.certified?(goal.env, name) and Kernel.check_def(goal.env, name) == :ok,
+      do: {:ok, {:global, name}},
+      else: {:error, :uncertified_lemma}
   end
 
   defp enrich_simplification(problem, names) do
@@ -195,7 +331,7 @@ defmodule Cure.Elab.ProofGoal do
 
       :ordinary ->
         with {:ok, ty_value, left_value, right_value} <-
-               Rewrite.eq_parts(proof_type, Context.signature(goal.context)) do
+               simp_equality_parts(proof_type, goal) do
           {:ok, proof, Kernel.normalize(goal.context, Quote.reify(ty_value, depth)),
            Kernel.normalize(goal.context, Quote.reify(left_value, depth)),
            Kernel.normalize(goal.context, Quote.reify(right_value, depth))}
@@ -257,7 +393,7 @@ defmodule Cure.Elab.ProofGoal do
           simplify_generated_fixed_point(proof, theorem_type, rule_ast, goal, meta, MapSet.new(), 0)
 
         :ordinary ->
-          with {:ok, ty_value, a_value, b_value} <- Rewrite.eq_parts(proof_type, Context.signature(goal.context)),
+          with {:ok, ty_value, a_value, b_value} <- simp_equality_parts(proof_type, goal),
                ty = Kernel.normalize(goal.context, Quote.reify(ty_value, depth)),
                a = Kernel.normalize(goal.context, Quote.reify(a_value, depth)),
                b = Kernel.normalize(goal.context, Quote.reify(b_value, depth)),
@@ -361,7 +497,13 @@ defmodule Cure.Elab.ProofGoal do
                     specialized_left = Subst.instantiate(left, args)
                     specialized_right = Subst.instantiate(right, args)
                     specialized_proof = Enum.reduce(args, proof, fn argument, call -> {:app, call, argument} end)
-                    {:ok, specialized_proof, specialized_carrier, specialized_left, specialized_right}
+                    specialized_type = Rewrite.mk_eq(specialized_carrier, specialized_left, specialized_right)
+
+                    if Kernel.check(goal.context, specialized_proof, simp_type_value(specialized_type, goal)) == :ok do
+                      {:ok, specialized_proof, specialized_carrier, specialized_left, specialized_right}
+                    else
+                      false
+                    end
 
                   :no_match ->
                     false
@@ -380,6 +522,15 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
+  defp simp_type_value(type, goal) do
+    type
+    |> then(&Kernel.normalize(goal.context, &1))
+    |> Eval.eval(Context.env(goal.context))
+  end
+
+  defp simp_equality_parts(type, goal),
+    do: Rewrite.eq_parts(type, Context.signature(goal.context))
+
   defp complete_rule_args(telescope, bindings, goal_term, goal) do
     count = length(telescope)
 
@@ -394,7 +545,7 @@ defmodule Cure.Elab.ProofGoal do
 
         :error ->
           instantiated_domain = Subst.instantiate(domain, args)
-          expected = Eval.eval(instantiated_domain, Context.env(goal.context))
+          expected = simp_type_value(instantiated_domain, goal)
 
           case Enum.find(core_subterms(goal_term), &(Kernel.check(goal.context, &1, expected) == :ok)) do
             nil -> {:halt, :no_match}
@@ -508,7 +659,7 @@ defmodule Cure.Elab.ProofGoal do
   defp simplification_trace_id(%{id: id}), do: id
   defp simplification_trace_id(other), do: other
 
-  defp close_with_expression(statement, goal) do
+  defp close_with_expression(statement, goal, trace_kind \\ :exact, trace_meta \\ nil) do
     {surface_builders, transports} = Enum.split_with(goal.builders, &match?({:assignment, _, _}, &1))
     block = {:block, [], surface_builders ++ [statement]}
     original_names = Enum.drop(goal.names, length(surface_builders))
@@ -516,15 +667,80 @@ defmodule Cure.Elab.ProofGoal do
     case Elaborator.elaborate_expr_checked(block, goal.expected, original_names, goal.context, goal.env) do
       {:ok, evidence} ->
         evidence = Enum.reduce(Enum.reverse(transports), evidence, &apply_builder/2)
-
-        {:closed, evidence, goal.trace ++ [{:exact, surface_span(statement)}]}
+        {:closed, evidence, goal.trace ++ [{trace_kind, surface_span(trace_meta || statement)}]}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
+  # Backward reasoning: close the goal with `proof`, or report why it does not fit.
+  #
+  # `apply` is the backward-reasoning counterpart of writing the evidence term
+  # directly. The proof is elaborated and then checked against the goal's
+  # expected type, so a proof whose conclusion unifies with the goal closes it,
+  # and one that does not is rejected with the goal and the supplied proposition
+  # both surfaced. Nothing is trusted: the kernel re-checks the result.
+  defp apply_proof(proof_ast, meta, goal) do
+    case close_with_expression(proof_ast, goal, :apply, meta) do
+      {:closed, evidence, trace} ->
+        {:closed, evidence, trace}
+
+      {:error, _reason} ->
+        {:error,
+         {:proof_chain_mismatch,
+          %ProofChainMismatchProblem{
+            kind: :unfinished_justification,
+            step_index: 0,
+            justification: surface_span(meta),
+            residual_goal: goal.expected,
+            cause: {:apply_does_not_close, surface_span(proof_ast)}
+          }}}
+    end
+  end
+
   defp rewrite_hypothesis(proof_ast, meta, goal, name) do
+    with {:ok, goal} <- materialize_facts(goal) do
+      rewrite_checked_hypothesis(proof_ast, meta, goal, name)
+    end
+  end
+
+  # A hypothesis rewrite adds a real Core binder. Flush deferred surface facts
+  # first so all names below that binder have matching kernel-context entries.
+  defp materialize_facts(goal) do
+    facts = Enum.filter(goal.builders, &match?({:assignment, _, _}, &1))
+
+    case List.last(facts) do
+      nil ->
+        {:ok, goal}
+
+      {:assignment, _, [{:variable, _, name}, _]} ->
+        names = Enum.drop(goal.names, length(facts))
+        block = {:block, [], facts ++ [{:variable, [], name}]}
+
+        with {:ok, term, _type} <- Elaborator.elaborate_expr_typed(block, names, goal.context, goal.env) do
+          {context, replacements} = materialized_facts(facts, term, goal.context, [])
+
+          builders = Enum.reject(goal.builders, &match?({:assignment, _, _}, &1)) ++ replacements
+
+          {:ok, %{goal | context: context, expected: Subst.shift(goal.expected, length(facts), 0), builders: builders}}
+        end
+    end
+  end
+
+  defp materialized_facts([], _term, context, acc), do: {context, Enum.reverse(acc)}
+
+  defp materialized_facts(
+         [{:assignment, _, [{:variable, _, name}, _]} | rest],
+         {:let, grade, type, value, body},
+         context,
+         acc
+       ) do
+    next = Context.extend_def(context, Eval.eval(type, Context.env(context)), Eval.eval(value, Context.env(context)))
+    materialized_facts(rest, body, next, [{:named_fact, name, grade, type, value} | acc])
+  end
+
+  defp rewrite_checked_hypothesis(proof_ast, meta, goal, name) do
     with index when is_integer(index) <- Enum.find_index(goal.names, &(&1 == name)),
          hypothesis_value when not is_nil(hypothesis_value) <- Context.lookup(goal.context, index),
          hypothesis = Kernel.normalize(goal.context, Quote.reify(hypothesis_value, Context.length(goal.context))),
@@ -568,6 +784,7 @@ defmodule Cure.Elab.ProofGoal do
 
   defp apply_builder({:transport, build}, evidence), do: build.(evidence)
   defp apply_builder({:core_fact, type, value}, body), do: {:let, Grade.unrestricted(), type, value, body}
+  defp apply_builder({:named_fact, _name, grade, type, value}, body), do: {:let, grade, type, value, body}
 
   defp rewrite_goal(proof_ast, meta, goal, occurrence) do
     surface_builders = Enum.filter(goal.builders, &match?({:assignment, _, _}, &1))
@@ -577,7 +794,8 @@ defmodule Cure.Elab.ProofGoal do
 
     with {:ok, proof, proof_type} <-
            Elaborator.elaborate_expr_typed(proof_block, original_names, goal.context, goal.env),
-         {:ok, ty_value, a_value, b_value} <- Rewrite.eq_parts(proof_type, Context.signature(goal.context)),
+         {:ok, ty_value, a_value, b_value} <-
+           Rewrite.eq_parts(proof_type, Context.signature(goal.context)),
          ty = Kernel.normalize(goal.context, Quote.reify(ty_value, depth)),
          a = Kernel.normalize(goal.context, Quote.reify(a_value, depth)),
          b = Kernel.normalize(goal.context, Quote.reify(b_value, depth)),
@@ -634,6 +852,7 @@ defmodule Cure.Elab.ProofGoal do
   defp fact_names(builders) do
     Enum.flat_map(builders, fn
       {:assignment, _meta, [{:variable, _, name}, _rhs]} -> [name]
+      {:named_fact, name, _grade, _type, _value} -> [name]
       _ -> []
     end)
   end

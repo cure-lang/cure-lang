@@ -111,10 +111,15 @@ defmodule Cure.Diagnostic.Adapter.Proof do
 
     {title, message, label} =
       case problem.kind do
+        :solver_failed ->
+          {"Proof solver did not close the goal",
+           "The selected solver could not produce checked evidence for the required proposition.",
+           "this solver leaves the goal open"}
+
         :unfinished_justification ->
           {"Proof justification is unfinished",
-           "The justification for step #{displayed} ended while its equality goal was still open. Add a final evidence expression; the structured payload lists the residual goal and available local facts.",
-           "this block ends without proving its goal"}
+           "The justification for step #{displayed} ended while its equality goal was still open. " <>
+             "Add a final evidence expression." <> open_goal_state(problem), "this block ends without proving its goal"}
 
         :adjacent_endpoints ->
           {"Proof chain endpoints have different types",
@@ -190,7 +195,7 @@ defmodule Cure.Diagnostic.Adapter.Proof do
     {title, message, label} =
       case problem.kind do
         :inadmissible_rule ->
-          {"Simplification rule is not admissible", "This rule cannot be given a deterministic decreasing orientation.",
+          {"Simplification rule is not admissible", inadmissible_rule_message(problem.cause),
            "this rule cannot be admitted"}
 
         :proof_mismatch ->
@@ -315,6 +320,33 @@ defmodule Cure.Diagnostic.Adapter.Proof do
       payload: problem
     )
   end
+
+  defp inadmissible_rule_message({:simp_declaration, name, cause}) do
+    reason =
+      case cause do
+        :non_decreasing_orientation ->
+          "Its left side must have strictly more Core nodes than its right side; equal-size and expanding rules can loop."
+
+        :variable_duplication ->
+          "Its right side introduces or duplicates a quantified variable, so substitution can invalidate the decrease."
+
+        :not_equality ->
+          "Its conclusion must be an Equivalent equality."
+
+        :unsupported_binder ->
+          "Its endpoints must be first-order terms without binders, cases, or holes."
+
+        :unexpected_arguments ->
+          "Use @simp without arguments, or @lemma(:simp)."
+
+        _ ->
+          "It cannot be given a deterministic decreasing orientation."
+      end
+
+    "The simp declaration `#{name}` is not admissible. " <> reason
+  end
+
+  defp inadmissible_rule_message(_cause), do: "This rule cannot be given a deterministic decreasing orientation."
 
   defp primary(opts, message) do
     case Keyword.get(opts, :span) do
@@ -471,6 +503,37 @@ defmodule Cure.Diagnostic.Adapter.Proof do
 
   defp surface_type(type) when is_binary(type), do: type
   defp surface_type(type), do: print_core(type)
+
+  # The GOAL STATE of an unfinished justification: what still has to be proved,
+  # and which local facts are available to prove it.
+  #
+  # Before this existed, `E110` said only that the block ended open. The author
+  # had to re-derive the residual goal by hand from the chain's last endpoint.
+  # This renders the goal the elaborator actually holds, so the diagnostic states
+  # the obligation rather than merely reporting its absence.
+  #
+  # The goal goes through the same `print_core/1` path as every other proof
+  # diagnostic, so the surface syntax matches what the author wrote.
+  defp open_goal_state(%ProofChainMismatchProblem{} = problem) do
+    case problem.residual_goal do
+      nil ->
+        ""
+
+      goal ->
+        "\n\nRemaining goal:\n    " <> print_core(goal) <> open_goal_facts(problem.cause)
+    end
+  end
+
+  defp open_goal_facts({:open_goal, []}) do
+    "\n\nNo local facts are in scope; close the goal with evidence."
+  end
+
+  defp open_goal_facts({:open_goal, names}) when is_list(names) do
+    "\n\nLocal facts in scope:\n" <>
+      Enum.map_join(names, "\n", fn name -> "    " <> to_string(name) end)
+  end
+
+  defp open_goal_facts(_other), do: ""
 
   defp print_core(term) do
     term

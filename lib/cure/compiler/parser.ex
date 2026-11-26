@@ -87,7 +87,21 @@ defmodule Cure.Compiler.Parser do
     # `:indent` and closes it by dropping the matching `:dedent`.
     # Levels nest LIFO, and only the innermost is ever eligible to close, so an
     # operand containing a real block still hands that block its own `:dedent`.
-    continuation_levels: []
+    continuation_levels: [],
+    # True while parsing the statements of a `because` justification block.
+    #
+    # This is what disambiguates the proof commands from ordinary identifiers of
+    # the same spelling. `apply` in particular is BOTH a contextual proof
+    # command and a public stdlib function (`lib/std/core.cure:68`,
+    # `fn apply(f, x)`), so a lookahead test cannot separate them: `apply(f, x)`
+    # and `apply some_proof` are both "`apply` followed by an expression".
+    #
+    # Only inside a justification block is `apply`/`exact` a command; everywhere
+    # else the word is an ordinary identifier, which is the same discipline
+    # `docs/MACROS.md` §3 applies to `have`, `rewrite`, `simplify` and `proof`.
+    # The elaborator already consumes `proof_application` nodes ONLY from
+    # `ProofGoal.command/2`, so this makes the parser agree with the consumer.
+    proof_context: false
   ]
 
   # Keywords that can open a new top-level definition. Used by the
@@ -3546,6 +3560,31 @@ defmodule Cure.Compiler.Parser do
           "simplify" ->
             parse_simplify(state, token)
 
+          "by" ->
+            case peek_at(state, 1) do
+              %Token{type: :identifier, value: solver} when solver in ["search", "positivity", "decide"] ->
+                parse_solver(state, token, solver)
+
+              _ ->
+                {variable(token), advance(state)}
+            end
+
+          # `apply e` / `exact e` are contextual proof commands that claim their
+          # keyword ONLY inside a `because` justification block. Everywhere else
+          # the word is an ordinary identifier -- which matters because `apply`
+          # is also a public stdlib function (`lib/std/core.cure:68`). Lookahead
+          # alone cannot separate `apply(f, x)` from `apply some_proof`, so the
+          # parser state carries an explicit `proof_context` flag instead.
+          "apply" ->
+            if proof_application_ahead?(state),
+              do: parse_proof_application(state, token, :apply),
+              else: {variable(token), advance(state)}
+
+          "exact" ->
+            if proof_application_ahead?(state),
+              do: parse_proof_application(state, token, :exact),
+              else: {variable(token), advance(state)}
+
           "induction" ->
             if induction_block_ahead?(state), do: parse_induction(state, token), else: {variable(token), advance(state)}
 
@@ -3999,6 +4038,12 @@ defmodule Cure.Compiler.Parser do
 
     {target, state, last_span} =
       case peek(state) do
+        # `all` rewrites every occurrence. Deliberately OPT-IN: the default
+        # stays single-occurrence (an ambiguous match is `E111`), which is
+        # stricter than Lean's silent rewrite-all.
+        %Token{type: :identifier, value: "all"} = selector ->
+          {:all, advance(state), selector.span}
+
         %Token{type: :identifier, value: "at"} = selector ->
           state = advance(state)
 
@@ -4083,6 +4128,85 @@ defmodule Cure.Compiler.Parser do
   end
 
   # -- Equational proof chains ----------------------------------------------
+
+  # `apply`/`exact` are contextual proof commands that claim their keyword ONLY
+  # inside a `because` justification block.
+  #
+  # WHY A PARSER-STATE FLAG AND NOT LOOKAHEAD. `apply` is simultaneously a
+  # contextual proof command and a public stdlib function
+  # (`lib/std/core.cure:68`, `fn apply(f, x)`). No lookahead can separate them:
+  # `apply(f, x)` and `apply some_proof` are both "`apply` followed by an
+  # expression-starting token". The distinguishing fact is not the next token but
+  # the ENCLOSING CONTEXT, and that is exactly what `state.proof_context` records.
+  #
+  # This also makes the parser agree with its consumer: the elaborator reads
+  # `proof_application` nodes only from `ProofGoal.command/2`, i.e. only in
+  # command position.
+  #
+  # The allowlist below is kept as a SECONDARY check. Inside a justification block
+  # a statement may still be an ordinary expression (the block's goal can be closed
+  # by evidence rather than by a command), so `exact` followed by `)` or `in` must
+  # still fall back to an identifier. Two real stdlib regressions established that:
+  #
+  #   * `rewrite exact in body` — `exact` is the PROOF NAME, `in` the separator
+  #     (E094 `rewrite_in_missing`).
+  #   * `IsSingleCharacter(_, _, exact) -> match exact` — `exact` is a bound
+  #     PATTERN VARIABLE followed by `)` (E094 `closing_delimiter_has_no_opener`).
+  @proof_expression_start_types [
+    :identifier,
+    :atom,
+    :string,
+    :char,
+    :integer,
+    :float,
+    :lparen,
+    :lbracket,
+    :map_open,
+    :keyword
+  ]
+
+  defp proof_application_ahead?(%{proof_context: false}), do: false
+
+  defp proof_application_ahead?(state) do
+    case peek_at(state, 1) do
+      # A keyword may start an expression (`match`, `let`, `pickup`, `fn`, …)
+      # but `in` never does: it is the legacy-rewrite separator.
+      %Token{type: :keyword, value: :in} -> false
+      %Token{type: type} when type in @proof_expression_start_types -> true
+      _ -> false
+    end
+  end
+
+  defp parse_proof_application(state, token, kind) do
+    state = advance(state)
+    {proof, state} = parse_expr(state, 0)
+    meta = put_token_source_info([line: token.line, col: token.col], token)
+    {{:proof_application, Keyword.put(meta, :kind, kind), [proof]}, state}
+  end
+
+  defp parse_solver(state, token, solver) do
+    solver_token = peek_at(state, 1)
+    state = state |> advance() |> advance()
+    meta = put_token_source_info([solver: String.to_existing_atom(solver), line: token.line, col: token.col], token)
+
+    {arguments, state, last_span} =
+      case {solver, peek(state)} do
+        {"decide", %Token{type: :identifier, value: "using"}} ->
+          {decision, state} = parse_expr(advance(state), 0)
+          {[decision], state, ast_source_span(decision)}
+
+        _ ->
+          {[], state, solver_token.span}
+      end
+
+    meta =
+      case Range.through(token.span, last_span) do
+        {:ok, whole} -> Keyword.put(meta, :source_info, %SourceInfo{whole: whole, operator: token.span})
+        _ -> meta
+      end
+
+    {{:solver_command, meta, arguments}, state}
+  end
 
   defp parse_simplify(state, token) do
     state = advance(state)
@@ -4172,7 +4296,12 @@ defmodule Cure.Compiler.Parser do
             impossible_token = peek(state)
             {nil, impossible_token.span, true, advance(state)}
           else
+            # An `induction` case body is COMMAND position: `case Z => exact
+            # reflexive(Z())` uses the proof command, not the stdlib function.
+            previous = state.proof_context
+            state = %{state | proof_context: true}
             {body, state} = parse_expr_or_block(state)
+            state = %{state | proof_context: previous}
             {body, ast_source_span(body), false, state}
           end
 
@@ -4429,7 +4558,15 @@ defmodule Cure.Compiler.Parser do
     if multiline? and match?(%Token{type: :indent}, peek(state)) do
       indent_token = peek(state)
       state = advance(state)
+      # Statements inside this block are PROOF COMMANDS: `simplify`, `rewrite`,
+      # `induction`, `apply`/`exact`. Mark the context so the expression-prefix
+      # dispatcher can tell `apply some_proof` (a command) from `apply(f, x)`
+      # (the public stdlib function). Restored afterwards so the flag never
+      # leaks into an enclosing expression.
+      previous = state.proof_context
+      state = %{state | proof_context: true}
       {statements, state} = parse_block_body(state, indent_token.value)
+      state = %{state | proof_context: previous}
       state = expect_dedent(state)
 
       meta =
@@ -4438,7 +4575,16 @@ defmodule Cure.Compiler.Parser do
 
       {{:proof_justification, meta, statements}, state}
     else
-      parse_expr(state, 0)
+      # Inline justification: `because exact e`, `because apply h`, or a bare
+      # evidence expression. This is ALSO command position, so the
+      # `proof_context` flag must be set here too -- otherwise `exact`/`apply`
+      # stay ordinary identifiers and the proof expression leaks out of the
+      # chain as a separate block statement (the chain then ends early and the
+      # enclosing block reports `unsupported_block`).
+      previous = state.proof_context
+      state = %{state | proof_context: true}
+      {expression, state} = parse_expr(state, 0)
+      {expression, %{state | proof_context: previous}}
     end
   end
 

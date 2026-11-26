@@ -1324,6 +1324,15 @@ defmodule Cure.Compiler.Printer do
 
   defp to_string({:simplify_command, _meta, []}, _depth, _indent), do: "simplify"
 
+  defp to_string({:solver_command, meta, arguments}, depth, indent) do
+    head = "by #{Keyword.fetch!(meta, :solver)}"
+
+    case arguments do
+      [] -> head
+      [decision] -> head <> " using " <> render(decision, depth, indent)
+    end
+  end
+
   defp to_string({:simplify_command, _meta, [rules]}, depth, indent),
     do: "simplify using " <> render(rules, depth, indent)
 

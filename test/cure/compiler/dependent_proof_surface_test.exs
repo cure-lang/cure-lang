@@ -117,4 +117,135 @@ defmodule Cure.Compiler.DependentProofSurfaceTest do
     assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
     assert {:ok, _ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
   end
+
+  # `exact` and `apply` are CONTEXTUAL proof commands: they claim their keyword
+  # only when a proof expression actually follows. Two following tokens mean the
+  # word is a NAME, not the command, and both were regressions when the commands
+  # were introduced -- each broke a real stdlib module.
+
+  test "`exact` as a bound match variable does not claim the proof keyword" do
+    # `IsSingleCharacter(_, _, exact) -> match exact` binds `exact` and then
+    # matches on it. Claiming `exact` as a proof command consumed the `->` as
+    # the start of a proof expression and derailed the arm, breaking
+    # `lib/std_deps/regex/regex_language.cure` with E094
+    # `closing_delimiter_has_no_opener`.
+    src = """
+    mod ProofExactAsVariable
+      use Std.Equivalent
+
+      type SingleCharacter = MkSingleCharacter(Nat)
+
+      fn unwrap(value: SingleCharacter) -> Nat = match value
+        MkSingleCharacter(exact) -> match exact
+          reflexive() -> Z()
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, _ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+  end
+
+  test "`exact` as a proof name before legacy-rewrite `in` does not claim the keyword" do
+    # `rewrite exact in body` uses `exact` as the PROOF NAME and `in` as the
+    # separator. Claiming `exact` swallowed `in` as its argument and left the
+    # rewrite without a separator, breaking
+    # `lib/std_deps/regex/regex_proof.cure` with E094 `rewrite_in_missing`.
+    src = """
+    mod ProofExactBeforeIn
+      use Std.Equivalent
+      type Nat = Z | S(Nat)
+      fn plus(m: Nat, n: Nat) -> Nat = match m
+        Z() -> n
+        S(k) -> S(plus(k, n))
+      fn id_rewrite(n: Nat, exact: Equivalent(Nat, plus(n, Z), n)) -> Equivalent(Nat, plus(n, Z), n) =
+        rewrite exact in reflexive(n)
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, _ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+  end
+
+  test "`exact` with a real proof expression still claims the proof keyword" do
+    # The contextual guard must not disable the command itself.
+    src = """
+    mod ProofExactCommand
+      use Std.Equivalent
+      type Nat = Z | S(Nat)
+      fn plus(m: Nat, n: Nat) -> Nat = match m
+        Z() -> n
+        S(k) -> S(plus(k, n))
+      fn plus_zero_right(n: Nat) -> Equivalent(Nat, plus(n, Z), n) = induction n
+        case Z => exact reflexive(Z())
+        case S(k, ih) => proof chain
+          plus(S(k), Z()) == S(k)
+          because
+            simplify using [ih]
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, _ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+  end
+
+  # -- `apply` is BOTH a proof command and a public stdlib function -----------
+  #
+  # `lib/std/core.cure:68` defines `fn apply(f, x)`. No lookahead can separate
+  # `apply(f, x)` from `apply some_proof`, so the parser carries an explicit
+  # `proof_context` flag that is true only inside a `because` block. These tests
+  # pin both directions.
+
+  test "`apply` outside a justification block is the ordinary stdlib function" do
+    src = """
+    mod ProofApplyAsFunction
+      use Std.Core
+
+      fn twice(f: Int -> Int, x: Int) -> Int = apply(f, apply(f, x))
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+
+    # It must parse as a CALL, never as a `proof_application` command.
+    refute contains_tag?(ast, :proof_application),
+           "`apply(f, x)` outside a proof block must not become a proof command"
+  end
+
+  test "`apply` inside a justification block is the proof command" do
+    src = """
+    mod ProofApplyAsCommand
+      use Std.Equivalent
+      type Nat = Z | S(Nat)
+      fn plus(m: Nat, n: Nat) -> Nat = match m
+        Z() -> n
+        S(k) -> S(plus(k, n))
+      fn plus_zero_right(n: Nat) -> Equivalent(Nat, plus(n, Z), n) = induction n
+        case Z => reflexive(Z())
+        case S(k, ih) => proof chain
+          plus(S(k), Z()) == S(k)
+          because
+            apply ih
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+
+    assert contains_tag?(ast, :proof_application),
+           "`apply ih` inside a `because` block must become a proof command"
+  end
+
+  # Walk the MetaAST 3-tuple tree looking for a node tag.
+  defp contains_tag?({tag, _meta, _children}, tag), do: true
+
+  defp contains_tag?({_tag, _meta, children}, tag) when is_list(children),
+    do: Enum.any?(children, &contains_tag?(&1, tag))
+
+  defp contains_tag?({_tag, _meta, _leaf}, _wanted), do: false
+
+  defp contains_tag?(list, tag) when is_list(list),
+    do: Enum.any?(list, &contains_tag?(&1, tag))
+
+  defp contains_tag?(_other, _wanted), do: false
 end
