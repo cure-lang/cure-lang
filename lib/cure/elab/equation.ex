@@ -193,7 +193,7 @@ defmodule Cure.Elab.Equation do
         normal -> normal
       end
 
-    {proposition, reflexivity} = equality_terms(env, carrier, left, right)
+    {proposition, reflexivity} = equality_terms(env, theorem_ctx, carrier, left, right)
     theorem_type = wrap(:pi, theorem_telescope, proposition)
     theorem_body = wrap(:lam, theorem_telescope, reflexivity)
     constructor_path = Enum.map(equation.steps, & &1.constructor)
@@ -637,14 +637,28 @@ defmodule Cure.Elab.Equation do
     end)
   end
 
-  defp equality_terms(_env, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, left, right) do
+  defp equality_terms(_env, _ctx, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, left, right) do
     family = Name.qualify("Std.Equivalent", :TypeEquivalent)
     constructor = Name.qualify("Std.Equivalent", :type_reflexive)
     {{:data, family, [], [left, right]}, {:ctor, constructor, [right]}}
   end
 
-  defp equality_terms(_env, carrier, left, right),
-    do: {Rewrite.mk_eq(carrier, left, right), Rewrite.mk_refl(right)}
+  defp equality_terms(env, ctx, carrier, left, right) do
+    level =
+      case Kernel.infer(ctx, carrier) do
+        {:ok, {:vtype, _} = sort_val} ->
+          case Cure.Core.Normalise.nf(ctx, Quote.reify(sort_val, Context.length(ctx), env)) do
+            {:type, {:finite, %Cure.Core.UniverseLevel{} = lvl}} -> {:level_value, lvl}
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    prop = if level, do: Rewrite.mk_eq(level, carrier, left, right), else: Rewrite.mk_eq(carrier, left, right)
+    {prop, Rewrite.mk_refl(right)}
+  end
 
   defp surface_equations(_owner, _meta, nil), do: {%{}, []}
 

@@ -46,7 +46,7 @@ defmodule Cure.Elab.TotalityClosure do
           | {:error, {:totality_required, atom(), term()}}
           | {:error, {:totality_closure_unresolved, map()}}
   def certify_type_level_detailed(%Env{} = env) do
-    seeds = seed_globals(env)
+    seeds = certification_seeds(env)
 
     with {:ok, closure} <- checked_closure(env, MapSet.to_list(seeds)) do
       names = certifiable_names(env, closure)
@@ -319,7 +319,24 @@ defmodule Cure.Elab.TotalityClosure do
 
   # -- seeds: globals appearing in family/constructor type positions ----------
 
-  defp seed_globals(%Env{families: families, ctors: ctors, defs: defs}) do
+  defp seed_globals(%Env{} = env) do
+    MapSet.new(family_ctor_seeds(env) ++ signature_seeds(env))
+  end
+
+  # Certification only seeds signature globals that resolve to a definition in `env`:
+  # dangling type names in signatures (e.g. an undeclared `Widget` or `T`) are left for
+  # `validate_owned_definitions` to report as `:unknown_global`, while `type_level_fns/1`
+  # keeps the full structural reachability set.
+  defp certification_seeds(%Env{} = env) do
+    signature_defs =
+      env
+      |> signature_seeds()
+      |> Enum.reject(&is_nil(Env.get_def(env, &1)))
+
+    MapSet.new(family_ctor_seeds(env) ++ signature_defs)
+  end
+
+  defp family_ctor_seeds(%Env{families: families, ctors: ctors}) do
     from_families =
       families
       |> Map.values()
@@ -336,8 +353,11 @@ defmodule Cure.Elab.TotalityClosure do
           Enum.flat_map(constructor.result_indices, &collect/1)
       end)
 
-    from_signatures = Enum.flat_map(defs, fn {_name, definition} -> collect(definition.type) end)
-    MapSet.new(from_families ++ from_ctors ++ from_signatures)
+    from_families ++ from_ctors
+  end
+
+  defp signature_seeds(%Env{defs: defs}) do
+    Enum.flat_map(defs, fn {_name, definition} -> collect(definition.type) end)
   end
 
   defp tele_globals(tele), do: Enum.flat_map(tele, fn {_name, ty} -> collect(ty) end)

@@ -235,7 +235,8 @@ defmodule Cure.Elab.DefiningEquationTest do
     """)
 
     assert {:ok, interface} = Program.module_interface("EquationProvider", module_path)
-    assert [%{pattern_key: "flip/Off"}, %{pattern_key: "flip/On"}] = Env.equations(interface.export_env, :flip)
+    assert {:ok, export_env} = Cure.Compiler.ModulePipeline.Interface.to_env(interface)
+    assert [%{pattern_key: "flip/Off"}, %{pattern_key: "flip/On"}] = Env.equations(export_env, :flip)
 
     assert {:ok, consumer} =
              Program.elaborate("""
@@ -264,8 +265,11 @@ defmodule Cure.Elab.DefiningEquationTest do
     Program.invalidate_module_interface(module_path)
     assert {:ok, second} = Program.module_interface("EquationHashProvider", module_path)
 
-    assert Cure.Compiler.ModuleInterface.semantic_hash(first.export_env) ==
-             Cure.Compiler.ModuleInterface.semantic_hash(second.export_env)
+    assert {:ok, first_env} = Cure.Compiler.ModulePipeline.Interface.to_env(first)
+    assert {:ok, second_env} = Cure.Compiler.ModulePipeline.Interface.to_env(second)
+
+    assert Cure.Compiler.ModuleInterface.semantic_hash(first_env) ==
+             Cure.Compiler.ModuleInterface.semantic_hash(second_env)
   end
 
   test "polymorphic constructor fields and dependent result carriers remain kernel checked" do

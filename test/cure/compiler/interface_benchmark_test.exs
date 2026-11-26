@@ -71,10 +71,13 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
              stage.module == expected_module and stage.declaration == "answer" and stage.elapsed_us >= 0
            end)
 
-    # Component certification consumes the checked body's trusted direct-call
-    # summary. It must not re-enter the legacy per-definition `check_def/2`
-    # timing path and repeat type/body validation.
-    assert report.cold.kernel_certificate_stages == []
+    # Final owned-definition validation checks each completed module definition
+    # through the kernel once on cold compilation.
+    assert Enum.map(report.cold.kernel_certificate_stages, & &1.stage) == [
+             :type_sort,
+             :body_check,
+             :final_core_validation
+           ]
 
     assert length(report.warm) == 2
 

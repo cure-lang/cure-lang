@@ -76,7 +76,7 @@ defmodule Cure.Elab.TacticMacroAuditTest do
              """)
 
     assert problem.kind == :unfinished_justification
-    assert {:data, _, [_], [endpoint, endpoint]} = problem.residual_goal
+    assert {:data, _, [{:level_value, _}, _], [endpoint, endpoint]} = problem.residual_goal
   end
 
   test "statements after a script closes are rejected instead of silently skipped" do

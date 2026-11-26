@@ -86,6 +86,7 @@ defmodule Cure.Elab.GlobalNamespaceSoundnessTest do
       # must δ-reduce it.
       File.write!(Path.join(tmp, "colla.cure"), """
       mod Std.CollA
+        @reducible
         fn helper(x: Nat) -> Nat = Z()
         fn lonely_helper(x: Nat) -> Nat = Z()
         type Dec = DDec | DCau
@@ -99,6 +100,7 @@ defmodule Cure.Elab.GlobalNamespaceSoundnessTest do
 
       File.write!(Path.join(tmp, "collb.cure"), """
       mod Std.CollB
+        @reducible
         fn helper(x: Nat) -> Nat = S(Z())
         fn dmeet(a: Nat, b: Nat) -> Nat = a
       end

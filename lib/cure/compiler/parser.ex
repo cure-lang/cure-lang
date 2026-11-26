@@ -10774,7 +10774,7 @@ defmodule Cure.Compiler.Parser do
 
       true ->
         type_params = Enum.map(head_params, fn {:param, _meta, n} -> n end)
-        parse_type_def_adt(state, name, type_params, token, name_token, type_parameter_span)
+        parse_type_def_adt(state, name, type_params, head_params, token, name_token, type_parameter_span)
     end
   end
 
@@ -10873,7 +10873,8 @@ defmodule Cure.Compiler.Parser do
   end
 
   # Ordinary ADT / alias body: `type NAME(type_params) = …`.
-  defp parse_type_def_adt(state, name, type_params, token, name_token, type_parameter_span) do
+  defp parse_type_def_adt(state, name, type_params, head_params, token, name_token, type_parameter_span) do
+    has_typed_params? = Enum.any?(head_params, fn {:param, pm, _} -> Keyword.has_key?(pm, :type) end)
     state = skip_newlines(state)
 
     {pre_assign_block, state} =
@@ -10979,6 +10980,7 @@ defmodule Cure.Compiler.Parser do
             if leading_bar_token && no_more_variants?(state) do
               meta = [container_type: :enum, name: name, line: token.line, col: token.col]
               meta = if type_params != [], do: Keyword.put(meta, :type_params, type_params), else: meta
+              meta = if has_typed_params?, do: Keyword.put(meta, :params, head_params), else: meta
               {{:container, meta, []}, state}
             else
               # Parse as ADT variants (A(T) | B | C) or type alias
@@ -10992,6 +10994,7 @@ defmodule Cure.Compiler.Parser do
                   variants = [first_variant | rest_variants]
                   meta = [container_type: :enum, name: name, line: token.line, col: token.col]
                   meta = if type_params != [], do: Keyword.put(meta, :type_params, type_params), else: meta
+                  meta = if has_typed_params?, do: Keyword.put(meta, :params, head_params), else: meta
                   {{:container, meta, variants}, state}
 
                 _ ->
@@ -11002,11 +11005,13 @@ defmodule Cure.Compiler.Parser do
                     # plain type expression and stays a `:type_annotation`.)
                     meta = [container_type: :enum, name: name, line: token.line, col: token.col]
                     meta = if type_params != [], do: Keyword.put(meta, :type_params, type_params), else: meta
+                    meta = if has_typed_params?, do: Keyword.put(meta, :params, head_params), else: meta
                     {{:container, meta, [first_variant]}, state}
                   else
                     # Type alias: type Name = ExistingType
                     meta = [name: name, line: token.line, col: token.col]
                     meta = if type_params != [], do: Keyword.put(meta, :type_params, type_params), else: meta
+                    meta = if has_typed_params?, do: Keyword.put(meta, :params, head_params), else: meta
                     {{:type_annotation, meta, [first_variant]}, state}
                   end
               end

@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-#### Universe Polymorphism (Phase 5, U0–U7)
+#### Universe Polymorphism
 
 - **Canonical universe level algebra (`Cure.Core.UniverseLevel`, `Cure.Core.LevelValue`, `Cure.Core.Sort`, `Cure.Core.UniverseCodec`)**:
   - Implemented Agda-style maximum-plus normal form (`%UniverseLevel{constant, atoms}`) with deduplicated, canonically ordered `{atom_term, offset}` entries and constant subsumption.
@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Antigen universe-polymorphism hardening (`lib/antigen/generators/universes.ex`, `lib/antigen/shrink.ex`, `lib/antigen/corpus/{migration,legacy_import}.ex`)**:
   - Added polymorphic and adversarial universe generators, canonical maximum-plus shrinking, and §19.6 weak-kernel sensitivity antibodies.
 
-#### Interactive Proofs, Tactics & Checked Solvers (Lean 4 Parity Phases 1–4)
+#### Interactive Proofs, Tactics & Checked Solvers
 
 - **Goal-state introspection across CLI, REPL, LSP, and VS Code (`Cure.Elab.ProofState`, `Cure.Elab.SourceContext`, `Cure.Elab.ProofDisplay`)**:
   - `E110` proof-failure diagnostics now render the remaining goal target and authored local hypotheses.

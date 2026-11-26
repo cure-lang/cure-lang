@@ -181,7 +181,15 @@ defmodule Cure.Audit.UnresolvedTest do
     end
     """
 
-    report = Ledger.audit_source(src, "Test.Dangling")
+    source_report = Ledger.audit_source(src, "Test.Dangling")
+    assert [{"Test.Dangling", {:unknown_global, :Widget, _}}] = source_report.unaudited
+
+    env =
+      Cure.Core.Env.empty()
+      |> Map.put(:module_owner, "Test.Dangling")
+      |> Cure.Core.Env.add_def(:"Test.Dangling#me", {:global, :Widget}, {:extern, {:erlang, :self, 0}}, [])
+
+    report = Ledger.audit_env(env)
     assert report.unresolved == [:Widget]
     assert [axiom] = report.axioms
     assert axiom.mfa == {:erlang, :self, 0}

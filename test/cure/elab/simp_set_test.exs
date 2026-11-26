@@ -138,7 +138,8 @@ defmodule Cure.Elab.SimpSetTest do
 
     try do
       assert {:ok, interface} = Program.module_interface("SimpProvider", path)
-      assert Enum.any?(interface.export_env.lemmas |> Map.values() |> List.flatten(), &Map.get(&1, :simp, false))
+      assert {:ok, export_env} = Cure.Compiler.ModulePipeline.Interface.to_env(interface)
+      assert Enum.any?(export_env.lemmas |> Map.values() |> List.flatten(), &Map.get(&1, :simp, false))
 
       assert {:ok, env} =
                Program.elaborate("""

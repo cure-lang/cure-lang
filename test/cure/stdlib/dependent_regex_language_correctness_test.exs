@@ -757,23 +757,24 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
 
   """
 
-  test "predicate denotation is sound for certified execution" do
-    assert {:ok, env} = Program.elaborate(@source)
+  setup_all do
+    {:ok, env} = Program.elaborate(@source)
+    {:ok, env: env}
+  end
+
+  test "predicate denotation is sound for certified execution", %{env: env} do
     assert Env.total?(env, :predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_acceptance_is_sound")
   end
 
-  test "predicate denotation constructively produces certified execution" do
-    assert {:ok, env} = Program.elaborate(@source)
+  test "predicate denotation constructively produces certified execution", %{env: env} do
     assert Env.total?(env, :predicate_completeness)
     assert Env.total?(env, :predicate_pattern_completeness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_denotation_is_complete")
     assert Env.total?(env, :"Std.Regex.Language#predicate_pattern_denotation_is_complete")
   end
 
-  test "empty and boundary denotations are sound and constructively complete" do
-    assert {:ok, env} = Program.elaborate(@source)
-
+  test "empty and boundary denotations are sound and constructively complete", %{env: env} do
     for name <- [
           :empty_soundness,
           :empty_completeness,
@@ -796,8 +797,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     end
   end
 
-  test "recursive denotation preserves grouped child membership" do
-    assert {:ok, env} = Program.elaborate(@source)
+  test "recursive denotation preserves grouped child membership", %{env: env} do
     assert Env.total?(env, :grouped_predicate_denotation)
     assert Env.total?(env, :grouped_predicate_completeness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_denotation_is_complete")
