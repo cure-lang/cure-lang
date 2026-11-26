@@ -100,9 +100,14 @@ defmodule Cure.Elab.ApplicationSessionTest do
   test "parent solutions are absent while independent child identities remain open" do
     env = Env.empty()
     ctx = Context.empty(env)
-    type = {:pi, :unrestricted, {:type, 0}, {:pi, :unrestricted, {:type, 0}, {:type, 0}}}
+
+    type =
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}
+
     ctx = Context.extend(ctx, Eval.eval(type, []))
-    goal = ProofGoal.new({:type, 0}, ["f"], ctx, env)
+    goal = ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, ["f"], ctx, env)
 
     assert {:ok, %Result{goals: [a, b], pending: pending, solutions: %{}} = result} =
              Tactic.command({:proof_application, [kind: :apply], [{:variable, [], "f"}]}).(goal)
@@ -111,17 +116,25 @@ defmodule Cure.Elab.ApplicationSessionTest do
     refute a.id == goal.id
     assert Map.has_key?(pending, goal.id)
     refute Tactic.closed?({:ok, result})
-    assert a.root_expected == {:type, 0}
-    assert b.root_expected == {:type, 0}
+    assert a.root_expected == {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+    assert b.root_expected == {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
   end
 
   test "host focus preserves earlier siblings while nested application settles" do
     env = Env.empty()
-    type = {:pi, :unrestricted, {:type, 0}, {:pi, :unrestricted, {:type, 0}, {:type, 0}}}
-    ctx = Context.empty(env) |> Context.extend({:vtype, 0})
+
+    type =
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}
+
+    ctx = Context.empty(env) |> Context.extend({:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     ctx = Context.extend(ctx, Eval.eval(type, Context.env(ctx)))
     ctx = Context.extend(ctx, Eval.eval(type, Context.env(ctx)))
-    goal = ProofGoal.new({:type, 0}, ["g", "f", "X"], ctx, env)
+
+    goal =
+      ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, ["g", "f", "X"], ctx, env)
+
     apply_head = fn name -> Tactic.command({:proof_application, [kind: :apply], [{:variable, [], name}]}) end
     exact_x = Tactic.command({:proof_application, [kind: :exact], [{:variable, [], "X"}]})
     assert {:ok, %Result{goals: [first, _second]} = result} = apply_head.("f").(goal)
@@ -130,7 +143,7 @@ defmodule Cure.Elab.ApplicationSessionTest do
     assert {:ok, %Result{goals: [], pending: pending, solutions: solutions}} = Tactic.run_all(exact_x, result)
     assert pending == %{}
     assert %{evidence: evidence} = Map.fetch!(solutions, goal.id)
-    assert :ok = Kernel.check(ctx, evidence, {:vtype, 0})
+    assert :ok = Kernel.check(ctx, evidence, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
   end
 
   test "constructor fields use the constructor telescope and result" do
@@ -232,17 +245,21 @@ defmodule Cure.Elab.ApplicationSessionTest do
           {:hole, "fake"},
           {:meta, 0},
           {:app, {:global, :discard}, {:hole, "erased"}},
-          {:lam, :erased, {:type, 0}, {:meta, 0}},
+          {:lam, :erased, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:meta, 0}},
           {:var, -1},
-          {:app, :not_a_term, {:type, 0}}
+          {:app, :not_a_term, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
         ] do
       assert {:error, :internal_application_hole} = Apply.concrete(evidence)
     end
 
     env = Env.empty()
-    type = {:pi, :unrestricted, {:type, 0}, {:type, 0}}
+
+    type =
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
     ctx = Context.extend(Context.empty(env), Eval.eval(type, []))
-    goal = ProofGoal.new({:type, 0}, ["f"], ctx, env)
+    goal = ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, ["f"], ctx, env)
 
     assert {:ok, %Result{goals: [child], pending: pending}} =
              Tactic.command({:proof_application, [kind: :apply], [{:variable, [], "f"}]}).(goal)
@@ -296,11 +313,18 @@ defmodule Cure.Elab.ApplicationSessionTest do
 
   defp traced_application do
     env = Env.empty()
-    type = {:pi, :unrestricted, {:type, 0}, {:pi, :unrestricted, {:type, 0}, {:type, 0}}}
-    ctx = Context.empty(env) |> Context.extend({:vtype, 0})
+
+    type =
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}
+
+    ctx = Context.empty(env) |> Context.extend({:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     ctx = Context.extend(ctx, Eval.eval(type, Context.env(ctx)))
     ctx = Context.extend(ctx, Eval.eval(type, Context.env(ctx)))
-    goal = ProofGoal.new({:type, 0}, ["g", "f", "X"], ctx, env)
+
+    goal =
+      ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, ["g", "f", "X"], ctx, env)
 
     command = fn kind, name, line ->
       span = %Cure.Diagnostic.Span{
@@ -337,7 +361,8 @@ defmodule Cure.Elab.ApplicationSessionTest do
     assert [{:apply, 1}, {:apply, 2}, {:exact, 3}, {:exact, 4}, {:exact, 5}] =
              Enum.map(trace, fn {kind, span} -> {kind, span.start_line} end)
 
-    assert :ok = Kernel.check(goal.context, evidence, {:vtype, 0})
+    assert :ok =
+             Kernel.check(goal.context, evidence, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
   end
 
   test "out-of-order host focus records actual premise completion order" do

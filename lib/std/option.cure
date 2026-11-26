@@ -39,7 +39,9 @@ mod Std.Option
   ## erases to `{:some, v}` and the nullary `None()` to the bare atom `:none`
   ## on the BEAM.
   @prelude
-  type Option(t) = Some(t) | None()
+  type Option(l: UniverseLevel, t: Type(l)) indices ()
+    Some : t -> Option(l, t)
+    None : Option(l, t)
 
   ## `true` when the option holds a value.
   fn is_some(opt: Option(t)) -> Bool =

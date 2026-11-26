@@ -155,6 +155,27 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
           ModuleInterface.t()
   def from_checked_env(%Env{} = env, entry, package, dependency_hashes \\ %{}) do
     owner = entry.module_name
+    payload = canonical_payload(env, owner)
+
+    ModuleInterface.new(%{
+      module_name: owner,
+      source_path: entry.source_path,
+      source_hash: entry.source_hash,
+      dependency_interface_hashes: dependency_hashes,
+      dependency_names: entry.dependencies |> Enum.map(&elem(&1.target, 1)) |> Enum.uniq() |> Enum.sort(),
+      direct_edges: Enum.map(entry.dependencies, &interface_edge/1),
+      canonical_declarations: payload.canonical_declarations,
+      canonical_externs: payload.canonical_externs,
+      extension_payloads: Map.put(payload.extension_payloads, :canonical_identity, {package, owner}),
+      source_metadata: %{package: package, prelude_provider?: entry.prelude_provider?},
+      owned_env: nil,
+      export_env: nil
+    })
+  end
+
+  @doc false
+  @spec canonical_payload(Env.t(), String.t()) :: map()
+  def canonical_payload(%Env{} = env, owner) do
     partition = Program.canonical_owned_partition(env, owner)
 
     owned_def_keys = partition.declarations.defs |> Map.keys() |> MapSet.new()
@@ -177,20 +198,11 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
         MapSet.intersection(env.certified || MapSet.new(), owned_def_keys)
       )
 
-    ModuleInterface.new(%{
-      module_name: owner,
-      source_path: entry.source_path,
-      source_hash: entry.source_hash,
-      dependency_interface_hashes: dependency_hashes,
-      dependency_names: entry.dependencies |> Enum.map(&elem(&1.target, 1)) |> Enum.uniq() |> Enum.sort(),
-      direct_edges: Enum.map(entry.dependencies, &interface_edge/1),
+    %{
       canonical_declarations: declarations,
       canonical_externs: partition.externs,
-      extension_payloads: Map.put(partition.extensions, :canonical_identity, {package, owner}),
-      source_metadata: %{package: package, prelude_provider?: entry.prelude_provider?},
-      owned_env: nil,
-      export_env: nil
-    })
+      extension_payloads: partition.extensions
+    }
   end
 
   @spec to_env(ModuleInterface.t()) :: {:ok, Env.t()} | {:error, term()}
@@ -338,6 +350,9 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
 
     if MapSet.equal?(next, keys), do: keys, else: close_transparency(defs, next)
   end
+
+  defp mentioned_globals({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.flat_map(Cure.Core.Term.level_atoms(term), &mentioned_globals/1)
 
   defp mentioned_globals({:global, key}) when is_atom(key), do: [key]
   defp mentioned_globals(term) when is_tuple(term), do: term |> Tuple.to_list() |> mentioned_globals()

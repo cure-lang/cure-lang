@@ -25,8 +25,18 @@ defmodule Cure.Core.Printer do
   def print(term), do: print(term, [])
 
   @spec print(Cure.Core.Term.t(), [String.t()]) :: String.t()
-  def print({:type, 0}, _names), do: "Type"
-  def print({:type, level}, _names), do: "Type#{level}"
+  def print({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, _names), do: "Type"
+
+  def print({:type, {:finite, %Cure.Core.UniverseLevel{atoms: []} = level}}, _names),
+    do: "Type" <> Cure.Core.UniverseLevel.to_string(level)
+
+  def print({:type, {:finite, level}}, names),
+    do: "Type(" <> Cure.Core.UniverseLevel.to_string(level, names) <> ")"
+
+  def print({:type, {:omega, 0}}, _names), do: "TypeLimit"
+  def print({:type, {:omega, n}}, _names), do: "TypeLimit#{n}"
+  def print({:level_type}, _names), do: "UniverseLevel"
+  def print({:level_value, level}, names), do: Cure.Core.UniverseLevel.to_string(level, names)
   def print({:var, k}, names), do: Enum.at(names, k) || "?#{k}"
   # NOTE(int-facade): kept so printing stays total on a legacy/deserialized
   # `{:int_type}` node, even though fresh elaboration never produces one
@@ -81,7 +91,7 @@ defmodule Cure.Core.Printer do
   end
 
   def print({:data, name, params, indices}, names),
-    do: applied(Name.base(name), params ++ indices, names)
+    do: applied(Name.base(name), display_data_params(params, indices) ++ indices, names)
 
   def print({:ctor, name, args}, names),
     do: applied(Name.base(name), args, names)
@@ -114,6 +124,21 @@ defmodule Cure.Core.Printer do
 
   defp applied(head, [], _names), do: head
   defp applied(head, args, names), do: "#{head}(#{Enum.map_join(args, ", ", &print(&1, names))})"
+
+  # Omit leading default `universe_zero` level parameters when printing a
+  # universe-polymorphic family (e.g. `Equivalent(Int, x, y)`, `List(Int)`) so
+  # user-facing displays match surface syntax. Non-zero, mixed, or variable
+  # level arguments stay explicit, as do level-only families with no other args.
+  defp display_data_params(params, indices) do
+    {levels, rest} = Enum.split_while(params, &match?({:level_value, _}, &1))
+
+    if levels != [] and (rest != [] or indices != []) and
+         Enum.all?(levels, &match?({:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}, &1)) do
+      rest
+    else
+      params
+    end
+  end
 
   defp unspine({:app, f, a}, acc), do: unspine(f, [a | acc])
   defp unspine(head, acc), do: {head, acc}
@@ -150,6 +175,10 @@ defmodule Cure.Core.Printer do
   defp uses_var0?(term), do: uses_var?(term, 0)
 
   defp uses_var?({:var, k}, depth), do: k == depth
+
+  defp uses_var?({:type, sort}, depth), do: depth in Cure.Core.Sort.free_vars(sort)
+  defp uses_var?({:level_value, level}, depth), do: depth in Cure.Core.UniverseLevel.free_vars(level)
+
   defp uses_var?({:pi, _g, d, c}, depth), do: uses_var?(d, depth) or uses_var?(c, depth + 1)
   defp uses_var?({:lam, _g, d, b}, depth), do: uses_var?(d, depth) or uses_var?(b, depth + 1)
 

@@ -19,7 +19,8 @@ defmodule Antigen.SigmaRetirementTest do
   @nat {:data, :"Std.Nat#Nat", [], []}
   @z {:ctor, :"Std.Nat#Z", []}
   @sz {:ctor, :"Std.Nat#S", [@z]}
-  @sigma {:data, :"Std.Sigma#Sigma", [@nat, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}], []}
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+  @sigma {:data, :"Std.Sigma#Sigma", [@l0, @l0, @nat, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}], []}
 
   defp seeded_ctx, do: Context.empty(Builtins.seed(Env.empty()))
 
@@ -68,7 +69,8 @@ defmodule Antigen.SigmaRetirementTest do
 
   test "(c) the validator rejects every primitive Sigma node at no_sigma_node" do
     for node <- [
-          {:sigma, {:type, 0}, {:type, 0}},
+          {:sigma, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
           {:pair, @z, @sz},
           {:fst, {:var, 0}},
           {:snd, {:var, 0}}

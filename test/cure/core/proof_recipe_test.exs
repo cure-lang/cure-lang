@@ -1,4 +1,7 @@
 defmodule Cure.Core.ProofRecipeTest do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u2 {:finite, Cure.Core.UniverseLevel.closed(2)}
+  @u3 {:finite, Cure.Core.UniverseLevel.closed(3)}
   @moduledoc """
   Data-production regressions, not kernel-acceptance or extraction theorems.
   Agda separately checks the generated complete certificate's literal bytes.
@@ -50,9 +53,9 @@ defmodule Cure.Core.ProofRecipeTest do
       {{:r_data, [:r_leaf], []}, [5, [@leaf], []]},
       {{:r_ctor, [{:atom_type}], [:r_leaf], [:r_leaf]}, [6, [@term], [@leaf], [@leaf]]},
       {{:r_claim, {:atom_type}, :r_leaf}, [7, @term, @leaf]},
-      {{:r_cumul, 2, :r_leaf}, [8, 2, @leaf]},
+      {{:r_cumul, @u2, :r_leaf}, [8, 2, @leaf]},
       {{:r_convert, {:atom_type}, :c_refl, :r_leaf}, [9, @term, @leaf, @leaf]},
-      {{:r_case, :r_leaf, [], [:r_leaf], 0, :r_leaf, :r_leaf, [{[:r_leaf], :r_leaf}]},
+      {{:r_case, :r_leaf, [], [:r_leaf], @u0, :r_leaf, :r_leaf, [{[:r_leaf], :r_leaf}]},
        [10, @leaf, [], [@leaf], 0, @leaf, @leaf, [[[@leaf], @leaf]]]}
     ]
 
@@ -79,8 +82,16 @@ defmodule Cure.Core.ProofRecipeTest do
     assert ctor == wire([12, [@leaf], [], [], [@leaf]])
     assert {:ok, fam} = ProofRecipe.encode_family(family, [])
     assert fam == wire([13, [], [@leaf], [[12, [@leaf], [], [], [@leaf]]]])
-    assert {:ok, complete} = ProofRecipe.encode_certificate({:certificate, [family], [packet]}, [])
-    assert complete == wire([14, [[13, [], [@leaf], [[12, [@leaf], [], [], [@leaf]]]]], [[11, @leaf, [@leaf]]]])
+
+    assert {:ok, complete} =
+             ProofRecipe.encode_certificate({:certificate, [family], [packet]}, [])
+
+    assert complete ==
+             wire([
+               14,
+               [[13, [], [@leaf], [[12, [@leaf], [], [], [@leaf]]]]],
+               [[11, @leaf, [@leaf]]]
+             ])
   end
 
   test "all entry points validate the whole table before producing data" do
@@ -106,11 +117,12 @@ defmodule Cure.Core.ProofRecipeTest do
           {:r_lam, :r_leaf, :r_leaf, :surplus},
           {:r_claim, {:atom_type}},
           {:r_convert, {:atom_type}, :r_leaf, :r_leaf},
-          {:r_case, :r_leaf, [], [], 0, :r_leaf, :r_leaf},
+          {:r_case, :r_leaf, [], [], @u0, :r_leaf, :r_leaf},
           {:node, 0, 0, 0, []},
           fn -> :r_leaf end
         ] do
-      assert {:error, {:malformed_recipe, _kind, _value}} = ProofRecipe.encode_recipe(recipe, @table)
+      assert {:error, {:malformed_recipe, _kind, _value}} =
+               ProofRecipe.encode_recipe(recipe, @table)
     end
 
     assert {:error, {:malformed_recipe, :conversion, :r_leaf}} =
@@ -123,17 +135,21 @@ defmodule Cure.Core.ProofRecipeTest do
                ProofRecipe.encode_recipe({:r_cumul, level, :r_leaf}, @table)
 
       assert {:error, {:malformed_recipe, :level, ^level}} =
-               ProofRecipe.encode_recipe({:r_case, :r_leaf, [], [], level, :r_leaf, :r_leaf, []}, @table)
+               ProofRecipe.encode_recipe(
+                 {:r_case, :r_leaf, [], [], level, :r_leaf, :r_leaf, []},
+                 @table
+               )
     end
 
     for recipe <- [
           {:r_data, [:r_leaf | :improper], []},
           {:r_ctor, [{:atom_type} | :improper], [], []},
-          {:r_case, :r_leaf, [], [], 0, :r_leaf, :r_leaf, [{[], :r_leaf} | :improper]},
-          {:r_case, :r_leaf, [], [], 0, :r_leaf, :r_leaf, [{[:r_leaf | :improper], :r_leaf}]},
-          {:r_case, :r_leaf, [], [], 0, :r_leaf, :r_leaf, [{[], :r_leaf, :surplus}]}
+          {:r_case, :r_leaf, [], [], @u0, :r_leaf, :r_leaf, [{[], :r_leaf} | :improper]},
+          {:r_case, :r_leaf, [], [], @u0, :r_leaf, :r_leaf, [{[:r_leaf | :improper], :r_leaf}]},
+          {:r_case, :r_leaf, [], [], @u0, :r_leaf, :r_leaf, [{[], :r_leaf, :surplus}]}
         ] do
-      assert {:error, {:malformed_recipe, _kind, _value}} = ProofRecipe.encode_recipe(recipe, @table)
+      assert {:error, {:malformed_recipe, _kind, _value}} =
+               ProofRecipe.encode_recipe(recipe, @table)
     end
   end
 
@@ -153,13 +169,14 @@ defmodule Cure.Core.ProofRecipeTest do
     assert {:error, {:unsupported_term, {:float_lit, 0.5}}} =
              ProofRecipe.encode_recipe({:r_claim, {:float_lit, 0.5}, :r_leaf}, @table)
 
-    assert {:error, {:malformed_term, {:type, 3}}} =
-             ProofRecipe.encode_conversion({:c_trans, {:type, 3}, :c_refl, :c_refl}, @table)
+    assert {:error, {:unsupported_term, {:type, @u3}}} =
+             ProofRecipe.encode_conversion({:c_trans, {:type, @u3}, :c_refl, :c_refl}, @table)
 
     assert {:error, {:unknown_name, "missing"}} =
              ProofRecipe.encode_recipe({:r_claim, {:global, :missing}, :r_leaf}, @table)
 
-    assert {:error, {:unknown_name, :missing}} = ProofRecipe.encode_conversion({:c_delta, :missing}, @table)
+    assert {:error, {:unknown_name, :missing}} =
+             ProofRecipe.encode_conversion({:c_delta, :missing}, @table)
 
     assert {:error, {:malformed_recipe, :conversion, _value}} =
              ProofRecipe.encode_conversion({:c_delta, <<255>>}, @table)
@@ -171,7 +188,9 @@ defmodule Cure.Core.ProofRecipeTest do
   test "the complete literal Agda artifact is byte-for-byte reproducible" do
     assert {:ok, generated} = ProofRecipeFixture.to_agda()
     assert generated == File.read!(@artifact)
-    assert {:certificate, [_family], [_answer, _held, _packed, _unpack]} = ProofRecipeFixture.certificate()
+
+    assert {:certificate, [_family], [_answer, _held, _packed, _unpack]} =
+             ProofRecipeFixture.certificate()
   end
 
   defp wire(number) when is_integer(number), do: String.duplicate("1", number) <> ";"

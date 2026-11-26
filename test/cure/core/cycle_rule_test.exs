@@ -49,14 +49,14 @@ defmodule Cure.Core.CycleRuleTest do
 
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Dcoupled, [], []),
         Inductive.ctor(:Causal, [], [])
       ])
-      |> Inductive.declare(Inductive.family(:Wr, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Wr, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:MkWr, [{:d, dec}], [])
       ])
-      |> Inductive.declare(Inductive.family(:IW, [], [{:w, wr}], 0), [
+      |> Inductive.declare(Inductive.family(:IW, [], [{:w, wr}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:iw, [{:p, dec}], [{:ctor, :MkWr, [{:var, 1}]}])
       ])
 
@@ -75,12 +75,12 @@ defmodule Cure.Core.CycleRuleTest do
 
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Wr, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Wr, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:MkWr, [], [])
       ])
       # result index {:app, {:var,1}, [{:var,1}]} : the outer var applied to itself,
       # a neutral spine — NOT a ctor/data spine.
-      |> Inductive.declare(Inductive.family(:IA, [], [{:w, wr}], 0), [
+      |> Inductive.declare(Inductive.family(:IA, [], [{:w, wr}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:ia, [], [{:app, {:var, 1}, [{:var, 1}]}])
       ])
 

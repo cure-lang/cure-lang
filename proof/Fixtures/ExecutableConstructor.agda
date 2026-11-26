@@ -112,7 +112,11 @@ case-field-quoted = (read-term (toList "(1111111;111;;(111111111111111111;;;)(11
 compact-program : Term
 compact-program = (read-term (toList "(1111111;1111111111111;;(111111111111111111;;;))") refl)
 compact-actual-quoted : Term
-compact-actual-quoted = (read-term (toList "(11111111111111;;;)") refl)
+compact-actual-quoted = (read-term (toList "(1111111;1111111111111;;(111111111111111111;;;))") refl)
+concrete-program : Term
+concrete-program = (read-term (toList "(1111111;1111111111111;;(1111111111111;;;))") refl)
+concrete-actual-quoted : Term
+concrete-actual-quoted = (read-term (toList "(11111111111111;;;)") refl)
 data-program : Term
 data-program = (read-term (toList "(111111;1;;(1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111;;;)(1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111;;;(111111111111111111;;;)))") refl)
 data-flat-quoted : Term

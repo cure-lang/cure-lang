@@ -61,7 +61,7 @@ defmodule Antigen.Generators.IndexedTest do
   test "4.3 ill-typed refinement body is a deliberately wrong-typed term" do
     c = Indexed.refinement(:ill_typed)
     {:case, _s, _m, [{:wrap, 1, body}]} = c.payload.def_body
-    assert body == {:type, 0}
+    assert body == {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
   end
 
   test "4.4 ill-typed motive has an extra lambda layer (over-applied)" do

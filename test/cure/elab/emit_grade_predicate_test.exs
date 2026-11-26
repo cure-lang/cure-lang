@@ -24,7 +24,7 @@ defmodule Cure.Elab.EmitGradePredicateTest do
     # below are runtime definitions and actually reach the emitter.
     field_type = {:int_type}
     ctor = Inductive.ctor(:MkBox, [{:v, field_type}], [], [:linear], [])
-    family = Inductive.family(:Box, [], [], 0)
+    family = Inductive.family(:Box, [], [], Cure.Core.Sort.finite_closed(0))
     box_type = {:data, :Box, [], []}
 
     mk_type = {:pi, Grade.unrestricted(), field_type, box_type}

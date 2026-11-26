@@ -14,7 +14,14 @@ defmodule Cure.Core.CoverageParamIndexSoundnessTest do
 
   # Foo (a : Type0) : Type0 -> Type0   with   MkFoo : Foo a (Cons a Nil)   (arity 0)
   defp env do
-    fam = Inductive.family(:Foo, [{:a, {:type, 0}}], [{:i, {:type, 0}}], 0)
+    fam =
+      Inductive.family(
+        :Foo,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [{:i, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        Cure.Core.Sort.finite_closed(0)
+      )
+
     # result index buries the parameter `a` (de Bruijn 0 at arity 0) in a ctor spine.
     mk =
       Inductive.ctor(:MkFoo, [], [{:ctor, :Cons, [{:var, 0}, {:ctor, :Nil, []}]}], [], [{:var, 0}])
@@ -23,7 +30,12 @@ defmodule Cure.Core.CoverageParamIndexSoundnessTest do
   end
 
   # A context with two binders: level 0 = the parameter `a`, level 1 = the index `i`.
-  defp ctx, do: Context.extend(Context.extend(Context.empty(env()), {:vtype, 0}), {:vtype, 0})
+  defp ctx,
+    do:
+      Context.extend(
+        Context.extend(Context.empty(env()), {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}),
+        {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}
+      )
 
   test "MkFoo over a free index is SOLVABLE, not impossible (i := Cons(a, Nil))" do
     a_val = {:vneutral, {:nvar, 0}}

@@ -244,9 +244,9 @@ defmodule Cure.Elab.Unify do
          true <- meta_free?(rhs),
          true <- match?({:data, _, _, _}, rhs),
          true <- contains_term?(rhs, argument),
-         {:pi, _grade, domain, _codomain} <- MetaCtx.meta_type(ctx, id),
+         {:pi, grade, domain, _codomain} <- MetaCtx.meta_type(ctx, id),
          body = abstract_exact_term(rhs, argument, 0),
-         solution = {:lam, Cure.Core.Grade.unrestricted(), domain, body},
+         solution = {:lam, grade, domain, body},
          false <- occurs?(id, solution, ctx) do
       {:ok, MetaCtx.put_solution(ctx, id, solution)}
     else
@@ -268,6 +268,9 @@ defmodule Cure.Elab.Unify do
 
   defp contains_term?(term, target) when term == target, do: true
 
+  defp contains_term?({tag, _} = term, target) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &contains_term?(&1, target))
+
   defp contains_term?(term, target) when is_tuple(term),
     do: term |> Tuple.to_list() |> Enum.any?(&contains_term?(&1, target))
 
@@ -275,6 +278,13 @@ defmodule Cure.Elab.Unify do
   defp contains_term?(_term, _target), do: false
 
   defp abstract_exact_term(term, target, depth) when term == target, do: {:var, depth}
+
+  defp abstract_exact_term({:type, sort}, target, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &abstract_exact_term(&1, target, depth))}
+
+  defp abstract_exact_term({:level_value, level}, target, depth),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &abstract_exact_term(&1, target, depth))}
+
   defp abstract_exact_term({:var, i}, _target, depth) when i >= depth, do: {:var, i + 1}
   defp abstract_exact_term({:var, _} = variable, _target, _depth), do: variable
 
@@ -354,14 +364,14 @@ defmodule Cure.Elab.Unify do
 
   defp peel_pi_domains(_type, 0), do: {:ok, []}
 
-  defp peel_pi_domains({:pi, _g, d, c}, n) when n > 0 do
-    with {:ok, rest} <- peel_pi_domains(c, n - 1), do: {:ok, [d | rest]}
+  defp peel_pi_domains({:pi, grade, d, c}, n) when n > 0 do
+    with {:ok, rest} <- peel_pi_domains(c, n - 1), do: {:ok, [{grade, d} | rest]}
   end
 
   defp peel_pi_domains(_type, _n), do: :error
 
   defp wrap_lams([], body), do: body
-  defp wrap_lams([d | ds], body), do: {:lam, Cure.Core.Grade.unrestricted(), d, wrap_lams(ds, body)}
+  defp wrap_lams([{grade, domain} | rest], body), do: {:lam, grade, domain, wrap_lams(rest, body)}
 
   # Abstract `rhs` (at binder `depth`) over the pattern vars: a pattern var `x_k`
   # becomes the k-th solution-lambda binder; an ambient var is shifted up by `n`
@@ -373,6 +383,12 @@ defmodule Cure.Elab.Unify do
   catch
     :throw, :miller_escape -> :error
   end
+
+  defp mabs({:type, sort}, depth, vars, n, local),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &mabs(&1, depth, vars, n, local))}
+
+  defp mabs({:level_value, level}, depth, vars, n, local),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &mabs(&1, depth, vars, n, local))}
 
   defp mabs({:var, v}, depth, vars, n, local) do
     cond do
@@ -421,6 +437,31 @@ defmodule Cure.Elab.Unify do
   defp do_unify_struct(t, {:meta, id}, ctx, _sig, depth), do: solve(id, t, ctx, depth)
 
   defp do_unify_struct({:type, l}, {:type, l}, ctx, _sig, _depth), do: {:ok, ctx}
+
+  defp do_unify_struct({:type, {:finite, l1}}, {:type, {:finite, l2}}, ctx, sig, depth),
+    do: do_unify_struct({:level_value, l1}, {:level_value, l2}, ctx, sig, depth)
+
+  defp do_unify_struct({:level_type}, {:level_type}, ctx, _sig, _depth), do: {:ok, ctx}
+  defp do_unify_struct({:level_value, l}, {:level_value, l}, ctx, _sig, _depth), do: {:ok, ctx}
+
+  defp do_unify_struct(
+         {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}},
+         {:level_value, l2},
+         ctx,
+         _sig,
+         depth
+       ),
+       do: solve(id, {:level_value, l2}, ctx, depth)
+
+  defp do_unify_struct(
+         {:level_value, l1},
+         {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}},
+         ctx,
+         _sig,
+         depth
+       ),
+       do: solve(id, {:level_value, l1}, ctx, depth)
+
   defp do_unify_struct({:var, i}, {:var, i}, ctx, _sig, _depth), do: {:ok, ctx}
   defp do_unify_struct({:global, g}, {:global, g}, ctx, _sig, _depth), do: {:ok, ctx}
 
@@ -487,10 +528,10 @@ defmodule Cure.Elab.Unify do
   defp delta_convertible?(_t1, _t2, _ctx, nil, _depth), do: false
 
   defp delta_convertible?(t1, t2, ctx, sig, depth) do
-    z1 = zonk(t1, ctx)
-    z2 = zonk(t2, ctx)
+    z1 = zonk_in(t1, ctx, depth)
+    z2 = zonk_in(t2, ctx, depth)
 
-    meta_free?(z1) and meta_free?(z2) and
+    Cure.Core.Term.term?(z1) and Cure.Core.Term.term?(z2) and meta_free?(z1) and meta_free?(z2) and
       Cure.Core.Conv.conv?(z1, z2, Cure.Core.Context.neutral_env(depth), depth, sig)
   end
 
@@ -501,6 +542,10 @@ defmodule Cure.Elab.Unify do
   # TRUSTED `Eval.eval`, which has no `{:meta, _}` clause — an elaborator crash of
   # the kernel. Tag atoms and ids are non-tuple/non-list leaves → `true`.
   defp meta_free?({:meta, _}), do: false
+
+  defp meta_free?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.all?(Cure.Core.Term.level_atoms(term), &meta_free?/1)
+
   defp meta_free?(t) when is_tuple(t), do: t |> Tuple.to_list() |> Enum.all?(&meta_free?/1)
   defp meta_free?(l) when is_list(l), do: Enum.all?(l, &meta_free?/1)
   defp meta_free?(_), do: true
@@ -584,7 +629,11 @@ defmodule Cure.Elab.Unify do
   # Leaves. A `{:meta, _}` binds nothing and its own scope is checked when it is
   # solved (`occurs?`/`strengthen` run again there).
   defp escapes?({:meta, _}, _depth, _local), do: false
-  defp escapes?({:type, _}, _depth, _local), do: false
+
+  defp escapes?({tag, _} = term, depth, local) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &escapes?(&1, depth, local))
+
+  defp escapes?({:level_type}, _depth, _local), do: false
   defp escapes?({:global, _}, _depth, _local), do: false
   # NOTE(int-facade): kept for totality on a legacy/deserialized `{:int_type}`
   # node; fresh elaboration never produces one (spec 2026-07-18 §3a).
@@ -603,11 +652,23 @@ defmodule Cure.Elab.Unify do
   # caught — an under-approximation would admit a cyclic solution.
   defp occurs?(id, t, ctx) do
     case force(t, ctx) do
-      {:meta, ^id} -> true
-      {:meta, _other} -> false
-      tup when is_tuple(tup) -> tup |> Tuple.to_list() |> Enum.any?(&occurs?(id, &1, ctx))
-      lst when is_list(lst) -> Enum.any?(lst, &occurs?(id, &1, ctx))
-      _ -> false
+      {:meta, ^id} ->
+        true
+
+      {:meta, _other} ->
+        false
+
+      {tag, _} = node when tag in [:type, :level_value] ->
+        Enum.any?(Cure.Core.Term.level_atoms(node), &occurs?(id, &1, ctx))
+
+      tup when is_tuple(tup) ->
+        tup |> Tuple.to_list() |> Enum.any?(&occurs?(id, &1, ctx))
+
+      lst when is_list(lst) ->
+        Enum.any?(lst, &occurs?(id, &1, ctx))
+
+      _ ->
+        false
     end
   end
 
@@ -626,71 +687,54 @@ defmodule Cure.Elab.Unify do
   kernel.
   """
   @spec zonk(uterm(), MetaCtx.t()) :: uterm()
-  def zonk({:meta, id} = meta, ctx) do
+  def zonk(term, ctx), do: zonk_in(term, ctx, 0)
+
+  # Solutions inhabit the ambient frame (the same contract as force_d/3).
+  # Resolve there first, then lift across binders at the occurrence. Inserting
+  # an ambient solution unchanged beneath a binder silently captures its vars.
+  defp zonk_in({:meta, id} = meta, ctx, depth) do
     case MetaCtx.solution(ctx, id) do
       nil -> meta
-      solution -> zonk(solution, ctx)
+      solution -> solution |> zonk_in(ctx, 0) |> Cure.Elab.Subst.shift(depth, 0)
     end
   end
 
-  # Core's known node grammar gets shape-directed clauses so zonking visits only
-  # actual subterms. The generic tuple/list clauses below remain the completeness
-  # firewall for elaborator-only and future nodes (Eq/Refl were historically the
-  # reason this operation must never use an opaque catch-all).
-  def zonk({:pi, grade, domain, codomain}, ctx),
-    do: {:pi, grade, zonk(domain, ctx), zonk(codomain, ctx)}
+  defp zonk_in({:type, sort}, ctx, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &zonk_in(&1, ctx, depth))}
 
-  def zonk({:lam, grade, domain, body}, ctx),
-    do: {:lam, grade, zonk(domain, ctx), zonk(body, ctx)}
+  defp zonk_in({:level_value, level}, ctx, depth),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &zonk_in(&1, ctx, depth))}
 
-  def zonk({:let, grade, type, value, body}, ctx),
-    do: {:let, grade, zonk(type, ctx), zonk(value, ctx), zonk(body, ctx)}
+  defp zonk_in(%Cure.Core.UniverseLevel{} = level, ctx, depth),
+    do: Cure.Elab.UniverseTraversal.map_level(level, &zonk_in(&1, ctx, depth))
 
-  def zonk({:app, function, argument}, ctx),
-    do: {:app, zonk(function, ctx), zonk(argument, ctx)}
+  defp zonk_in({tag, grade, domain, body}, ctx, depth) when tag in [:pi, :lam],
+    do: {tag, grade, zonk_in(domain, ctx, depth), zonk_in(body, ctx, depth + 1)}
 
-  def zonk({:data, name, parameters, indices}, ctx),
-    do: {:data, name, Enum.map(parameters, &zonk(&1, ctx)), Enum.map(indices, &zonk(&1, ctx))}
+  defp zonk_in({:let, grade, type, value, body}, ctx, depth),
+    do: {:let, grade, zonk_in(type, ctx, depth), zonk_in(value, ctx, depth), zonk_in(body, ctx, depth + 1)}
 
-  def zonk({:ctor, name, arguments}, ctx),
-    do: {:ctor, name, Enum.map(arguments, &zonk(&1, ctx))}
+  defp zonk_in({:app, function, argument}, ctx, depth),
+    do: {:app, zonk_in(function, ctx, depth), zonk_in(argument, ctx, depth)}
 
-  def zonk({:case, scrutinee, motive, branches}, ctx) do
-    {:case, zonk(scrutinee, ctx), zonk(motive, ctx),
+  defp zonk_in({:data, name, parameters, indices}, ctx, depth),
+    do: {:data, name, Enum.map(parameters, &zonk_in(&1, ctx, depth)), Enum.map(indices, &zonk_in(&1, ctx, depth))}
+
+  defp zonk_in({:ctor, name, arguments}, ctx, depth),
+    do: {:ctor, name, Enum.map(arguments, &zonk_in(&1, ctx, depth))}
+
+  defp zonk_in({:case, scrutinee, motive, branches}, ctx, depth) do
+    {:case, zonk_in(scrutinee, ctx, depth), zonk_in(motive, ctx, depth),
      Enum.map(branches, fn {constructor, arity, body} ->
-       {constructor, arity, zonk(body, ctx)}
+       {constructor, arity, zonk_in(body, ctx, depth + arity)}
      end)}
   end
 
-  def zonk({:effect_type, type}, ctx), do: {:effect_type, zonk(type, ctx)}
-  def zonk({:effect_pure, value}, ctx), do: {:effect_pure, zonk(value, ctx)}
+  defp zonk_in(tuple, ctx, depth) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.map(&zonk_in(&1, ctx, depth)) |> List.to_tuple()
 
-  def zonk({:effect_bind, effect, continuation}, ctx),
-    do: {:effect_bind, zonk(effect, ctx), zonk(continuation, ctx)}
-
-  def zonk({tag} = leaf, _ctx)
-      when tag in [:int_type, :float_type, :binary_type, :atom_type, :absurd],
-      do: leaf
-
-  def zonk({tag, _payload} = leaf, _ctx)
-      when tag in [
-             :type,
-             :var,
-             :global,
-             :int_lit,
-             :nat_lit,
-             :bounded_lit,
-             :float_lit,
-             :atom_lit,
-             :hole
-           ],
-      do: leaf
-
-  def zonk(tup, ctx) when is_tuple(tup),
-    do: tup |> Tuple.to_list() |> Enum.map(&zonk(&1, ctx)) |> List.to_tuple()
-
-  def zonk(list, ctx) when is_list(list), do: Enum.map(list, &zonk(&1, ctx))
-  def zonk(other, _ctx), do: other
+  defp zonk_in(list, ctx, depth) when is_list(list), do: Enum.map(list, &zonk_in(&1, ctx, depth))
+  defp zonk_in(other, _ctx, _depth), do: other
 
   @meta_placeholder_prefix "$meta$"
 
@@ -726,7 +770,7 @@ defmodule Cure.Elab.Unify do
     # indices). A closed term is context-independent, so `env = []` / read-back at
     # `depth` is sound; the computed-index unifications this feature targets
     # (`plus(Z, ?m) =? S(Z)`) are closed once metavariables become placeholders.
-    if Cure.Core.Term.closed?(subst) do
+    if Cure.Core.Term.term?(subst) and Cure.Core.Term.closed?(subst) do
       reduce_closed(z, subst, sig, depth, fuel)
     else
       z
@@ -760,6 +804,12 @@ defmodule Cure.Elab.Unify do
   # shape is substituted.
   defp metas_to_placeholders({:meta, id}), do: {:global, :"#{@meta_placeholder_prefix}#{id}"}
 
+  defp metas_to_placeholders({:type, sort}),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &metas_to_placeholders/1)}
+
+  defp metas_to_placeholders({:level_value, level}),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &metas_to_placeholders/1)}
+
   defp metas_to_placeholders(tup) when is_tuple(tup),
     do: tup |> Tuple.to_list() |> Enum.map(&metas_to_placeholders/1) |> List.to_tuple()
 
@@ -771,6 +821,12 @@ defmodule Cure.Elab.Unify do
   # Inverse of `metas_to_placeholders/1`: map each placeholder global back to its
   # metavariable. A `{:global, :"$meta$…"}` cannot arise from real source (the
   # prefix is not a legal identifier), so this is unambiguous.
+  defp placeholders_to_metas({:type, sort}),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &placeholders_to_metas/1)}
+
+  defp placeholders_to_metas({:level_value, level}),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &placeholders_to_metas/1)}
+
   defp placeholders_to_metas({:global, name} = t) do
     case placeholder_id(name) do
       {:ok, id} -> {:meta, id}

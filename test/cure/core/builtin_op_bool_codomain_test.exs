@@ -36,7 +36,7 @@ defmodule Cure.Core.BuiltinOpBoolCodomainTest do
   alias Cure.Core.{Builtins, Env, Inductive, Kernel}
 
   defp with_own_bool(env) do
-    family = Inductive.family(:"Std.Bool#Bool", [], [], 0)
+    family = Inductive.family(:"Std.Bool#Bool", [], [], Cure.Core.Sort.finite_closed(0))
     ctors = [Inductive.ctor(:"Std.Bool#False", [], []), Inductive.ctor(:"Std.Bool#True", [], [])]
 
     env |> Inductive.declare(family, ctors) |> Inductive.register_builtin(:bool, :"Std.Bool#Bool")

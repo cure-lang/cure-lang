@@ -19,14 +19,16 @@ defmodule Antigen.ManyQuantityDecodeTest do
   @many_quantity_record Enum.join(
                           [
                             "antigen-record",
+                            "format=2",
+                            "universe=cure_universe/1/max_plus_finite_omega",
                             "kind=family",
                             "assay=universes",
                             "label=well_typed",
                             "seed=94754166",
                             "note=parameterized uniform (result param = a)",
-                            "scaffold=g3QAAAAFbQAAAAVjdG9yc2wAAAABdAAAAAVtAAAACWFyZ19uYW1lc2wAAAABbQAAAAF4am0AAAAEbmFtZW0AAAACcGNtAAAACnF1YW50aXRpZXNsAAAAAW0AAAAEbWFueWptAAAACnJpZHhfY291bnRhAW0AAAAMcnBhcmFtX2NvdW50YQFqbQAAAA9mYW1faW5kZXhfbmFtZXNsAAAAAW0AAAABbmptAAAACWZhbV9sZXZlbGEAbQAAAAhmYW1fbmFtZW0AAAABUG0AAAAPZmFtX3BhcmFtX25hbWVzbAAAAAFtAAAAAWFq",
-                            "key=Y3RvcnM9W2ludF9saXQsaW50X3R5cGUsdHlwZSx2YXJdfGRlcHRoPWIwXzJ8ZmxhZ3M9W2JpbmRlcl9kZXB0aF9iMF8yLGZvcm1lcl9hcHBfbjAsZm9ybWVyX2Nhc2VfbjAsZm9ybWVyX2N0b3JfbjAsZm9ybWVyX2RhdGFfbjAsZm9ybWVyX2VxX24wLGZvcm1lcl9sYW1fbjAsZm9ybWVyX3BpX24wLGZvcm1lcl9yZXdyaXRlX24wXXxsYWJlbD13ZWxsX3R5cGVk",
-                            "pieces=fam_param:0::(type 0);;fam_index:0::(int-type);;ctor:0:arg:0::(var 0);;ctor:0:ridx:0::(int -3);;ctor:0:rparam:0::(var 1)"
+                            "scaffold=g3QAAAAEbQAAAAVjdG9yc2wAAAABdAAAAAVtAAAACWFyZ19uYW1lc2wAAAABbQAAAAF4am0AAAAEbmFtZW0AAAACcGNtAAAACnF1YW50aXRpZXNsAAAAAW0AAAAEbWFueWptAAAACnJpZHhfY291bnRhAW0AAAAMcnBhcmFtX2NvdW50YQFqbQAAAA9mYW1faW5kZXhfbmFtZXNsAAAAAW0AAAABbmptAAAACGZhbV9uYW1lbQAAAAFQbQAAAA9mYW1fcGFyYW1fbmFtZXNsAAAAAW0AAAABYWo=",
+                            "key=YW50aWdlbi8yfGN1cmVfdW5pdmVyc2UvMS9tYXhfcGx1c19maW5pdGVfb21lZ2F8YW50aWJvZHkvM3xkYTE1OTM3NjI0YTU2MGIyYjg0OTY3ZjI0YmIzMjZmNzI1MjZkMzhjZDJmODk2MzdkNjgyZjRjNzZmZjk5Y2Rj",
+                            "pieces64=W1siZmFtX3NvcnQiLCIoY3VyZS1jb3JlIDIgKHR5cGUgKGZpbml0ZSAobGV2ZWwtbmYgMCkpKSkiXSxbImZhbV9wYXJhbTowIiwiKGN1cmUtY29yZSAyICh0eXBlIChmaW5pdGUgKGxldmVsLW5mIDApKSkpIl0sWyJmYW1faW5kZXg6MCIsIihjdXJlLWNvcmUgMiAoaW50LXR5cGUpKSJdLFsiY3RvcjowOmFyZzowIiwiKGN1cmUtY29yZSAyICh2YXIgMCkpIl0sWyJjdG9yOjA6cmlkeDowIiwiKGN1cmUtY29yZSAyIChpbnQgLTMpKSJdLFsiY3RvcjowOnJwYXJhbTowIiwiKGN1cmUtY29yZSAyICh2YXIgMSkpIl1d"
                           ],
                           "\t"
                         )
@@ -37,5 +39,23 @@ defmodule Antigen.ManyQuantityDecodeTest do
 
   test "a many-quantity family record decodes (no unminted-atom crash)" do
     assert {:ok, %Challenge{}} = Corpus.decode_record(@many_quantity_record)
+    paths = :code.get_path() |> Enum.reverse() |> Enum.flat_map(&["-pa", List.to_string(&1)])
+
+    script = """
+    {:ok, challenge} = Antigen.Corpus.decode_record(System.fetch_env!("ANTIGEN_MANY_RECORD"))
+    true = Enum.any?(challenge.payload.ctors, fn ctor ->
+      Enum.any?(ctor.quantities, &(Atom.to_string(&1) == "many"))
+    end)
+    """
+
+    {diagnostics, status} =
+      System.cmd(
+        System.find_executable("elixir"),
+        ["--erl", "+S 2:2"] ++ paths ++ ["-e", script],
+        env: [{"ANTIGEN_MANY_RECORD", @many_quantity_record}],
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, diagnostics
   end
 end

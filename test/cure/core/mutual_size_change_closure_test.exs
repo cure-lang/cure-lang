@@ -6,7 +6,7 @@ defmodule Cure.Core.MutualSizeChangeClosureTest do
   alias Cure.Elab.TotalityGraph
 
   @grade Cure.Core.Grade.unrestricted()
-  @type0 {:type, 0}
+  @type0 {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
 
   test "mutual closure composes only compatible canonical edge pairs" do
     env =

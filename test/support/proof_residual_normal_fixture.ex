@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofResidualNormalFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Env, Eval, Grade, ProofWire, Quote}
@@ -9,11 +10,16 @@ defmodule Cure.Test.ProofResidualNormalFixture do
   def cases do
     g = Grade.unrestricted()
     atom = {:atom_type}
-    %{body: {:case, _packed, motive, branches}} = Env.get_def(ProofSnapshotFixture.environment(), :"Boundary#unpack")
+
+    %{body: {:case, _packed, motive, branches}} =
+      Env.get_def(ProofSnapshotFixture.environment(), :"Boundary#unpack")
+
     opaque = {:case, {:global, :"Boundary#packed"}, motive, branches}
     [{pack_name, 2, _body}, alternate] = branches
     branch = {pack_name, 2, {:app, {:lam, g, {:var, 1}, {:var, 0}}, {:var, 0}}}
-    motive_type = {:pi, g, {:type, 0}, {:pi, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, 0}}}
+
+    motive_type =
+      {:pi, g, {:type, @u0}, {:pi, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, @u0}}}
 
     [
       {:opaque, opaque, [], 0},

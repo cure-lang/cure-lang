@@ -4,14 +4,14 @@ defmodule Antigen.Generators.KernelProbe do
   menu of def-level / inference-mode probes driving *defensive* clauses across the
   trusted kernel modules that no term-shaped generator reaches — `Kernel.check_def`'s
   unknown-global and body-less builtin-op arms, `validate_certificate`'s builtin-op
-  certification, `check_family`'s universe-ceiling rejection, `normalize/3`'s opts
+  certification, dependent family formation discrimination, `normalize/3`'s opts
   arity, the Final-Core validator's warning-emit fold, `infer`'s `{:absurd}` /
   fields-only-ctor / ctor-arity rejections, `remap_index_error`'s non-family
   passthrough, plus the sibling-module cold clauses: `Quote.split_data_args`'s
   foreign-family fallback, `Inductive.occurs_deep?`'s through-constructor recursion,
   `Serialize.sym_atom`'s un-interned-symbol rejection, and `Certificate`'s
-  under-application (`arg_relation(nil,_)`) and dangling-callee (`callees_env` /
-  `reaches?` leaf) paths.
+  under-application (`arg_relation(nil,_)`) and unresolved-callee rejection with
+  an independently declared-leaf positive control.
 
   Each challenge carries only a probe tag (`Coverage.terms_of` → `[]`, bypassing the
   term-well-formedness gate the way `check/verdict` and `serialize/decode` do); the
@@ -22,11 +22,11 @@ defmodule Antigen.Generators.KernelProbe do
   @probes [
     :infer_absurd,
     :infer_fields_only_ctor,
-    :check_ctor_arity,
+    :check_canonical_ctor_arity,
     :check_def_unknown,
     :check_def_builtin_op,
     :validate_cert_builtin_op,
-    :family_ceiling,
+    :family_formation,
     :normalize_opts,
     :validator_warn_emit,
     :remap_index_passthrough,
@@ -34,11 +34,11 @@ defmodule Antigen.Generators.KernelProbe do
     :positivity_through_ctor,
     :decode_unknown_symbol,
     :cert_under_application,
-    :cert_dangling_callee,
+    :cert_unresolved_callee,
     # Adversarial "backstop" probes — feed malformed input straight at a kernel
     # boundary and assert the defensive guard fires (rather than assuming it does).
     :eval_no_branch,
-    :eval_nondata_scrutinee,
+    :eval_float_scrutinee,
     :apply_nonfun,
     :conv_unknown_ctor_fallback,
     :validator_rejects_hole_body,
@@ -57,17 +57,17 @@ defmodule Antigen.Generators.KernelProbe do
     :conv_no_delta_value_surface,
     :serialize_value_surface,
     :serialize_special_atoms,
-    :serialize_malformed_symbol,
+    :serialize_current_malformed_symbol,
     :infer_value_type_formers,
     :infer_bounded_unregistered,
     :infer_bounded_registered,
     :check_bounded_in_range,
     :check_bounded_out_of_range,
-    :check_bounded_tower,
+    :check_canonical_bounded_tower,
     :check_bounded_not_concrete,
     :check_bounded_wrong_family,
     :check_ctor_via_infer,
-    :sort_value_type_formers,
+    :typed_value_type_motives,
     :unify_bounded_bridge,
     :unify_rigid_value_heads,
     :opaque_family_positivity,
@@ -84,7 +84,9 @@ defmodule Antigen.Generators.KernelProbe do
     # fixpoint loop, driven through Cure.Edition.retired_keywords/2 and
     # Cure.Migrate.run_to_fixpoint/2 (no term generator reaches this surface).
     :edition_retired_keywords,
-    :migrate_fixpoint_converges
+    :migrate_fixpoint_converges,
+    # Public formation/inference/checking judgments, distinct from inertness.
+    :effect_typing_guards
   ]
 
   @doc """

@@ -72,7 +72,7 @@ defmodule Cure.Elab.UnionCanonicalTest do
 
     test "an applied type keys with its arguments" do
       env = base_env()
-      assert key("List(Int) | Int", env) == :"Union<Std.Int#Int|Std.List#List(Std.Int#Int)>"
+      assert key("List(Int) | Int", env) == :"Union<Std.Int#Int|Std.List#List(Level0,Std.Int#Int)>"
     end
   end
 
@@ -169,7 +169,7 @@ defmodule Cure.Elab.UnionCanonicalTest do
       # Int / Bool  — integers vs the atoms true/false. Nothing is both.
       assert key("Int | Bool", env) == :"Union<Std.Bool#Bool|Std.Int#Int>"
       # Int / List(Int) — integers vs lists.
-      assert key("Int | List(Int)", env) == :"Union<Std.Int#Int|Std.List#List(Std.Int#Int)>"
+      assert key("Int | List(Int)", env) == :"Union<Std.Int#Int|Std.List#List(Level0,Std.Int#Int)>"
       # a literal whose class no type member occupies
       assert key(":north | Int", env) == :"Union<Atom#:north|Std.Int#Int>"
     end

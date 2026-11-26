@@ -59,30 +59,30 @@ defmodule Antigen.Assays.BranchUnify do
   defp env do
     Generators.SigMenu.env_of(:v1)
     |> Inductive.declare(
-      Inductive.family(:Cyc4, [], [{:i, @nat}, {:j, @nat}, {:k, @nat}, {:l, @nat}], 0),
+      Inductive.family(:Cyc4, [], [{:i, @nat}, {:j, @nat}, {:k, @nat}, {:l, @nat}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:mkcyc, [{:a, @nat}, {:b, @nat}], [{:var, 1}, {:var, 1}, {:var, 0}, {:var, 0}])]
     )
     |> Inductive.declare(
-      Inductive.family(:Foo, [{:a, @nat}], [{:i, @nat}], 0),
+      Inductive.family(:Foo, [{:a, @nat}], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:MkFoo, [], [{:ctor, :S, [{:var, 0}]}])]
     )
     |> Inductive.declare(
-      Inductive.family(:Cyc1, [{:a, @nat}], [{:i, @nat}], 0),
+      Inductive.family(:Cyc1, [{:a, @nat}], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:idcyc, [], [{:var, 0}])]
     )
     |> Inductive.declare(
-      Inductive.family(:Cyc4b, [], [{:i, @nat}, {:j, @nat}, {:k, @nat}, {:l, @nat}], 0),
+      Inductive.family(:Cyc4b, [], [{:i, @nat}, {:j, @nat}, {:k, @nat}, {:l, @nat}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:mkcyc2, [{:a, @nat}, {:d, @nat}], [{:var, 1}, {:var, 0}, {:var, 1}, {:var, 0}])]
     )
     |> Inductive.declare(
-      Inductive.family(:Nl, [], [{:i, @nat}], 0),
+      Inductive.family(:Nl, [], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [
         Inductive.ctor(:nlc, [], [{:nat_lit, 2}]),
         Inductive.ctor(:nlt, [], [@s1])
       ]
     )
     |> Inductive.declare(
-      Inductive.family(:CaseIdx, [], [{:i, @nat}], 0),
+      Inductive.family(:CaseIdx, [], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [
         Inductive.ctor(:mkci, [{:b, @bd}], [
           {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), @bd, @nat}, [{:T, 0, @z}, {:F, 0, @s1}]}
@@ -90,7 +90,7 @@ defmodule Antigen.Assays.BranchUnify do
       ]
     )
     |> Inductive.declare(
-      Inductive.family(:SpineU, [], [{:i, @nat}], 0),
+      Inductive.family(:SpineU, [], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [
         Inductive.ctor(:spu, [{:k, @nat}], [
           {:ctor, :S, [{:app, {:app, {:global, :plus}, {:var, 0}}, {:var, 0}}]}
@@ -98,7 +98,7 @@ defmodule Antigen.Assays.BranchUnify do
       ]
     )
     |> Inductive.declare(
-      Inductive.family(:Dboth, [], [{:i, @nat}], 0),
+      Inductive.family(:Dboth, [], [{:i, @nat}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:mkboth, [], [{:data, :Vec, [@z], [@s1]}])]
     )
   end

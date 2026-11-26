@@ -2,7 +2,7 @@ defmodule Cure.Core.ParamIndexSplitTest do
   use ExUnit.Case, async: true
   alias Cure.Core.{Env, Inductive, Kernel}
 
-  @type0 {:type, 0}
+  @type0 {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
   @dec {:data, :Dec, [], []}
 
   # P(a: Type) indices (n: Dec) with wrap : (p: a) -> P(a, Causal).
@@ -12,11 +12,11 @@ defmodule Cure.Core.ParamIndexSplitTest do
   defp param_env do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Dec, [], [], 0),
+      Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:P, [{:a, @type0}], [{:n, @dec}], 1),
+      Inductive.family(:P, [{:a, @type0}], [{:n, @dec}], Cure.Core.Sort.finite_closed(1)),
       [
         Inductive.ctor(:wrap, [{:p, {:var, 0}}], [{:ctor, :Causal, []}], [:unrestricted], [{:var, 1}])
       ]
@@ -162,11 +162,11 @@ defmodule Cure.Core.ParamIndexSplitTest do
     env =
       Env.empty()
       |> Inductive.declare(
-        Inductive.family(:Dec, [], [], 0),
+        Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
       )
       |> Inductive.declare(
-        Inductive.family(:Box, [], [{:d, @dec}], 0),
+        Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])]
       )
 

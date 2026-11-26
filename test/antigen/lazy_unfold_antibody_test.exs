@@ -48,7 +48,7 @@ defmodule Antigen.LazyUnfoldAntibodyTest do
 
   defp env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Z, [], []),
       Inductive.ctor(:S, [{:n, @nat}], [])
     ])
@@ -150,7 +150,7 @@ defmodule Antigen.LazyUnfoldAntibodyTest do
        {:case, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}, [{:Z, 0, @z}, {:S, 1, inner_case}]}}
 
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Z, [], []),
       Inductive.ctor(:S, [{:n, @nat}], [])
     ])

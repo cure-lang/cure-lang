@@ -28,7 +28,21 @@ defmodule Cure.Core.Eval do
 
   @doc "Evaluate `term` under `env` (a `[value]` indexed by de Bruijn index)."
   @spec eval(Cure.Core.Term.t(), [Cure.Core.Value.t()]) :: Cure.Core.Value.t()
-  def eval({:type, level}, _env), do: {:vtype, level}
+  def eval({:type, {:finite, level}}, env),
+    do: {:vtype, {:finite, Cure.Core.LevelValue.from_core(level, &eval(&1, env))}}
+
+  def eval({:type, {:omega, n}}, _env) when is_integer(n) and n >= 0,
+    do: {:vtype, {:omega, n}}
+
+  # The primitive `UniverseLevel` type and level values (§9). A level value
+  # evaluates its atoms in the current environment: a known `{:vlevel, inner}`
+  # is flattened into the outer level, a neutral of type `UniverseLevel` stays an
+  # atom. Semantic atoms capture absolute levels and argument environments;
+  # retaining the original syntax here would break beta and zeta substitution.
+  def eval({:level_type}, _env), do: {:vlevel_type}
+
+  def eval({:level_value, level}, env),
+    do: {:vlevel, Cure.Core.LevelValue.from_core(level, &eval(&1, env))}
 
   # An index past the end of `env` is a RIGID FREE VARIABLE: Core admits open terms, and the
   # neutral it becomes is what `Conv.conv?/5` compares when both sides share the environment.
@@ -71,20 +85,8 @@ defmodule Cure.Core.Eval do
   def eval({:data, name, params, indices}, env),
     do: {:vdata, name, Enum.map(params ++ indices, &eval(&1, env))}
 
-  def eval({:ctor, name, args}, env) do
-    values = Enum.map(args, &eval(&1, env))
-
-    case {name, values} do
-      {first, [_erased_bound]} when first in [:First, :"Std.Bounded#First"] ->
-        {:vbounded, 0}
-
-      {next, [_erased_bound, {:vbounded, predecessor}]} when next in [:Next, :"Std.Bounded#Next"] ->
-        {:vbounded, predecessor + 1}
-
-      _ ->
-        {:vctor, name, values}
-    end
-  end
+  def eval({:ctor, name, args}, env),
+    do: constructor_value(name, Enum.map(args, &eval(&1, env)))
 
   # Primitive Int/Float literals. Arithmetic is builtin-op GLOBALS (K2, spec
   # 2026-07-09): Eval leaves every global neutral; the certified-δ engine
@@ -182,6 +184,31 @@ defmodule Cure.Core.Eval do
         raise "ι: non-data scrutinee #{inspect(other)} reached eval (ill-typed case)"
     end
   end
+
+  @doc false
+  def constructor_value(name, values) do
+    case {name, values} do
+      {first, [bound]} when first in [:First, :"Std.Bounded#First"] ->
+        if closed_nat?(bound), do: {:vbounded, 0}, else: {:vctor, name, values}
+
+      {next, [bound, {:vbounded, predecessor}]} when next in [:Next, :"Std.Bounded#Next"] ->
+        if closed_nat?(bound), do: {:vbounded, predecessor + 1}, else: {:vctor, name, values}
+
+      _ ->
+        {:vctor, name, values}
+    end
+  end
+
+  # An ordinal alone cannot be quoted back at a symbolic indexed bound.
+  # Retain First/Next's checked erased witness until its bound is concrete;
+  # explicit compact literals keep their existing concrete-bound typing rule.
+  defp closed_nat?({:vnat, n}), do: is_integer(n) and n >= 0
+  defp closed_nat?({:vctor, name, []}), do: constructor_name_matches?(name, :Z)
+
+  defp closed_nat?({:vctor, name, [predecessor]}),
+    do: constructor_name_matches?(name, :S) and closed_nat?(predecessor)
+
+  defp closed_nat?(_), do: false
 
   @doc """
   Apply a function value to an argument value, performing β-reduction.

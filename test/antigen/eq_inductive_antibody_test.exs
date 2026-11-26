@@ -68,10 +68,12 @@ defmodule Antigen.EqInductiveAntibodyTest do
   defp tru, do: {:ctor, :True, []}
   defp fls, do: {:ctor, :False, []}
 
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+
   defp eq_ty(sig, ty, a, b),
     do:
       Eval.eval(
-        {:data, :"Std.Equivalent#Equivalent", [ty], [a, b]},
+        {:data, :"Std.Equivalent#Equivalent", [@l0, ty], [a, b]},
         Context.env(Context.empty(sig))
       )
 
@@ -126,7 +128,7 @@ defmodule Antigen.EqInductiveAntibodyTest do
   # `transport/4` mirrors the elaborator's `transport_case/4` for CLOSED
   # ty/motive/l (de Bruijn shifts of closed terms elided).
   defp transport(proof, ty, motive, l) do
-    scrut_ty = {:data, :"Std.Equivalent#Equivalent", [ty], [{:var, 1}, {:var, 0}]}
+    scrut_ty = {:data, :"Std.Equivalent#Equivalent", [@l0, ty], [{:var, 1}, {:var, 0}]}
     arrow = {:pi, Cure.Core.Grade.unrestricted(), {:app, motive, {:var, 2}}, {:app, motive, {:var, 2}}}
 
     arrow_motive =
@@ -143,9 +145,9 @@ defmodule Antigen.EqInductiveAntibodyTest do
     sig = base_sig()
     ctx = Context.extend(Context.empty(sig), eq_ty(sig, @nat, z(), s(z())))
 
-    # Endpoint-distinguishing motive:  λ x:Nat. Equivalent(Nat, x, Z)
+    # Endpoint-distinguishing motive:  λ x:Nat. Equivalent(0, Nat, x, Z)
     motive =
-      {:lam, Cure.Core.Grade.unrestricted(), @nat, {:data, :"Std.Equivalent#Equivalent", [@nat], [{:var, 0}, z()]}}
+      {:lam, Cure.Core.Grade.unrestricted(), @nat, {:data, :"Std.Equivalent#Equivalent", [@l0, @nat], [{:var, 0}, z()]}}
 
     # transport (h : Eq Nat Z (S Z)) : (motive @ Z) -> (motive @ S Z), applied
     # to (refl Z : motive @ Z) — result must be motive @ b, never motive @ a.

@@ -33,7 +33,8 @@ defmodule Cure.Core.ProofConstructorTest do
   end
 
   test "compact constructors and signature-free data splitting are separate contracts" do
-    assert {:bounded_lit, 0} = Quote.reify(Eval.eval({:ctor, :First, [{:atom_type}]}, []), 0)
+    assert {:bounded_lit, 0} = Quote.reify(Eval.eval({:ctor, :First, [{:nat_lit, 0}]}, []), 0)
+    assert {:ctor, :First, [{:atom_type}]} = Quote.reify(Eval.eval({:ctor, :First, [{:atom_type}]}, []), 0)
     program = {:data, :"Boundary#Packed", [], [{:atom_type}]}
     value = Eval.eval(program, [])
     assert {:data, :"Boundary#Packed", [{:atom_type}], []} = Quote.reify(value, 0)

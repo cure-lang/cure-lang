@@ -32,7 +32,9 @@ defmodule Cure.Core.EvalBoundedCoverageTest do
 
   test "case-ι on a Bounded scrutinee with no matching branch raises the descriptive coverage error" do
     # {:bounded_lit, 1} peels to :Next; the branches only cover :First.
-    case_term = {:case, {:bounded_lit, 1}, {:type, 0}, [{:First, 1, {:bounded_lit, 42}}]}
+    case_term =
+      {:case, {:bounded_lit, 1}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       [{:First, 1, {:bounded_lit, 42}}]}
 
     assert_raise RuntimeError, ~r/ι: no branch for constructor :Next/, fn ->
       Eval.eval(case_term, [])
@@ -41,14 +43,15 @@ defmodule Cure.Core.EvalBoundedCoverageTest do
 
   test "case-ι on a Bounded scrutinee whose branch IS covered still reduces" do
     case_term =
-      {:case, {:bounded_lit, 0}, {:type, 0}, [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:bounded_lit, 99}}]}
+      {:case, {:bounded_lit, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       [{:First, 1, {:bounded_lit, 42}}, {:Next, 2, {:bounded_lit, 99}}]}
 
     assert Eval.eval(case_term, []) == {:vbounded, 42}
   end
 
   test "compact Bounded literals select owner-qualified branches" do
     case_term =
-      {:case, {:bounded_lit, 1}, {:type, 0},
+      {:case, {:bounded_lit, 1}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
        [
          {:"Std.Bounded#First", 1, {:bounded_lit, 42}},
          {:"Std.Bounded#Next", 2, {:var, 0}}

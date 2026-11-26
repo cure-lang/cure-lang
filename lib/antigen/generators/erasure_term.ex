@@ -20,7 +20,7 @@ defmodule Antigen.Generators.ErasureTerm do
   # :MkP erased-first [:erased,:unrestricted] is declared too (used only by test fixtures).
   defp ctor_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:P, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:P, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:MkQ, [{:a, {:int_type}}, {:b, {:int_type}}], [], [:unrestricted, :erased]),
       Inductive.ctor(:MkP, [{:a, {:int_type}}, {:b, {:int_type}}], [], [:erased, :unrestricted])
     ])

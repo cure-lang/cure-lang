@@ -8,8 +8,11 @@ defmodule Cure.Elab.EmitEmptyCaseTest do
   alias Cure.Elab.Emit
 
   test "an empty-branch (ex-falso) case compiles to an unreachable stub" do
-    body = {:case, {:int_lit, 0}, {:type, 0}, []}
-    env = Env.empty() |> Env.add_def(:exf, {:type, 0}, body, [])
+    body = {:case, {:int_lit, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, []}
+
+    env =
+      Env.empty() |> Env.add_def(:exf, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body, [])
+
     assert {:ok, _mod} = Emit.compile_and_load(env, module: :K4EmptyCaseEmitTest, functions: [:exf])
   end
 end

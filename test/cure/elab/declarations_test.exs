@@ -26,14 +26,14 @@ defmodule Cure.Elab.DeclarationsTest do
   test "elaborates a nullary ADT to a Core family at level 0" do
     assert {:ok, env} = elaborate_all("type Dec = Dcoupled | Causal\n")
     assert Inductive.family?(env, :Dec)
-    assert Inductive.get_family(env, :Dec).level == 0
+    assert Inductive.get_family(env, :Dec).sort == Cure.Core.Sort.finite_zero()
     assert Inductive.ctor_family(env, :Causal) == :Dec
     assert Inductive.ctor_family(env, :Dcoupled) == :Dec
   end
 
   test "a constructor field of type Type forces the family to level 1" do
     assert {:ok, env} = elaborate_all("type Sig = C(Type) | E(Type)\n")
-    assert Inductive.get_family(env, :Sig).level == 1
+    assert Inductive.get_family(env, :Sig).sort == Cure.Core.Sort.finite_closed(1)
   end
 
   test "elaborates a recursive ADT (SVDesc) and accepts it (strictly positive)" do

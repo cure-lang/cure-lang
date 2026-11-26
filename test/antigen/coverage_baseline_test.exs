@@ -7,9 +7,10 @@ defmodule Antigen.CoverageBaselineTest do
 
   No generators, no seeds, no sampling — the measurement is a deterministic replay,
   so a red gate is always a real regression, never a flaky draw. The ONLY sanctioned
-  way to move the floor is `mix antigen cover --record-new-coverage-baseline`
-  (re-distils `coverage.sexp` + rewrites the floor); everyday runs never regenerate
-  it, so coverage cannot silently drift down.
+  generative way to move the floor is `mix antigen cover --record-new-coverage-baseline`.
+  The explicit `--refresh-existing-coverage-baseline` mode only replays existing
+  records, preserves their bytes, and refuses any covered-line decrease.
+  Everyday runs never regenerate it, so coverage cannot silently drift down.
 
   `async: false`: `:cover` is node-wide global (mirrors `Antigen.CoverTest`).
   """
@@ -57,6 +58,7 @@ defmodule Antigen.CoverageBaselineTest do
 
   test "the floor never claims more coverage than a module actually has" do
     {:ok, floor} = CB.read_baseline()
+    assert MapSet.new(Map.keys(floor)) == MapSet.new(Antigen.Cover.cover_modules())
     measured = CB.measure()
 
     for {mod, %{covered: fcov, total: ftot}} <- floor do

@@ -150,7 +150,9 @@ defmodule Cure.Core.SCCCertificate do
               with {:ok, submitted_hash} <- Map.fetch(certificate.summary_hashes, name),
                    {:ok, submitted_body_hash} <- Map.fetch(certificate.summary_body_hashes, name),
                    {:ok, submitted_version} <- Map.fetch(certificate.summary_versions, name) do
-                if submitted_hash == actual_hash and submitted_body_hash == actual_body_hash and
+                if actual_version == Certificate.summary_version() and
+                     Map.get(summary, :universe_identity) == Cure.Core.UniverseCodec.identity() and
+                     submitted_hash == actual_hash and submitted_body_hash == actual_body_hash and
                      submitted_version == actual_version do
                   {:cont, :ok}
                 else
@@ -257,7 +259,11 @@ defmodule Cure.Core.SCCCertificate do
   defp verify_submitted_edges(certificate, expected) do
     if Map.get(certificate, :edges) == expected,
       do: :ok,
-      else: invalid(:direct_edges_mismatch, expected: expected, submitted: Map.get(certificate, :edges))
+      else:
+        invalid(:direct_edges_mismatch,
+          expected: expected,
+          submitted: Map.get(certificate, :edges)
+        )
   end
 
   defp verify_partition_totality(certificate) do
@@ -345,7 +351,14 @@ defmodule Cure.Core.SCCCertificate do
         actual: length(tree_ids)
       )
     else
-      walk_tree(component_id, component.root, MapSet.new([component.root]), tree_ids, edge_by_id, direction)
+      walk_tree(
+        component_id,
+        component.root,
+        MapSet.new([component.root]),
+        tree_ids,
+        edge_by_id,
+        direction
+      )
       |> case do
         {:ok, seen} ->
           if seen == MapSet.new(component.members),
@@ -366,7 +379,10 @@ defmodule Cure.Core.SCCCertificate do
         invalid(:unknown_tree_edge, edge: edge_id)
 
       {:ok, edge} ->
-        {from, to} = if direction == :forward, do: {edge.source, edge.target}, else: {edge.target, edge.source}
+        {from, to} =
+          if direction == :forward,
+            do: {edge.source, edge.target},
+            else: {edge.target, edge.source}
 
         cond do
           not MapSet.member?(seen, from) ->

@@ -71,7 +71,7 @@ defmodule Cure.Core.Validator do
     qualified_syms: :off,
     ctor_signature: :off,
     case_coverage: :off,
-    level_expr: :off,
+    level_expr: :reject,
     no_absurd_node: :warn,
     no_legacy_reducer: :off,
     # Effect release-boundary clauses stay :off at dev time — they must not
@@ -139,6 +139,10 @@ defmodule Cure.Core.Validator do
   # Immediate Core-term children (NOT the term itself). Binders are graded
   # 4-/5-tuples; the grade is not a child. `:case` branches are descended
   # structurally (body only) so a branch tuple is never treated as a node.
+  defp children({tag, _} = term) when tag in [:type, :level_value],
+    do: Cure.Core.Term.level_atoms(term)
+
+  defp children({:level_type}), do: []
   defp children({:pi, _grade, dom, cod}), do: [dom, cod]
   defp children({:lam, _grade, dom, body}), do: [dom, body]
   defp children({:let, _grade, ty, val, body}), do: [ty, val, body]
@@ -165,6 +169,9 @@ defmodule Cure.Core.Validator do
 
   defp children(_nontuple), do: []
 
+  defp term_children(%Cure.Core.UniverseLevel{} = level),
+    do: Cure.Core.Term.level_payload_atoms(level)
+
   defp term_children(x) when is_tuple(x), do: [x]
 
   # Recurse into nested lists. `Enum.filter(xs, &is_tuple/1)` kept only elements that were
@@ -184,7 +191,19 @@ defmodule Cure.Core.Validator do
   `:reject`-mode clause is violated, else `{:ok, warnings}`.
   """
   @spec validate(tuple(), config()) :: {:ok, [diagnostic()]} | {:error, [diagnostic()]}
-  def validate(term, config) do
+  def validate(term, config), do: validate(term, config, nil)
+
+  @doc """
+  Validate with optional constructor metadata for erased argument positions.
+
+  The existing one- and two-argument forms retain their environment-free
+  behavior. With an environment, exact licensed constructor applications also
+  classify uniform parameters and erased fields before visiting effect nodes.
+  No type inference or evaluation is performed by this structural policy.
+  """
+  @spec validate(tuple(), config(), Cure.Core.Env.t() | nil) ::
+          {:ok, [diagnostic()]} | {:error, [diagnostic()]}
+  def validate(term, config, env) do
     per_node =
       for node <- nodes(term),
           {clause, mode} <- config,
@@ -197,7 +216,7 @@ defmodule Cure.Core.Validator do
     # Position-aware clauses (`no_effect_in_{type,erased}_position`) cannot be
     # expressed per-node — `violation/2` sees one node with no position context —
     # so they are collected by a dedicated pass threading a `pos` and merged in.
-    diags = per_node ++ effect_position_diags(term, config)
+    diags = per_node ++ effect_position_diags(term, config, env)
 
     case Enum.filter(diags, &(&1.mode == :reject)) do
       [] -> {:ok, Enum.filter(diags, &(&1.mode == :warn))}
@@ -267,8 +286,17 @@ defmodule Cure.Core.Validator do
     do: "constructor uses a bare atom, not a qualified symbol (K12)"
 
   # level_expr — integer level instead of a level-expression.
-  defp violation(:level_expr, {:type, l}) when is_integer(l),
-    do: "universe level is an integer, not a level-expression (K7)"
+  defp violation(:level_expr, {:type, sort}) do
+    if Cure.Core.Sort.validate(sort, nil) != :ok,
+      do: "universe sort is not a canonical finite/limit index",
+      else: nil
+  end
+
+  defp violation(:level_expr, {:level_value, level}) do
+    if Cure.Core.UniverseLevel.validate(level, nil) != :ok,
+      do: "universe value is not a canonical level",
+      else: nil
+  end
 
   # effect_ops_known (§8) — a `{:effect_op, name, args}` node must name a KNOWN
   # effect operation whose declared arity matches its argument count. `{:effect_op}`
@@ -306,25 +334,22 @@ defmodule Cure.Core.Validator do
   # position context, so this dedicated walk threads a `pos ∈ :term|:type|:erased`
   # and emits diagnostics honoring each clause's configured mode.
   #
-  # NOTE (§5.3): the erased CTOR-FIELD case — an effect computation in a ctor
-  # argument whose field is declared erased in the Inductive signature — is NOT
-  # covered here: `validate/2` has no env, so ctor args are visited in TERM
-  # position (inherited). That case is discharged upstream by §5.3 and by
-  # Erase dropping erased ctor fields before emit; do NOT thread env into
-  # `validate` to reach it.
-  @spec effect_position_diags(tuple(), config()) :: [diagnostic()]
-  defp effect_position_diags(term, config), do: eff_walk(term, :term, config)
+  # The compatibility APIs have no constructor metadata and retain inherited
+  # positions. The environment-aware API uses the same licensed application
+  # quantity authority as Erase and Relevance, before either can skip q0 slots.
+  @spec effect_position_diags(tuple(), config(), Cure.Core.Env.t() | nil) :: [diagnostic()]
+  defp effect_position_diags(term, config, env), do: eff_walk(term, :term, {config, env})
 
   # Check THIS node for a position violation, then recurse into children at the
   # position each child is visited in (see the transition table below).
-  defp eff_walk(node, pos, config) do
+  defp eff_walk(node, pos, {config, _env} = policy) do
     self_diag =
       case eff_clause_for(node, pos) do
         nil -> []
         {clause, msg} -> emit_pos(clause, msg, node, config)
       end
 
-    self_diag ++ eff_children(node, pos, config)
+    self_diag ++ eff_children(node, pos, policy)
   end
 
   # A computation node in a forbidden position → the clause it violates.
@@ -351,6 +376,11 @@ defmodule Cure.Core.Validator do
   end
 
   # -- position-transition table (§8): each child visited at the pos below -----
+  defp eff_children({tag, _} = term, _pos, config) when tag in [:type, :level_value],
+    do: Enum.flat_map(Cure.Core.Term.level_atoms(term), &eff_walk(&1, :type, config))
+
+  defp eff_children({:level_type}, _pos, _config), do: []
+
   defp eff_children({:pi, _g, dom, cod}, _pos, config),
     do: eff_walk(dom, :type, config) ++ eff_walk(cod, :type, config)
 
@@ -362,16 +392,22 @@ defmodule Cure.Core.Validator do
     eff_walk(ty, :type, config) ++ eff_walk(val, val_pos, config) ++ eff_walk(body, pos, config)
   end
 
-  defp eff_children({:app, f, a}, pos, config),
-    do: eff_walk(f, pos, config) ++ eff_walk(a, pos, config)
+  defp eff_children({:app, f, a} = application, pos, policy) do
+    case effect_application_spine(application, []) do
+      {{:ctor, name, head_args}, args} ->
+        effect_constructor_children(name, head_args ++ args, pos, policy)
+
+      _other ->
+        eff_walk(f, pos, policy) ++ eff_walk(a, pos, policy)
+    end
+  end
 
   # Family params/indices are type-level.
   defp eff_children({:data, _n, ps, is}, _pos, config),
     do: Enum.flat_map(ps ++ is, &eff_walk(&1, :type, config))
 
-  # Ctor args inherit (no env for field quantities — see §5.3 note above).
-  defp eff_children({:ctor, _n, args}, pos, config),
-    do: Enum.flat_map(args, &eff_walk(&1, pos, config))
+  defp eff_children({:ctor, name, args}, pos, policy),
+    do: effect_constructor_children(name, args, pos, policy)
 
   # Scrutinee/branch bodies inherit; the motive is type-level.
   defp eff_children({:case, s, m, brs}, pos, config) do
@@ -405,10 +441,39 @@ defmodule Cure.Core.Validator do
 
   defp eff_children(_nontuple, _pos, _config), do: []
 
+  defp eff_pos_children(%Cure.Core.UniverseLevel{} = level, _pos, config),
+    do: Enum.flat_map(Cure.Core.Term.level_payload_atoms(level), &eff_walk(&1, :type, config))
+
   defp eff_pos_children(x, pos, config) when is_tuple(x), do: eff_walk(x, pos, config)
 
   defp eff_pos_children(xs, pos, config) when is_list(xs),
     do: Enum.flat_map(xs, &eff_pos_children(&1, pos, config))
 
   defp eff_pos_children(_atom_or_scalar, _pos, _config), do: []
+
+  defp effect_constructor_children(name, args, pos, {_config, env} = policy) do
+    quantities =
+      if not is_nil(env),
+        do: Cure.Core.Inductive.ctor_application_quantities(env, name, length(args))
+
+    case quantities do
+      quantities when is_list(quantities) ->
+        args
+        |> Enum.zip(quantities)
+        |> Enum.flat_map(fn {arg, quantity} ->
+          child_pos =
+            if pos != :type and Cure.Core.Grade.erased?(quantity), do: :erased, else: pos
+
+          eff_walk(arg, child_pos, policy)
+        end)
+
+      nil ->
+        Enum.flat_map(args, &eff_walk(&1, pos, policy))
+    end
+  end
+
+  defp effect_application_spine({:app, function, argument}, args),
+    do: effect_application_spine(function, [argument | args])
+
+  defp effect_application_spine(head, args), do: {head, args}
 end

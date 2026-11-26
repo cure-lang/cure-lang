@@ -13,7 +13,7 @@ defmodule Cure.Core.Certificate do
 
   alias Cure.Core.{Context, Env, Eval, Inductive, Kernel, SizeChange, Term}
 
-  @direct_summary_version 6
+  @direct_summary_version 7
   @diagnostic_provenance_keys [:source_span, :macro_expansion]
 
   @doc "The semantic format/checker version of trusted direct-call summaries."
@@ -40,6 +40,7 @@ defmodule Cure.Core.Certificate do
     {caller_arity, _inner} = peel_lams(body, 0)
 
     summary.version == @direct_summary_version and
+      summary.universe_identity == Cure.Core.UniverseCodec.identity() and
       summary.caller == caller and
       summary.body_hash == body_hash(body) and
       summary.caller_arity == caller_arity and
@@ -92,6 +93,7 @@ defmodule Cure.Core.Certificate do
 
     summary = %{
       version: @direct_summary_version,
+      universe_identity: Cure.Core.UniverseCodec.identity(),
       caller: caller,
       body_hash: body_hash,
       caller_arity: caller_arity,
@@ -103,7 +105,8 @@ defmodule Cure.Core.Certificate do
 
   @doc "Attach diagnostic-only source data by stable Core call ordinal."
   @spec attach_provenance(map(), %{optional(non_neg_integer()) => map()}) :: map()
-  def attach_provenance(summary, provenance_by_path) when is_map(summary) and is_map(provenance_by_path) do
+  def attach_provenance(summary, provenance_by_path)
+      when is_map(summary) and is_map(provenance_by_path) do
     calls =
       Enum.map(summary.calls, fn call ->
         diagnostic = Map.get(provenance_by_path, call.provenance.core_path, %{})
@@ -125,8 +128,11 @@ defmodule Cure.Core.Certificate do
 
   defp definition_arity(env, callee, fallback) do
     case Env.get_def(env, callee) do
-      %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] -> arity_of(body)
-      _ -> fallback
+      %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] ->
+        arity_of(body)
+
+      _ ->
+        fallback
     end
   end
 
@@ -150,7 +156,7 @@ defmodule Cure.Core.Certificate do
 
   defp arity_of(body), do: body |> peel_lams(0) |> elem(0)
 
-  defp semantic_hash(term), do: :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
+  defp semantic_hash(term), do: Cure.Core.UniverseCodec.semantic_hash(term)
 
   defp summary_hash(summary),
     do: summary |> Map.delete(:summary_hash) |> semantic_summary() |> semantic_hash()
@@ -269,13 +275,26 @@ defmodule Cure.Core.Certificate do
   # change-matrix builder, and the moduledoc's claim that "the kernel never certifies a
   # function it cannot prove total" was false for `terminating?/3` called in isolation.
   # `terminating?/3` is public, and `certify_hardening_test.exs` already calls it directly.
+  defp walk_node(emit, {tag, _} = term, st, ctx, acc) when tag in [:type, :level_value],
+    do: Enum.reduce(Term.level_atoms(term), acc, fn atom, ac -> walk(emit, atom, st, ctx, ac) end)
+
+  defp walk_node(_emit, {:level_type}, _st, _ctx, acc), do: acc
+
+  defp walk_node(emit, %Cure.Core.UniverseLevel{} = level, st, ctx, acc),
+    do: Enum.reduce(Term.level_payload_atoms(level), acc, fn atom, ac -> walk(emit, atom, st, ctx, ac) end)
+
   defp walk_node(emit, term, st, ctx, acc) when is_tuple(term) do
     term
     |> Tuple.to_list()
     |> Enum.reduce(acc, fn
-      child, ac when is_tuple(child) -> walk(emit, child, st, ctx, ac)
-      children, ac when is_list(children) -> Enum.reduce(children, ac, &descend_unknown(emit, &1, st, ctx, &2))
-      _leaf, ac -> ac
+      child, ac when is_tuple(child) or is_struct(child, Cure.Core.UniverseLevel) ->
+        walk(emit, child, st, ctx, ac)
+
+      children, ac when is_list(children) ->
+        Enum.reduce(children, ac, &descend_unknown(emit, &1, st, ctx, &2))
+
+      _leaf, ac ->
+        ac
     end)
   end
 
@@ -316,6 +335,9 @@ defmodule Cure.Core.Certificate do
   defp descend_unknown(emit, child, st, ctx, acc) when is_tuple(child),
     do: walk(emit, child, st, ctx, acc)
 
+  defp descend_unknown(emit, %Cure.Core.UniverseLevel{} = child, st, ctx, acc),
+    do: walk(emit, child, st, ctx, acc)
+
   defp descend_unknown(_emit, _child, _st, _ctx, acc), do: acc
 
   # `direct_summary/3` is also a public hardening boundary and is deliberately
@@ -326,7 +348,7 @@ defmodule Cure.Core.Certificate do
   defp extend_context(ctx, domain, grade) do
     Context.extend(ctx, Eval.eval(domain, Context.env(ctx)), grade)
   rescue
-    RuntimeError -> Context.extend(ctx, {:vtype, 0}, grade)
+    RuntimeError -> Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}, grade)
   end
 
   defp extend_definition_context(ctx, type, value) do
@@ -336,7 +358,7 @@ defmodule Cure.Core.Certificate do
       Eval.eval(value, Context.env(ctx))
     )
   rescue
-    RuntimeError -> Context.extend(ctx, {:vtype, 0})
+    RuntimeError -> Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
   end
 
   # Recover the same checked index equation the kernel used when it admitted the

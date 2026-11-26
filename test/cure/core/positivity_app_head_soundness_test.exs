@@ -16,12 +16,14 @@ defmodule Cure.Core.PositivityAppHeadSoundnessTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Empty, [], [], 0), [])
+    |> Inductive.declare(Inductive.family(:Empty, [], [], Cure.Core.Sort.finite_closed(0)), [])
   end
 
   defp positive_of(field_type) do
     env =
-      Inductive.declare(base(), Inductive.family(:Bad, [], [], 0), [Inductive.ctor(:mk, [{:f, field_type}], [])])
+      Inductive.declare(base(), Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:mk, [{:f, field_type}], [])
+      ])
 
     Inductive.positive?(env, Inductive.get_family(env, :Bad))
   end
@@ -35,7 +37,10 @@ defmodule Cure.Core.PositivityAppHeadSoundnessTest do
 
   test "family under a type-level lambda is rejected" do
     # λ(t : Type). (Bad -> Empty) — a negative occurrence hidden under a binder.
-    field = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:pi, Cure.Core.Grade.unrestricted(), @bad, @empty}}
+    field =
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, Cure.Core.Grade.unrestricted(), @bad, @empty}}
+
     assert {:error, {:non_strictly_positive, :mk}} == positive_of(field)
   end
 

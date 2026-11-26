@@ -44,7 +44,7 @@ defmodule Cure.Elab.UsageCheckTest do
 
   defp nat_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Z, [], []),
       Inductive.ctor(:S, [n: @nat], [])
     ])
@@ -53,7 +53,7 @@ defmodule Cure.Elab.UsageCheckTest do
   # A one-field box whose field carries `grade`.
   defp box_env(grade) do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Box, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [v: @nat], [], [grade])
     ])
   end

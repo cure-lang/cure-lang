@@ -171,7 +171,7 @@ defmodule Antigen.Assays.InductiveEnv do
   # it (its only requirement is `:name`), so both accessors must fall back to
   # their documented defaults on it, never crash or misreport.
   defp check_legacy_record(env) do
-    legacy_fam = Inductive.family(:AntigenLegacy, [], [], 0)
+    legacy_fam = Inductive.family(:AntigenLegacy, [], [], Cure.Core.Sort.finite_closed(0))
     legacy_ctor = %{name: :antigen_legacy_ctor, args: [], result_indices: []}
     legacy_env = Inductive.declare(env, legacy_fam, [legacy_ctor])
 

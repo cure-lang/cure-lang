@@ -36,7 +36,7 @@ defmodule Cure.Core.TermLiteralsTest do
 
   test "subst/3 is identity on every literal/type-constant form" do
     for form <- @literal_forms do
-      assert Term.subst(form, 0, {:type, 0}) == form
+      assert Term.subst(form, 0, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}) == form
     end
   end
 
@@ -65,11 +65,11 @@ defmodule Cure.Core.TermLiteralsTest do
     # pre-fix, reify→shift preprocessing crashed with FunctionClauseError first.
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Dcoupled, [], []),
         Inductive.ctor(:Causal, [], [])
       ])
-      |> Inductive.declare(Inductive.family(:IxN, [], [{:i, {:int_type}}], 0), [
+      |> Inductive.declare(Inductive.family(:IxN, [], [{:i, {:int_type}}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:wrapn, [{:p, @dec}], [{:int_lit, 3}])
       ])
 

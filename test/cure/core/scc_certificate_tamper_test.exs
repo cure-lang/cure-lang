@@ -32,7 +32,7 @@ defmodule Cure.Core.SccCertificateTamperTest do
     |> Enum.with_index()
     |> Enum.reduce(Env.empty(), fn {name, index}, env ->
       callee = Enum.at(@names, rem(index + 1, length(@names)))
-      Env.add_def(env, name, {:type, 0}, {:global, callee})
+      Env.add_def(env, name, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, callee})
     end)
     |> then(fn env ->
       Enum.reduce(@names, env, fn name, acc ->

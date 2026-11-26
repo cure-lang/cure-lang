@@ -19,7 +19,7 @@ defmodule Cure.Elab.PublishCheckedInterfaceTest do
   @stdlib_path Path.expand("lib/std/core.cure")
 
   test "a documentation snippet does not publish itself as the module it is documented in" do
-    cache_key = {Program, :module_interface, @stdlib_path}
+    cache_key = {Program, :module_interface, @stdlib_path, Program.module_interface_cache_identity()}
     real_hash = :crypto.hash(:sha256, File.read!(@stdlib_path))
 
     assert {:ok, _} = Program.module_interface("Std.Core", @stdlib_path)

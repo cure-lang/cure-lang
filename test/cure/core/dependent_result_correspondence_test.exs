@@ -10,15 +10,23 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
 
   @g Grade.unrestricted()
   @carrier {:atom_type}
-  @fields [{:x, {:var, 0}}, {:B, {:type, 0}}, {:y, {:var, 0}}]
+  @fields [{:x, {:var, 0}}, {:B, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, {:y, {:var, 0}}]
   @indices [{:var, 2}, {:var, 1}, {:var, 0}]
   @grades [:unrestricted, :unrestricted, :unrestricted]
   @values [{:atom_lit, :payload}, {:float_type}, {:float_lit, 0.5}]
   @goal {:data, :ResultChain, [@carrier], @values}
-  @type_redex {:app, {:lam, @g, {:type, 0}, {:var, 0}}, {:float_type}}
+  @type_redex {:app, {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}},
+               {:float_type}}
 
   setup do
-    family = Inductive.family(:ResultChain, [{:A, {:type, 0}}], @fields, 1)
+    family =
+      Inductive.family(
+        :ResultChain,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        @fields,
+        Cure.Core.Sort.finite_closed(1)
+      )
+
     ctor = Inductive.ctor(:ResultMk, @fields, @indices, @grades, [{:var, 3}])
     computed_x = {:app, {:lam, @g, {:var, 3}, {:var, 0}}, {:var, 2}}
 
@@ -36,7 +44,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     assert :ok = Kernel.check_ctor(env, family, ctor)
     assert :ok = Kernel.check_ctor(env, family, computed)
     ctx = Context.empty(env)
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, @goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, @goal)
 
     {:ok, ctx: ctx, env: env, family: family}
   end
@@ -56,7 +64,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     different =
       {:data, :ResultChain, [@carrier], [{:atom_lit, :different}, {:float_type}, {:float_lit, 0.5}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, different)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, different)
     assert {:error, _reason} = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(different, []))
   end
 
@@ -70,19 +78,22 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   end
 
   test "closing an open parameter and value agrees with independently checked computed results", %{ctx: ctx} do
-    open_ctx = Context.extend(ctx, {:vtype, 0})
+    open_ctx = Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     open_ctx = Context.extend(open_ctx, Eval.eval({:var, 0}, Context.env(open_ctx)))
     fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
     goal = {:data, :ResultChain, [{:var, 1}], fields}
     constructor = {:ctor, :ResultComputed, fields}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(open_ctx, goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(open_ctx, goal)
     assert :ok = Kernel.check(open_ctx, constructor, Eval.eval(goal, Context.env(open_ctx)))
 
     source =
-      {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:let, @g, goal, constructor, {:var, 0}}}}
+      {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, @g, {:var, 0}, {:let, @g, goal, constructor, {:var, 0}}}}
 
-    source_type = {:pi, @g, {:type, 0}, {:pi, @g, {:var, 0}, goal}}
+    source_type =
+      {:pi, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:pi, @g, {:var, 0}, goal}}
+
     closed = {:ctor, :ResultComputed, @values}
 
     assert :ok = Kernel.check(ctx, source, Eval.eval(source_type, []))
@@ -100,12 +111,16 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
 
   test "a complete declaration frame closes a lambda without capturing its own argument", %{ctx: ctx} do
     declaration =
-      {:lam, @g, {:type, 0},
-       {:lam, @g, {:var, 0}, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, {:var, 3}, {:var, 3}}}}}}
+      {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:lam, @g, {:var, 0},
+        {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         {:lam, @g, {:var, 0}, {:lam, @g, {:var, 3}, {:var, 3}}}}}}
 
     declaration_type =
-      {:pi, @g, {:type, 0},
-       {:pi, @g, {:var, 0}, {:pi, @g, {:type, 0}, {:pi, @g, {:var, 0}, {:pi, @g, {:var, 3}, {:var, 4}}}}}}
+      {:pi, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, @g, {:var, 0},
+        {:pi, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         {:pi, @g, {:var, 0}, {:pi, @g, {:var, 3}, {:var, 4}}}}}}
 
     applied = Enum.reduce([@carrier | @values], declaration, fn arg, fun -> {:app, fun, arg} end)
     closed = {:lam, @g, @carrier, {:atom_lit, :payload}}
@@ -119,7 +134,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   end
 
   test "a registry-valued caller substitution survives a fresh lambda binder", %{env: env} do
-    family = Inductive.family(:TransportWrapper, [], [{:d, @goal}], 1)
+    family = Inductive.family(:TransportWrapper, [], [{:d, @goal}], Cure.Core.Sort.finite_closed(1))
     ctor = Inductive.ctor(:TransportWrap, [{:d, @goal}], [{:var, 0}], [:unrestricted], [])
     env = Inductive.declare(env, family, [ctor])
     ctx = Context.empty(env)
@@ -130,13 +145,13 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     assert :ok = Kernel.check_family(env, family)
     assert :ok = Kernel.check_ctor(env, family, ctor)
     assert :ok = Kernel.check(ctx, value, Eval.eval(@goal, []))
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, wrapped_goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, wrapped_goal)
     assert :ok = Kernel.check(ctx, wrapped, Eval.eval(wrapped_goal, []))
 
     open_ctx = Context.extend(ctx, Eval.eval(@goal, []))
     open_goal = {:data, :TransportWrapper, [], [{:var, 0}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(open_ctx, open_goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(open_ctx, open_goal)
 
     assert :ok =
              Kernel.check(
@@ -183,7 +198,9 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     scrutinee = {:data, :ResultChain, [@carrier], [{:var, 2}, {:var, 1}, {:var, 0}]}
 
     motive =
-      {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, {:var, 2}}}}}
+      {:lam, @g, @carrier,
+       {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, {:var, 2}}}}}
 
     branches = [{:ResultMk, 3, {:var, 0}}, {:ResultComputed, 3, {:var, 0}}]
 
@@ -251,12 +268,20 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
 
   test "a binder domain containing a type-valued case reduces at the same function goal", %{ctx: ctx} do
     branches = [{:ResultMk, 3, {:float_type}}, {:ResultComputed, 3, {:float_type}}]
-    domain = whole_case(@goal, {:ctor, :ResultComputed, @values}, result_motive({:type, 0}), branches)
+
+    domain =
+      whole_case(
+        @goal,
+        {:ctor, :ResultComputed, @values},
+        result_motive({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
+        branches
+      )
+
     source = {:lam, @g, domain, {:var, 0}}
     reduct = {:lam, @g, {:float_type}, {:var, 0}}
     goal = Eval.eval({:pi, @g, {:float_type}, {:float_type}}, [])
 
-    assert :ok = Kernel.check(ctx, domain, {:vtype, 0})
+    assert :ok = Kernel.check(ctx, domain, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     assert :ok = Kernel.check(ctx, source, goal)
     assert :ok = Kernel.check(ctx, reduct, goal)
     assert {:vfloat, 0.5} = Eval.apply(Eval.eval(source, []), {:vfloat, 0.5})
@@ -271,7 +296,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   end
 
   test "well-kinded fields must still fit the declared family universe", %{env: env, family: family} do
-    small = %{family | level: 0}
+    small = %{family | sort: Cure.Core.Sort.finite_zero()}
     ctor = Inductive.ctor(:ResultTooLarge, @fields, @indices, @grades, [{:var, 3}])
 
     assert :ok = Kernel.check_family(env, small)
@@ -279,7 +304,9 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   end
 
   test "a closed well-typed result parameter is not a uniform fresh parameter", %{env: env, family: family} do
-    assert {:ok, {:vtype, 0}} = Kernel.infer(Context.empty(env), @carrier)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} =
+             Kernel.infer(Context.empty(env), @carrier)
+
     ctor = Inductive.ctor(:ResultNonUniform, @fields, @indices, @grades, [@carrier])
 
     assert {:error, {:non_uniform_parameter, %{position: 0}}} = Kernel.check_ctor(env, family, ctor)
@@ -309,13 +336,20 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   end
 
   test "matching telescope shapes do not change a registered constructor's owner", %{env: env} do
-    other = Inductive.family(:OtherResultChain, [{:A, {:type, 0}}], @fields, 1)
+    other =
+      Inductive.family(
+        :OtherResultChain,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        @fields,
+        Cure.Core.Sort.finite_closed(1)
+      )
+
     env = Inductive.declare(env, other, [])
     ctx = Context.empty(env)
     other_goal = {:data, :OtherResultChain, [@carrier], @values}
 
     assert :ok = Kernel.check_family(env, other)
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, other_goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, other_goal)
     assert :ResultChain == Inductive.ctor_family(env, :ResultMk)
     assert {:error, _reason} = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(other_goal, []))
   end
@@ -328,7 +362,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     goal_value = Eval.eval(goal, [])
     expected = {:vctor, :ResultMk, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
     assert :ok = Kernel.check(ctx, source, goal_value)
     assert :ok = Kernel.check(ctx, target, goal_value)
     assert ^expected = Eval.eval(source, [])
@@ -342,7 +376,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     goal_value = Eval.eval(goal, [])
     expected = {:vctor, :ResultMk, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
 
     for args <- [fields, [{:atom_lit, :payload}, {:float_type}, value_redex], @values] do
       term = {:ctor, :ResultMk, args}
@@ -359,7 +393,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     target = {:ctor, :ResultComputed, @values}
     expected = {:vctor, :ResultComputed, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
     assert :ok = Kernel.check(ctx, source, goal_value)
     assert :ok = Kernel.check(ctx, target, goal_value)
     assert ^expected = Eval.eval(source, [])
@@ -385,7 +419,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     target = {:ctor, :ResultMk, [{:var, 0}, {:float_type}, {:float_lit, 0.5}]}
     expected = {:vctor, :ResultMk, [{:vneutral, {:nvar, 0}}, {:vfloat_type}, {:vfloat, 0.5}]}
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
     assert :ok = Kernel.check(ctx, source, goal_value)
     assert :ok = Kernel.check(ctx, target, goal_value)
     assert ^expected = Eval.eval(source, Context.env(ctx))
@@ -395,7 +429,9 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   defp result_motive(body) do
     scrutinee = {:data, :ResultChain, [@carrier], [{:var, 2}, {:var, 1}, {:var, 0}]}
 
-    {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
+    {:lam, @g, @carrier,
+     {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+      {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
   end
 
   defp whole_case(goal, ctor, motive, branches) do

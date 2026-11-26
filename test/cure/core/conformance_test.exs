@@ -6,13 +6,15 @@ defmodule Cure.Core.ConformanceTest do
   `Cure.Core.Kernel` — exactly the artifacts an independent kernel would re-check.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Builtins, Context, Env, Kernel, Quote, Serialize}
+  alias Cure.Core.{Builtins, Context, Env, Eval, Kernel, Quote, Serialize}
 
   @corpus Path.join([__DIR__, "..", "..", "fixtures", "core_conformance.txt"])
 
   defp entries do
-    @corpus
-    |> File.read!()
+    contents = File.read!(@corpus)
+    assert String.starts_with?(contents, "# cure-core-conformance 2\n")
+
+    contents
     |> String.split("\n", trim: true)
     |> Enum.reject(&(String.starts_with?(&1, "#") or &1 == ""))
     |> Enum.map(fn line ->
@@ -26,21 +28,29 @@ defmodule Cure.Core.ConformanceTest do
   test "the kernel agrees with every verdict in the conformance corpus" do
     ctx = Context.empty(Builtins.seed(Env.empty()))
 
-    for {verdict, term_sexp, type_sexp} <- entries() do
+    for {operation, term_sexp, type_sexp} <- entries() do
       {:ok, term} = Serialize.decode(term_sexp)
-      result = Kernel.infer(ctx, term)
 
-      case verdict do
-        "accept" ->
-          assert {:ok, type_value} = result, "expected #{term_sexp} to typecheck"
+      case operation do
+        "infer_accept" ->
+          assert {:ok, type_value} = Kernel.infer(ctx, term), "expected #{term_sexp} to typecheck"
 
           if type_sexp do
-            got = type_value |> Quote.reify(0) |> Serialize.encode()
+            got = type_value |> Quote.reify(0, Context.signature(ctx)) |> Serialize.encode()
             assert got == type_sexp, "#{term_sexp}: inferred #{got}, corpus says #{type_sexp}"
           end
 
-        "reject" ->
-          assert {:error, _} = result, "expected #{term_sexp} to be rejected"
+        "infer_reject" ->
+          assert {:error, _} = Kernel.infer(ctx, term), "expected #{term_sexp} to be rejected"
+
+        check when check in ["check_accept", "check_reject"] ->
+          assert is_binary(type_sexp), "checking entries require an explicit expected type"
+          assert {:ok, expected} = Serialize.decode(type_sexp)
+          result = Kernel.check(ctx, term, Eval.eval(expected, Context.env(ctx)))
+
+          if check == "check_accept",
+            do: assert(:ok == result, "expected #{term_sexp} to check at #{type_sexp}"),
+            else: assert(match?({:error, _}, result), "expected #{term_sexp} to fail at #{type_sexp}")
       end
     end
   end

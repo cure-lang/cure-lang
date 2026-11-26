@@ -411,6 +411,10 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
+  defp equality_head({:data, family, [_level, _carrier], [_left, _right]}, goal) do
+    if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
+  end
+
   defp equality_head({:data, family, [_carrier], [_left, _right]}, goal) do
     if family == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq), do: family, else: nil
   end
@@ -688,7 +692,7 @@ defmodule Cure.Elab.ProofGoal do
     count = length(telescope)
 
     case proposition do
-      {:data, equality, [carrier], [left, right]} ->
+      {:data, equality, [_level, carrier], [left, right]} ->
         if equality == Cure.Core.Inductive.builtin(Context.signature(goal.context), :eq) do
           goal_term
           |> core_subterms()
@@ -770,6 +774,12 @@ defmodule Cure.Elab.ProofGoal do
     end
   end
 
+  defp match_rule({:type, {:finite, left}}, {:type, {:finite, right}}, count, bindings),
+    do: match_level_rule(left, right, count, bindings)
+
+  defp match_rule({:level_value, left}, {:level_value, right}, count, bindings),
+    do: match_level_rule(left, right, count, bindings)
+
   defp match_rule(pattern, candidate, count, bindings)
        when is_tuple(pattern) and is_tuple(candidate) and tuple_size(pattern) == tuple_size(candidate) do
     pattern
@@ -799,6 +809,22 @@ defmodule Cure.Elab.ProofGoal do
 
   defp match_rule(same, same, _count, bindings), do: {:ok, bindings}
   defp match_rule(_pattern, _candidate, _count, _bindings), do: :no_match
+
+  defp match_level_rule(
+         %Cure.Core.UniverseLevel{constant: constant, atoms: left},
+         %Cure.Core.UniverseLevel{constant: constant, atoms: right},
+         count,
+         bindings
+       ) do
+    if Enum.map(left, &elem(&1, 1)) == Enum.map(right, &elem(&1, 1)),
+      do: match_rule(Enum.map(left, &elem(&1, 0)), Enum.map(right, &elem(&1, 0)), count, bindings),
+      else: :no_match
+  end
+
+  defp match_level_rule(_left, _right, _count, _bindings), do: :no_match
+
+  defp core_subterms({tag, _} = term) when tag in [:type, :level_value],
+    do: [term | Enum.flat_map(Cure.Core.Term.level_atoms(term), &core_subterms/1)]
 
   defp core_subterms(term) when is_tuple(term),
     do: [term | term |> Tuple.to_list() |> Enum.flat_map(&core_subterms/1)]
@@ -839,6 +865,10 @@ defmodule Cure.Elab.ProofGoal do
   end
 
   defp simplification_measure(term), do: core_size(term)
+
+  defp core_size({tag, _} = term) when tag in [:type, :level_value],
+    do: 1 + Enum.sum(Enum.map(Cure.Core.Term.level_atoms(term), &core_size/1))
+
   defp core_size(term) when is_tuple(term), do: 1 + (term |> Tuple.to_list() |> Enum.map(&core_size/1) |> Enum.sum())
   defp core_size(term) when is_list(term), do: Enum.map(term, &core_size/1) |> Enum.sum()
   defp core_size(_leaf), do: 0

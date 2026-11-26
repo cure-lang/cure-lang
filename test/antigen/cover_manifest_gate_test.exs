@@ -71,10 +71,10 @@ defmodule Antigen.CoverManifestGateTest do
     bad = %{
       expected: 5,
       produced: 3,
-      missing: MapSet.new([{"positivity", :app_head_negative}, {"universes", :family_ceiling}]),
+      missing: MapSet.new([{"positivity", :app_head_negative}, {"universes", :family_formation_neg}]),
       missing_detail: [
         %{assay: "positivity", cell: :app_head_negative, generator: Antigen.Generators.Positivity},
-        %{assay: "universes", cell: :family_ceiling, generator: Antigen.Generators.Universes}
+        %{assay: "universes", cell: :family_formation_neg, generator: Antigen.Generators.Universes}
       ],
       assays: ["positivity", "universes"]
     }
@@ -83,7 +83,7 @@ defmodule Antigen.CoverManifestGateTest do
     assert bad_line =~ "3/5 declared cells produced"
     assert bad_line =~ "2 shape(s) uncovered in 2 assay(s):"
     assert bad_line =~ "  - positivity · app_head_negative — declared by Positivity, never produced"
-    assert bad_line =~ "  - universes · family_ceiling — declared by Universes, never produced"
+    assert bad_line =~ "  - universes · family_formation_neg — declared by Universes, never produced"
   end
 
   test "the four second-pass finding cells are in the manifest" do
@@ -92,7 +92,7 @@ defmodule Antigen.CoverManifestGateTest do
     for point <- [
           {"positivity", :app_head_negative},
           {"branchunify/verdict", :param_solved},
-          {"universes", :family_ceiling},
+          {"universes", :family_formation_neg},
           {"totality/diverging", :pending_sibling}
         ] do
       assert MapSet.member?(expected, point), "manifest is missing the finding cell #{inspect(point)}"

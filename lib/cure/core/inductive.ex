@@ -860,10 +860,14 @@ defmodule Cure.Core.Inductive do
           :name => atom(),
           :params => telescope(),
           :indices => telescope(),
-          :level => non_neg_integer(),
-          # Set (to `true`) only by `opaque_family/3` for postulate families the
+          :sort => Cure.Core.Sort.t(),
+          # Set (to `true`) only by `opaque_family/4` for postulate families the
           # kernel refuses to eliminate; absent on ordinary inductive families.
-          optional(:opaque) => boolean()
+          optional(:opaque) => boolean(),
+          # Runtime erasure class declared via `@erases(<class>)` on opaque families.
+          optional(:erasure) => atom() | nil,
+          # Declaration order of constructors, recorded by `declare/3`.
+          optional(:ctor_order) => [atom()]
         }
   @typedoc """
   A constructor argument's **plicity** — whether it is supplied *positionally*
@@ -917,9 +921,9 @@ defmodule Cure.Core.Inductive do
   def builtin(%Env{builtins: b}, key), do: Map.get(b, key)
 
   @doc "Build a family signature (no registration; see `declare/3`)."
-  @spec family(atom(), telescope(), telescope(), non_neg_integer()) :: family()
-  def family(name, param_tele, index_tele, level),
-    do: %{name: name, params: param_tele, indices: index_tele, level: level}
+  @spec family(atom(), telescope(), telescope(), Cure.Core.Sort.t()) :: family()
+  def family(name, param_tele, index_tele, sort),
+    do: %{name: name, params: param_tele, indices: index_tele, sort: sort}
 
   @doc """
   Build an OPAQUE (postulate) family signature: constructor-less and marked
@@ -935,13 +939,13 @@ defmodule Cure.Core.Inductive do
   anonymous union wants. The kernel never reads it; it is elaborator metadata riding
   on the family record.
   """
-  @spec opaque_family(atom(), telescope(), non_neg_integer(), atom() | nil) :: family()
-  def opaque_family(name, param_tele, level, erasure \\ nil),
+  @spec opaque_family(atom(), telescope(), Cure.Core.Sort.t(), atom() | nil) :: family()
+  def opaque_family(name, param_tele, sort, erasure \\ nil),
     do: %{
       name: name,
       params: param_tele,
       indices: [],
-      level: level,
+      sort: sort,
       opaque: true,
       erasure: erasure
     }
@@ -1105,6 +1109,41 @@ defmodule Cure.Core.Inductive do
       _ -> nil
     end
   end
+
+  @doc """
+  Quantities for an exact fields-only or uniform-parameters-plus-fields application.
+
+  Constructor declarations record field quantities only. The existing K6 Core
+  spelling may additionally carry every uniform family parameter before those
+  fields; that exact prefix has quantity zero. No prefix is inferred for a
+  partial, over-applied, already-erased or unknown spine, or malformed metadata.
+  A nil result leaves the consumer's existing conservative fallback in force.
+
+  This classifies representation, not typing or permission to erase effects.
+  Callers must retain independent admission and pre-erasure validation.
+  """
+  @spec ctor_application_quantities(Env.t(), atom(), non_neg_integer()) :: [quantity()] | nil
+  def ctor_application_quantities(env, cname, arity) when is_integer(arity) and arity >= 0 do
+    with %{args: fields, quantities: quantities} when is_list(fields) and is_list(quantities) <-
+           get_ctor(env, cname),
+         true <- length(fields) == length(quantities) do
+      if arity == length(fields) do
+        quantities
+      else
+        with family when is_atom(family) and not is_nil(family) <- ctor_family(env, cname),
+             %{params: [_ | _] = params} when is_list(params) <- get_family(env, family),
+             true <- arity == length(params) + length(fields) do
+          List.duplicate(Grade.zero(), length(params)) ++ quantities
+        else
+          _ -> nil
+        end
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  def ctor_application_quantities(_env, _cname, _arity), do: nil
 
   @doc """
   A constructor's per-argument **plicities** (`:implicit` / `:explicit`). Older
@@ -1436,6 +1475,9 @@ defmodule Cure.Core.Inductive do
     end
   end
 
+  defp gather_data_heads({tag, _} = term, env, acc, seen) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &gather_data_heads(&1, env, &2, seen))
+
   defp gather_data_heads(t, env, acc, seen) when is_tuple(t),
     do: t |> Tuple.to_list() |> Enum.reduce(acc, &gather_data_heads(&1, env, &2, seen))
 
@@ -1496,6 +1538,9 @@ defmodule Cure.Core.Inductive do
       end
     end
   end
+
+  defp occurs?(env, fname, {tag, _} = term, seen) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &occurs?(env, fname, &1, seen))
 
   defp occurs?(env, fname, t, seen) when is_tuple(t),
     do: t |> Tuple.to_list() |> Enum.any?(&occurs?(env, fname, &1, seen))

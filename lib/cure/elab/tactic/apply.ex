@@ -212,6 +212,9 @@ defmodule Cure.Elab.Tactic.Apply do
     if Cure.Core.Term.term?(term) and clean?(term), do: :ok, else: {:error, :internal_application_hole}
   end
 
+  defp clean?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.all?(Cure.Core.Term.level_atoms(term), &clean?/1)
+
   defp clean?({tag, _}) when tag in [:hole, :meta], do: false
   defp clean?(term) when is_tuple(term), do: term |> Tuple.to_list() |> Enum.all?(&clean?/1)
   defp clean?(terms) when is_list(terms), do: Enum.all?(terms, &clean?/1)

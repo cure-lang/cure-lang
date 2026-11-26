@@ -1,24 +1,34 @@
 defmodule Cure.Core.FamilyLevelCeilingTest do
   @moduledoc """
-  A family declaration must respect the fixed predicative ceiling
-  (`Type0 : Type1 : Type2`). `check_family` validated the param/index telescopes
-  but never range-checked the declared `level`, so a family could be admitted at
-  an arbitrary `Type k` above the ceiling — inconsistent with the hierarchy the
-  rest of the kernel enforces.
+  Family sorts are unbounded canonical finite levels, not legacy integers.
+  Removing the old ceiling must preserve predicativity of constructor fields.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Env, Inductive, Kernel, Universe}
+  alias Cure.Core.{Env, Inductive, Kernel, Sort}
 
   defp check(level) do
     fam = Inductive.family(:Foo, [], [], level)
     Kernel.check_family(Env.empty(), fam)
   end
 
-  test "a family at the ceiling is accepted" do
-    assert :ok == check(Universe.ceiling())
+  test "families at arbitrary finite levels are accepted" do
+    assert :ok == check(Sort.finite_closed(37))
+    assert :ok == check(Sort.finite_closed(10 ** 40))
   end
 
-  test "a family above the ceiling is rejected" do
-    assert {:error, :universe_ceiling} == check(Universe.ceiling() + 1)
+  test "legacy integer family sorts are not implicitly converted" do
+    assert {:error, _} = check(2)
+    assert {:error, _} = check(3)
+  end
+
+  test "a Type37 constructor field needs a family at least at level 38" do
+    ctor = Inductive.ctor(:ContainsType, [{:a, {:type, Sort.finite_closed(37)}}], [])
+    small = Inductive.family(:Foo, [], [], Sort.finite_closed(37))
+    large = Inductive.family(:Foo, [], [], Sort.finite_closed(38))
+    env = Inductive.declare(Env.empty(), small, [])
+
+    assert :ok = Kernel.check_family(env, small)
+    assert {:error, :universe_level} = Kernel.check_ctor(env, small, ctor)
+    assert :ok = Kernel.check_ctor(env, large, ctor)
   end
 end

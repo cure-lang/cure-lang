@@ -13,12 +13,18 @@ defmodule Cure.Elab.EmitHoleFirewallTest do
   # below were cross-checked side by side first.)
 
   test "emit still refuses a plain body hole" do
-    env = Env.empty() |> Env.add_def(:h, {:type, 0}, {:hole, "body"}, [])
+    env =
+      Env.empty()
+      |> Env.add_def(:h, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:hole, "body"}, [])
+
     assert {:error, {:unfilled_hole, :h}} = Emit.compile_forms(env, :M, [:h])
   end
 
   test "emit still accepts a hole-free def (no false positive)" do
-    env = Env.empty() |> Env.add_def(:clean, {:type, 0}, {:int_lit, 42}, [])
+    env =
+      Env.empty()
+      |> Env.add_def(:clean, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:int_lit, 42}, [])
+
     assert {:ok, _forms} = Emit.compile_forms(env, :M, [:clean])
   end
 
@@ -29,17 +35,37 @@ defmodule Cure.Elab.EmitHoleFirewallTest do
   # still all that stands between an unfilled proof obligation and a shipped
   # binary. Same #102 property, new vehicle.
   defp case_transport_with_hole_proof do
-    id_branch = {:reflexive, 1, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}}
-    {:app, {:case, {:hole, "p"}, {:type, 0}, [id_branch]}, {:int_lit, 0}}
+    id_branch =
+      {:reflexive, 1,
+       {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:var, 0}}}
+
+    {:app, {:case, {:hole, "p"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [id_branch]},
+     {:int_lit, 0}}
   end
 
   test "emit refuses a hole hiding in the erased proof scrutinee of a :case transport" do
-    env = Env.empty() |> Env.add_def(:tainted3, {:type, 0}, case_transport_with_hole_proof(), [])
+    env =
+      Env.empty()
+      |> Env.add_def(
+        :tainted3,
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        case_transport_with_hole_proof(),
+        []
+      )
+
     assert {:error, {:unfilled_hole, :tainted3}} = Emit.compile_forms(env, :M3, [:tainted3])
   end
 
   test "compile_and_load refuses a :case-transport proof hole too (same gate)" do
-    env = Env.empty() |> Env.add_def(:tainted4, {:type, 0}, case_transport_with_hole_proof(), [])
+    env =
+      Env.empty()
+      |> Env.add_def(
+        :tainted4,
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        case_transport_with_hole_proof(),
+        []
+      )
 
     assert {:error, {:unfilled_hole, :tainted4}} =
              Emit.compile_and_load(env, module: :M4, functions: [:tainted4])

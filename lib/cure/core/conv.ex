@@ -73,16 +73,21 @@ defmodule Cure.Core.Conv do
   end
 
   defp conv_exposed_stuck?(v1, v2, depth, sig) do
-    conv_struct?(
-      Normalise.whnf_value(v1, sig, stuck_cases: :expose),
-      Normalise.whnf_value(v2, sig, stuck_cases: :expose),
-      depth,
-      sig
-    )
-  rescue
-    _ -> false
-  catch
-    _, _ -> false
+    fuel_key = Normalise.fuel_key()
+
+    try do
+      conv_struct?(
+        Normalise.whnf_value(v1, sig, stuck_cases: :expose),
+        Normalise.whnf_value(v2, sig, stuck_cases: :expose),
+        depth,
+        sig
+      )
+    rescue
+      _ -> false
+    catch
+      :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+      _, _ -> false
+    end
   end
 
   # A λ's GRADE is part of the term's identity, exactly as a Π's is part of the type's.
@@ -106,6 +111,8 @@ defmodule Cure.Core.Conv do
   defp conv_struct?(l, {:vlam, _, _, _} = r, depth, sig), do: eta_eq?(r, l, depth, sig)
 
   defp conv_struct?({:vtype, l1}, {:vtype, l2}, _depth, _sig), do: l1 == l2
+  defp conv_struct?({:vlevel_type}, {:vlevel_type}, _depth, _sig), do: true
+  defp conv_struct?({:vlevel, left}, {:vlevel, right}, _depth, _sig), do: left == right
 
   # NOTE(int-facade): `{:vint_type}` can no longer arise from fresh elaboration
   # (spec 2026-07-18 §3a) but this clause (and its `same_value_no_delta?` twin
@@ -296,6 +303,8 @@ defmodule Cure.Core.Conv do
     do: same_neutral_no_delta?(n1, n2, depth, sig)
 
   defp same_value_no_delta?({:vtype, l1}, {:vtype, l2}, _depth, _sig), do: l1 == l2
+  defp same_value_no_delta?({:vlevel_type}, {:vlevel_type}, _depth, _sig), do: true
+  defp same_value_no_delta?({:vlevel, left}, {:vlevel, right}, _depth, _sig), do: left == right
   defp same_value_no_delta?({:vint_type}, {:vint_type}, _depth, _sig), do: true
   defp same_value_no_delta?({:vint, a}, {:vint, b}, _depth, _sig), do: a == b
   # Same-representation fast-path; a cross-rep miss falls through to the real

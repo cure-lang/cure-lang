@@ -308,7 +308,10 @@ defmodule Cure.Elab.ErasureRelevanceTest do
     test "two different :case-transport proofs erase to the same runtime term" do
       env = Cure.Core.Builtins.seed(Env.empty(), MapSet.new())
       body = {:ctor, :Causal, []}
-      motive = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, body}
+
+      motive =
+        {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         body}
 
       id_branch =
         {:reflexive, 1, {:lam, Cure.Core.Grade.unrestricted(), {:app, motive, {:ctor, :Dcoupled, []}}, {:var, 0}}}

@@ -12,22 +12,24 @@ defmodule Cure.Core.SigmaTest do
   @causal {:ctor, :Causal, []}
   @box_d {:data, :Box, [], [{:var, 0}]}
 
-  # The dependent Σ(d:Dec). Box(d), as the inductive `Sigma(Dec, λd. Box(d))`.
-  @sigma {:data, :"Std.Sigma#Sigma", [@dec, {:lam, Cure.Core.Grade.unrestricted(), @dec, @box_d}], []}
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
+  # The dependent Σ(d:Dec). Box(d), as the inductive `Sigma(0, 0, Dec, λd. Box(d))`.
+  @sigma {:data, :"Std.Sigma#Sigma", [@l0, @l0, @dec, {:lam, Cure.Core.Grade.unrestricted(), @dec, @box_d}], []}
 
   defp build_env do
     Builtins.seed(Env.empty())
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
-    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])
     ])
   end
 
   test "Sigma formation: the family application is a type at level 0" do
-    assert {:ok, {:vtype, 0}} == Kernel.infer(Context.empty(build_env()), @sigma)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} ==
+             Kernel.infer(Context.empty(build_env()), @sigma)
   end
 
   test "mk_pair intro checks against its Sigma type" do

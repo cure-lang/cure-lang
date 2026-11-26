@@ -85,7 +85,9 @@ defmodule Cure.Core.CompactNatTest do
   describe "eliminator peeling" do
     # case n of { Z -> lit 42 ; S k -> k }  — a predecessor / is-succ probe.
     defp pred_case(scrut),
-      do: {:case, scrut, {:type, 0}, [{:Z, 0, {:nat_lit, 42}}, {:S, 1, {:var, 0}}]}
+      do:
+        {:case, scrut, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:Z, 0, {:nat_lit, 42}}, {:S, 1, {:var, 0}}]}
 
     test "case on lit 0 selects the Z branch" do
       assert {:vnat, 42} == Eval.eval(pred_case({:nat_lit, 0}), [])
@@ -97,7 +99,8 @@ defmodule Cure.Core.CompactNatTest do
 
     test "compact literals select owner-qualified Nat branches" do
       qualified =
-        {:case, {:nat_lit, 2}, {:type, 0}, [{:"Std.Nat#Z", 0, {:nat_lit, 42}}, {:"Std.Nat#S", 1, {:var, 0}}]}
+        {:case, {:nat_lit, 2}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:"Std.Nat#Z", 0, {:nat_lit, 42}}, {:"Std.Nat#S", 1, {:var, 0}}]}
 
       assert {:vnat, 1} == Eval.eval(qualified, [])
     end
@@ -119,7 +122,10 @@ defmodule Cure.Core.CompactNatTest do
     end
 
     test "nf reduces a case on a Nat literal" do
-      c = {:case, {:nat_lit, 5}, {:type, 0}, [{:Z, 0, {:nat_lit, 42}}, {:S, 1, {:var, 0}}]}
+      c =
+        {:case, {:nat_lit, 5}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:Z, 0, {:nat_lit, 42}}, {:S, 1, {:var, 0}}]}
+
       assert {:nat_lit, 4} == Normalise.nf(ctx(), c)
     end
   end

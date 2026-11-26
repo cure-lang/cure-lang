@@ -15,7 +15,7 @@ defmodule Antigen.ReportTest do
         kind: :stub,
         assay: "totality/diverging",
         label: :diverging,
-        payload: %{term: {:type, 0}},
+        payload: %{term: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
         seed: 12345
       )
 
@@ -34,7 +34,7 @@ defmodule Antigen.ReportTest do
         kind: :stub,
         assay: "totality/diverging",
         label: :diverging,
-        payload: %{term: {:type, 0}},
+        payload: %{term: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
         seed: 999
       )
 

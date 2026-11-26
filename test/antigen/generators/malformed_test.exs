@@ -23,8 +23,17 @@ defmodule Antigen.Generators.MalformedTest do
 
     # :rewrite retired (Phase C): the ill-typed transport shapes now carry an
     # :app head (J/subst case-transport applications).
-    for h <- [:absurd, :global, :data, :ctor, :case, :app, :type] do
+    for h <- [:absurd, :global, :data, :ctor, :case, :app] do
       assert h in heads, "missing malformation family: #{h}"
+    end
+
+    # A canonical bare finite universe is valid, not a rejection family. Its
+    # obsolete ceiling cell is replaced by a predicative application failure.
+    # Require every named semantic cell, a stronger check than head tags alone.
+    cells = MapSet.new(sample, & &1.cover_tag)
+
+    for {"term/rejection", cell} <- Malformed.cover_cells() do
+      assert MapSet.member?(cells, cell), "missing malformation cell: #{cell}"
     end
   end
 end

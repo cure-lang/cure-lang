@@ -32,23 +32,25 @@ defmodule Antigen.Generators.DecodeProbe do
   # structured leaves `hole`/`absurd` are tuple terms, so the assay re-encodes them and reaches
   # `enc`'s hole/absurd clauses that the well_formed? gate keeps out of the roundtrip gen.
   @valid [
-    "(int 5)",
-    "(int -3)",
-    "(int 0)",
-    "(float 1.5)",
-    "(float -2.0)",
-    "(type 0)",
-    "(var 0)",
-    "(nat 0)",
-    "(bounded 0)",
-    "(global foo)",
-    "(global Nat)",
-    "(int-type)",
-    "(hole \"h\")",
-    "(hole \"a\\\"b\")",
-    "(hole \"a\\\\b\")",
-    "(absurd)"
-  ]
+           "(int 5)",
+           "(int -3)",
+           "(int 0)",
+           "(float 1.5)",
+           "(float -2.0)",
+           "(type (finite (level-nf 0)))",
+           "(type (finite (level-nf 999)))",
+           "(var 0)",
+           "(nat 0)",
+           "(bounded 0)",
+           "(global f)",
+           "(global Nat)",
+           "(int-type)",
+           "(hole \"h\")",
+           "(hole \"a\\\"b\")",
+           "(hole \"a\\\\b\")",
+           "(absurd)"
+         ]
+         |> Enum.map(&("(cure-core 2 " <> &1 <> ")"))
 
   # Decode to {:error, _}: unbalanced / non-atom-headed / truncated S-expressions, trailing
   # tokens, an unterminated string, an unknown node head, and case/ctor bodies whose sub-terms
@@ -56,43 +58,60 @@ defmodule Antigen.Generators.DecodeProbe do
   #
   # Then the shape violations: a bare token standing where a full term belongs (`enc` never
   # emits one), and every literal whose sign `Term.term?/1` constrains but `build_node` reads
-  # as a plain integer — a universe level outside `0..Universe.ceiling()`, a negative de Bruijn
+  # as a plain integer — a retired raw-integer sort encoding, a negative de Bruijn
   # index, a negative compact `nat`/`bounded` literal, a negative case-branch arity. Each of
   # these once rebuilt a term the kernel's own grammar rejects.
   @invalid [
+             ")",
+             "(",
+             "(foo",
+             "(5 6)",
+             "(int",
+             "( )",
+             "((",
+             "))",
+             "\"abc",
+             "(zzz)",
+             "(ctor Foo (zzz))",
+             "(case (var 0) (var 0) foo)",
+             "(case (var 0) (var 0) (branch Z 0 (zzz)))",
+             "5",
+             "foo",
+             "\"hi\"",
+             "(ctor Z 5)",
+             "(app foo (int 5))",
+             "(type -1)",
+             "(type 999)",
+             "(var -1)",
+             "(nat -5)",
+             "(bounded -5)",
+             "(case (var 0) (type (finite (level-nf 0))) (branch Z -3 (var 0)))"
+           ]
+           |> Enum.map(&("(cure-core 2 " <> &1 <> ")"))
+
+  # Separate genuine frame negatives from nested parser/shape negatives.
+  @framing [
     "",
-    ")",
-    "(",
-    "(foo",
-    "(5 6)",
-    "(int",
-    "( )",
-    "((",
-    "))",
-    "5 6",
-    "\"abc",
-    "(zzz)",
-    "(ctor Foo (zzz))",
-    "(case (var 0) (var 0) foo)",
-    "(case (var 0) (var 0) (branch Z 0 (zzz)))",
-    "5",
-    "foo",
-    "\"hi\"",
-    "(ctor Z 5)",
-    "(app foo (int 5))",
-    "(type -1)",
-    "(type 999)",
-    "(var -1)",
-    "(nat -5)",
-    "(bounded -5)",
-    "(case (var 0) (type 0) (branch Z -3 (var 0)))"
+    "(cure-core 2 )",
+    "(cure-core 2 5 6)",
+    "(int 0)",
+    "(cure-core 1 (int 0))",
+    "(cure-core 2)",
+    "(cure-core 2 (int 0) (int 1))"
   ]
+
+  @doc false
+  def valid_samples, do: @valid
+  @doc false
+  def invalid_samples, do: @invalid
+  @doc false
+  def framing_samples, do: @framing
 
   @spec gen(keyword()) :: Gen.t()
   def gen(_opts \\ []) do
     Gen.frequency([
       {2, probe(@valid, :valid_sexp)},
-      {3, probe(@invalid, :invalid_sexp)}
+      {3, probe(@invalid ++ @framing, :invalid_sexp)}
     ])
   end
 

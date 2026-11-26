@@ -219,7 +219,7 @@ defmodule Antigen.Generators.Positivity do
       kind: :family,
       assay: "positivity",
       label: label,
-      payload: %{family: Inductive.family(:Pgen, [], [], 0), ctors: ctors},
+      payload: %{family: Inductive.family(:Pgen, [], [], Cure.Core.Sort.finite_closed(0)), ctors: ctors},
       note: note,
       cover_tag: cell
     )
@@ -289,7 +289,7 @@ defmodule Antigen.Generators.Positivity do
   @doc "A strictly-positive Nat-like family: the recursive occurrence in `Sp` is a direct argument (positive position)."
   @spec positive_family() :: Challenge.t()
   def positive_family do
-    fam = Inductive.family(:Natp, [], [], 0)
+    fam = Inductive.family(:Natp, [], [], Cure.Core.Sort.finite_closed(0))
     ctors = [Inductive.ctor(:Zp, [], []), Inductive.ctor(:Sp, [{:pred, @natp}], [])]
 
     Challenge.new(
@@ -305,7 +305,7 @@ defmodule Antigen.Generators.Positivity do
   @doc "A non-strictly-positive family: `MkBad` takes `Bad -> Bad`, so `Bad` occurs left of an arrow (negative)."
   @spec negative_family() :: Challenge.t()
   def negative_family do
-    fam = Inductive.family(:Bad, [], [], 0)
+    fam = Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0))
     ctors = [Inductive.ctor(:MkBad, [{:f, {:pi, Cure.Core.Grade.unrestricted(), @bad, @bad}}], [])]
 
     Challenge.new(
@@ -382,7 +382,7 @@ defmodule Antigen.Generators.Positivity do
   """
   @spec double_negation_family() :: Challenge.t()
   def double_negation_family do
-    fam = Inductive.family(:Bad, [], [], 0)
+    fam = Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0))
     field = {:pi, Cure.Core.Grade.unrestricted(), {:pi, Cure.Core.Grade.unrestricted(), @bad, @decd}, @decd}
     ctors = [Inductive.ctor(:MkBad, [{:f, field}], [])]
 
@@ -406,7 +406,7 @@ defmodule Antigen.Generators.Positivity do
   """
   @spec sigma_negative_family() :: Challenge.t()
   def sigma_negative_family do
-    fam = Inductive.family(:Bad, [], [], 0)
+    fam = Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0))
 
     field =
       {:data, :Sigma,
@@ -438,12 +438,16 @@ defmodule Antigen.Generators.Positivity do
   @spec through_constructor_negative() :: Challenge.t()
   def through_constructor_negative do
     box =
-      {Inductive.family(:Box, [], [], 0),
+      {Inductive.family(:Box, [], [], Cure.Core.Sort.finite_closed(0)),
        [Inductive.ctor(:mk, [{:f, {:pi, Cure.Core.Grade.unrestricted(), @bad, @decd}}], [])]}
 
-    bad = {Inductive.family(:Bad, [], [], 0), [Inductive.ctor(:MkBad, [{:b, {:data, :Box, [], []}}], [])]}
+    bad =
+      {Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:MkBad, [{:b, {:data, :Box, [], []}}], [])]}
 
-    dec = {Inductive.family(:Dec, [], [], 0), [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
+    dec =
+      {Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
 
     Challenge.new(
       kind: :indexed_case,
@@ -452,7 +456,7 @@ defmodule Antigen.Generators.Positivity do
       payload: %{
         families: [dec, box, bad],
         def_name: :probe,
-        def_type: {:type, 0},
+        def_type: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
         def_body: {:data, :Dec, [], []}
       },
       note: "W4 through-constructor: Bad -> Dec hidden inside Box's ctor; subject = Bad (last family)",
@@ -469,15 +473,24 @@ defmodule Antigen.Generators.Positivity do
   """
   @spec through_constructor_positive() :: Challenge.t()
   def through_constructor_positive do
-    wrap = {Inductive.family(:Wrap, [], [], 0), [Inductive.ctor(:wrap, [{:x, {:data, :T, [], []}}], [])]}
+    wrap =
+      {Inductive.family(:Wrap, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:wrap, [{:x, {:data, :T, [], []}}], [])]}
 
-    t = {Inductive.family(:T, [], [], 0), [Inductive.ctor(:MkT, [{:b, {:data, :Wrap, [], []}}], [])]}
+    t =
+      {Inductive.family(:T, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:MkT, [{:b, {:data, :Wrap, [], []}}], [])]}
 
     Challenge.new(
       kind: :indexed_case,
       assay: "positivity",
       label: :positive,
-      payload: %{families: [wrap, t], def_name: :probe, def_type: {:type, 0}, def_body: {:data, :T, [], []}},
+      payload: %{
+        families: [wrap, t],
+        def_name: :probe,
+        def_type: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        def_body: {:data, :T, [], []}
+      },
       note: "through-constructor positive: T strictly-positive inside Wrap's ctor; subject = T (last family)",
       cover_tag: :through_ctor_positive
     )
@@ -493,12 +506,16 @@ defmodule Antigen.Generators.Positivity do
   """
   @spec deep_negative_family() :: Challenge.t()
   def deep_negative_family do
-    dec = {Inductive.family(:Dec, [], [], 0), [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
+    dec =
+      {Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]}
 
-    wrap = {Inductive.family(:Wrap, [], [], 0), [Inductive.ctor(:wrap, [{:x, {:data, :Bad, [], []}}], [])]}
+    wrap =
+      {Inductive.family(:Wrap, [], [], Cure.Core.Sort.finite_closed(0)),
+       [Inductive.ctor(:wrap, [{:x, {:data, :Bad, [], []}}], [])]}
 
     bad =
-      {Inductive.family(:Bad, [], [], 0),
+      {Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)),
        [
          Inductive.ctor(
            :MkBad,
@@ -511,7 +528,12 @@ defmodule Antigen.Generators.Positivity do
       kind: :indexed_case,
       assay: "positivity",
       label: :negative,
-      payload: %{families: [dec, wrap, bad], def_name: :probe, def_type: {:type, 0}, def_body: {:data, :Dec, [], []}},
+      payload: %{
+        families: [dec, wrap, bad],
+        def_name: :probe,
+        def_type: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        def_body: {:data, :Dec, [], []}
+      },
       note:
         "through-constructor deep negative: Bad reachable only via Wrap's ctor in an arrow domain (occurs_deep?); subject = Bad (last family)",
       cover_tag: :deep_negative

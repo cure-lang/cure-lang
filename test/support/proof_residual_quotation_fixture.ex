@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofResidualQuotationFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Eval, Grade, Inductive, ProofWire, Quote}
@@ -17,8 +18,11 @@ defmodule Cure.Test.ProofResidualQuotationFixture do
     nested = {:case, opaque, atom, branches}
     packed = {:data, :"Boundary#Packed", [], [atom]}
     motive_domain = {:data, :"Boundary#Packed", [], [{:var, 0}]}
-    constant_motive = fn result -> {:lam, g, {:type, 0}, {:lam, g, motive_domain, result}} end
-    constant_branches = fn body -> Enum.map(branches, fn {name, ar, _old} -> {name, ar, body} end) end
+    constant_motive = fn result -> {:lam, g, {:type, @u0}, {:lam, g, motive_domain, result}} end
+
+    constant_branches = fn body ->
+      Enum.map(branches, fn {name, ar, _old} -> {name, ar, body} end)
+    end
 
     packed_case =
       {:case, global, constant_motive.(packed), constant_branches.({:ctor, :"Boundary#Pack", [atom, payload]})}
@@ -40,8 +44,9 @@ defmodule Cure.Test.ProofResidualQuotationFixture do
         {:nested_motive, {:case, global, opaque, branches}, [], 0},
         {:branch_binder,
          {:case, global, atom,
-          [{:"Boundary#Pack", 2, {:lam, g, atom, {:case, {:var, 2}, atom, [{:"Boundary#Pack", 0, {:var, 1}}]}}}]}, [],
-         0},
+          [
+            {:"Boundary#Pack", 2, {:lam, g, atom, {:case, {:var, 2}, atom, [{:"Boundary#Pack", 0, {:var, 1}}]}}}
+          ]}, [], 0},
         {:triple, {:case, global, atom, [{:"Boundary#Pack", 2, nested}]}, [], 0},
         {:typed_scrutinee, {:case, packed_case, motive, branches}, [], 0},
         {:typed_branch, {:case, global, constant_motive.(atom), constant_branches.(opaque)}, [], 0}
@@ -109,7 +114,9 @@ defmodule Cure.Test.ProofResidualQuotationFixture do
   defp value({:vatom_type}), do: "E.v-atom-type"
   defp value({:vatom, name}), do: "(E.v-atom #{inspect(Atom.to_string(name))})"
   defp value({:vneutral, head}), do: "(E.v-neutral #{neutral(head)})"
-  defp value({:vctor, name, args}), do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(args)})"
+
+  defp value({:vctor, name, args}),
+    do: "(E.v-ctor #{inspect(Atom.to_string(name))} #{values(args)})"
 
   defp value({:vdata, name, args}) do
     %{params: params} = Inductive.get_family(ProofSnapshotFixture.environment(), name)

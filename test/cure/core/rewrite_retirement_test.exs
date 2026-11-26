@@ -11,7 +11,7 @@ defmodule Cure.Core.RewriteRetirementTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Context, Eval, Kernel, Serialize, Term}
+  alias Cure.Core.{Context, Eval, Kernel, Serialize, Term, UniverseCodec}
   alias Cure.Elab.Program
   import Cure.TestSupport.RetiredNode, only: [opaque: 1]
 
@@ -40,19 +40,21 @@ defmodule Cure.Core.RewriteRetirementTest do
   end
 
   test "Term.to_external/1 refuses {:rewrite}" do
-    assert_raise FunctionClauseError, fn ->
+    assert_raise ArgumentError, "ill-formed Core term", fn ->
       Term.to_external(opaque({:rewrite, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}, z()}))
     end
   end
 
   test "serializer neither encodes nor decodes {:rewrite}" do
-    assert_raise FunctionClauseError, fn ->
+    assert_raise ArgumentError, "ill-formed Core term", fn ->
       Serialize.encode(
         opaque({:rewrite, {:var, 0}, {:lam, Cure.Core.Grade.unrestricted(), {:int_type}, {:int_type}}, {:int_lit, 1}})
       )
     end
 
-    assert {:error, _} =
-             Serialize.decode("(rewrite (var 0) (lam (int-type) (int-type)) (int 1))")
+    assert {:error, :unknown_node} =
+             Serialize.decode(
+               "(cure-core #{UniverseCodec.version()} (rewrite (var 0) (lam unrestricted (int-type) (int-type)) (int 1)))"
+             )
   end
 end

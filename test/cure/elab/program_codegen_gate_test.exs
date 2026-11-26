@@ -14,17 +14,27 @@ defmodule Cure.Elab.ProgramCodegenGateTest do
 
   test "codegen gate refuses a hole hidden in a builtin-op spine argument" do
     body = {:app, {:app, {:global, :int_add}, {:hole, "x"}}, {:int_lit, 1}}
-    env = Env.empty() |> Env.add_def(:tainted, {:type, 0}, body, [])
+
+    env =
+      Env.empty()
+      |> Env.add_def(:tainted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, body, [])
+
     assert {:error, {:unfilled_hole, :tainted}} = Emit.compile_forms(env, :GateTainted)
   end
 
   test "codegen gate still refuses a plain body hole" do
-    env = Env.empty() |> Env.add_def(:h, {:type, 0}, {:hole, "body"}, [])
+    env =
+      Env.empty()
+      |> Env.add_def(:h, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:hole, "body"}, [])
+
     assert {:error, {:unfilled_hole, :h}} = Emit.compile_forms(env, :GateH)
   end
 
   test "codegen gate accepts a hole-free program" do
-    env = Env.empty() |> Env.add_def(:clean, {:type, 0}, {:int_lit, 42}, [])
+    env =
+      Env.empty()
+      |> Env.add_def(:clean, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:int_lit, 42}, [])
+
     assert {:ok, _forms} = Emit.compile_forms(env, :GateClean)
   end
 end

@@ -26,7 +26,7 @@ defmodule Antigen.Assays.TotalityClosureAssayTest do
             name: fam,
             params: [],
             indices: [{:i, {:app, {:global, g}, {:int_lit, 0}}}],
-            level: 0
+            sort: Cure.Core.Sort.finite_zero()
           })
     }
 
@@ -148,12 +148,47 @@ defmodule Antigen.Assays.TotalityClosureAssayTest do
               name: :P,
               params: [],
               indices: [{:i, {:app, {:app, {:global, :int_eq}, {:global, :buried}}, {:int_lit, 0}}}],
-              level: 0
+              sort: Cure.Core.Sort.finite_zero()
             }
           }
       }
 
       assert :buried in TotalityClosureAssay.__reachable__(env)
+    end
+
+    test "the independent oracle retains family-sort and nested-level signature dependencies" do
+      # Structural reachability fixtures, not kernel-admission judgments.
+      level = Cure.Core.UniverseLevel.atom({:global, :level_provider})
+
+      nested =
+        {:level_value, Cure.Core.UniverseLevel.atom({:app, {:global, :outer_provider}, {:level_value, level}})}
+
+      env = %{
+        Env.empty()
+        | families: %{
+            P: %{name: :P, params: [], indices: [], sort: {:finite, level}}
+          },
+          defs: %{root: %{type: {:pi, :erased, {:level_type}, nested}, body: nil}}
+      }
+
+      assert MapSet.new([:level_provider, :outer_provider]) == TotalityClosureAssay.__reachable__(env)
+      assert :ok = TotalityClosureAssay.run(cmp_ch(env))
+
+      missing_levels = %{TotalityClosureAssay.__real__() | type_level_fns: fn _ -> MapSet.new() end}
+      assert {:violation, {:closure_missed, missing}} = TotalityClosureAssay.run(cmp_ch(env), missing_levels)
+      assert :level_provider in missing
+      assert :outer_provider in missing
+    end
+
+    test "constructor result parameters seed the independent closure" do
+      env =
+        Env.empty()
+        |> with_ctor_index(:Wrap, :in_result_index)
+        |> then(fn env ->
+          update_in(env.ctors[:Wrap], &Map.put(&1, :result_params, [{:global, :in_result_parameter}]))
+        end)
+
+      assert MapSet.new([:in_result_index, :in_result_parameter]) == TotalityClosureAssay.__reachable__(env)
     end
   end
 

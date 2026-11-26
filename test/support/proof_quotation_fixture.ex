@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofQuotationFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Eval, Grade, ProofWire, Quote}
@@ -11,13 +12,13 @@ defmodule Cure.Test.ProofQuotationFixture do
     identity = {:lam, g, atom, {:var, 0}}
     function = {:pi, g, atom, atom}
     neutral = {:vneutral, {:nvar, 0}}
-    domain = {:pi, g, atom, {:let, g, {:type, 0}, atom, {:var, 0}}}
+    domain = {:pi, g, atom, {:let, g, {:type, @u0}, atom, {:var, 0}}}
 
     dependent =
-      {:lam, g, {:type, 0}, {:lam, g, {:var, 0}, {:app, {:lam, g, {:var, 1}, {:var, 0}}, {:var, 0}}}}
+      {:lam, g, {:type, @u0}, {:lam, g, {:var, 0}, {:app, {:lam, g, {:var, 1}, {:var, 0}}, {:var, 0}}}}
 
     [
-      {:dependent, dependent, [], 0, {:pi, g, {:type, 0}, {:pi, g, {:var, 0}, {:var, 1}}}},
+      {:dependent, dependent, [], 0, {:pi, g, {:type, @u0}, {:pi, g, {:var, 0}, {:var, 1}}}},
       {:argument, {:app, {:var, 0}, {:lam, g, atom, {:app, identity, {:var, 0}}}}, [neutral], 1, atom},
       {:domain, {:lam, g, domain, {:var, 0}}, [], 0, {:pi, g, function, function}},
       {:global, {:lam, g, atom, {:global, :"Boundary#answer"}}, [], 0, function},
@@ -72,7 +73,12 @@ defmodule Cure.Test.ProofQuotationFixture do
 
   defp values([]), do: "[]"
   defp values(values), do: "(" <> Enum.map_join(values, " ∷ ", &value/1) <> " ∷ [])"
-  defp value({:vtype, level}), do: "(E.v-type l#{level})"
+
+  defp value({:vtype, sort}) do
+    {:ok, level} = Cure.Core.HistoricalFinite3.project_value_sort_finite3(sort)
+    "(E.v-type l#{level})"
+  end
+
   defp value({:vatom_type}), do: "E.v-atom-type"
   defp value({:vatom, name}), do: "(E.v-atom #{inspect(Atom.to_string(name))})"
 
@@ -85,5 +91,7 @@ defmodule Cure.Test.ProofQuotationFixture do
   defp value({:vneutral, head}), do: "(E.v-neutral #{neutral(head)})"
   defp neutral({:nvar, level}), do: "(E.n-var #{level})"
   defp neutral({:nglobal, name}), do: "(E.n-global #{inspect(Atom.to_string(name))})"
-  defp neutral({:napp, function, argument}), do: "(E.n-app #{neutral(function)} #{value(argument)})"
+
+  defp neutral({:napp, function, argument}),
+    do: "(E.n-app #{neutral(function)} #{value(argument)})"
 end

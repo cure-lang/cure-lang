@@ -21,13 +21,24 @@ defmodule Cure.Core.LetBinderTest do
   defp seeded_ctx, do: Context.empty(Builtins.seed(Env.empty()))
 
   # `let T : Type 0 := Int in <body>`
-  defp let_int(body), do: {:let, Cure.Core.Grade.unrestricted(), {:type, 0}, {:int_type}, body}
+  defp let_int(body),
+    do:
+      {:let, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:int_type}, body}
 
   describe "shape" do
     test "term?/1 accepts a well-formed let and rejects a malformed one" do
       assert Term.term?(let_int({:var, 0}))
-      refute Term.term?({:let, Cure.Core.Grade.unrestricted(), {:type, 0}, {:int_type}})
-      refute Term.term?({:let, Cure.Core.Grade.unrestricted(), {:type, 0}, {:int_type}, {:var, -1}})
+
+      refute Term.term?(
+               {:let, Cure.Core.Grade.unrestricted(),
+                {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:int_type}}
+             )
+
+      refute Term.term?(
+               {:let, Cure.Core.Grade.unrestricted(),
+                {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:int_type}, {:var, -1}}
+             )
     end
   end
 
@@ -52,21 +63,27 @@ defmodule Cure.Core.LetBinderTest do
 
   describe "ζ-reduction" do
     test "extend_def/3 binds the variable to its value, not to a neutral" do
-      ctx = Context.extend_def(Context.empty(), {:vtype, 0}, {:vint_type})
+      ctx =
+        Context.extend_def(
+          Context.empty(),
+          {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}},
+          {:vint_type}
+        )
+
       assert Eval.eval({:var, 0}, Context.env(ctx)) == {:vint_type}
     end
 
     test "extend/2 still binds a fresh neutral (no regression)" do
-      ctx = Context.extend(Context.empty(), {:vtype, 0})
+      ctx = Context.extend(Context.empty(), {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
       assert Eval.eval({:var, 0}, Context.env(ctx)) == {:vneutral, {:nvar, 0}}
     end
 
     test "env/1 of an extend-only context is unchanged from neutral_env/1" do
       ctx =
         Context.empty()
-        |> Context.extend({:vtype, 0})
+        |> Context.extend({:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
         |> Context.extend({:vint_type})
-        |> Context.extend({:vtype, 1})
+        |> Context.extend({:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}})
 
       assert Context.env(ctx) == Context.neutral_env(3)
     end
@@ -110,7 +127,8 @@ defmodule Cure.Core.LetBinderTest do
       assert {:error, _} =
                Kernel.infer(
                  Context.empty(),
-                 {:let, Cure.Core.Grade.unrestricted(), {:int_type}, {:type, 0}, {:int_lit, 1}}
+                 {:let, Cure.Core.Grade.unrestricted(), {:int_type},
+                  {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:int_lit, 1}}
                )
     end
 

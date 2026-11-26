@@ -61,7 +61,8 @@ defmodule Cure.Core.TotalityCertificate do
           not is_map(candidate.edges) ->
         invalid(:malformed_certificate, fields: @required_fields)
 
-      not Enum.all?(candidate.members, &is_atom/1) or not Enum.all?(candidate.base_keys, &valid_base_key?/1) ->
+      not Enum.all?(candidate.members, &is_atom/1) or
+          not Enum.all?(candidate.base_keys, &valid_base_key?/1) ->
         invalid(:malformed_certificate, fields: @required_fields)
 
       true ->
@@ -153,6 +154,10 @@ defmodule Cure.Core.TotalityCertificate do
           cond do
             is_nil(summary) ->
               {:halt, invalid(:missing_direct_summary, definition: member)}
+
+            Map.get(summary, :version) != Cure.Core.Certificate.summary_version() or
+                Map.get(summary, :universe_identity) != Cure.Core.UniverseCodec.identity() ->
+              {:halt, invalid(:summary_checker_mismatch, definition: member)}
 
             candidate.direct_summary_hashes[member] != summary.summary_hash ->
               {:halt, invalid(:summary_hash_mismatch, definition: member)}
@@ -298,7 +303,13 @@ defmodule Cure.Core.TotalityCertificate do
     end
   end
 
-  defp verify_edge_derivation(%{id: id, derivation: {:base, key}} = edge, _edges, base_set, memo, _visiting) do
+  defp verify_edge_derivation(
+         %{id: id, derivation: {:base, key}} = edge,
+         _edges,
+         base_set,
+         memo,
+         _visiting
+       ) do
     if key == {edge.source, edge.target, edge.matrix} and MapSet.member?(base_set, key),
       do: {:ok, Map.put(memo, id, true)},
       else: invalid(:invalid_base_derivation, edge: id)
@@ -317,9 +328,14 @@ defmodule Cure.Core.TotalityCertificate do
          true <- same_edge?(edge, composed) do
       {:ok, Map.put(memo, id, true)}
     else
-      :incompatible -> invalid(:incompatible_composition, edge: id, left: left_id, right: right_id)
-      false -> invalid(:composition_mismatch, edge: id, left: left_id, right: right_id)
-      {:error, _} = error -> error
+      :incompatible ->
+        invalid(:incompatible_composition, edge: id, left: left_id, right: right_id)
+
+      false ->
+        invalid(:composition_mismatch, edge: id, left: left_id, right: right_id)
+
+      {:error, _} = error ->
+        error
     end
   end
 

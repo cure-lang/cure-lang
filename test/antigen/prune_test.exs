@@ -25,7 +25,12 @@ defmodule Antigen.PruneTest do
   # surgically swap the pieces field of a valid stub record (key= precedes pieces=
   # in the encoding, so the stored key stays intact).
   defp undecodable_rec do
-    Regex.replace(~r/pieces=.*$/, stub_rec({:type, 7}), "pieces=t::(zzz_unknown_node 1)")
+    original = stub_rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 7, atoms: []}}})
+    bad = [["term", "(cure-core 2 (zzz_unknown_node 1))"]] |> :json.encode() |> IO.iodata_to_binary() |> Base.encode64()
+    corrupted = Regex.replace(~r/pieces64=[^\t]*$/, original, "pieces64=" <> bad)
+    refute corrupted == original
+    assert {:error, _} = Corpus.decode_record(corrupted)
+    corrupted
   end
 
   defp write(name, lines) do
@@ -35,7 +40,7 @@ defmodule Antigen.PruneTest do
   end
 
   test "keeps a replay-:ok record and retires an undecodable one, with a reason" do
-    keep = stub_rec({:type, 0})
+    keep = stub_rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     bad = undecodable_rec()
     corpus = write("corpus.sexp", [keep, bad])
     retired = path("retired.sexp")
@@ -61,7 +66,7 @@ defmodule Antigen.PruneTest do
       def run(_c), do: {:violation, :drift}
     end
 
-    rec = stub_rec({:type, 0})
+    rec = stub_rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     corpus = write("corpus.sexp", [rec])
     retired = path("retired.sexp")
 
@@ -74,8 +79,8 @@ defmodule Antigen.PruneTest do
   end
 
   test "leaves an all-green corpus byte-identical and writes no retirement file" do
-    a = stub_rec({:type, 1})
-    b = stub_rec({:type, 2})
+    a = stub_rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}})
+    b = stub_rec({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}})
     corpus = write("corpus.sexp", [a, b])
     retired = path("retired.sexp")
     before = File.read!(corpus)

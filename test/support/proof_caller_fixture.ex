@@ -1,11 +1,12 @@
 defmodule Cure.Test.ProofCallerFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.ProofRecipe
   alias Cure.Test.ProofBundleFixture
 
   def request do
-    {:caller, [{"A", {:type, 0}}, {"x", {:var, 0}}], [:r_leaf, :r_leaf], [{:atom_type}, {:atom_lit, :payload}],
+    {:caller, [{"A", {:type, @u0}}, {"x", {:var, 0}}], [:r_leaf, :r_leaf], [{:atom_type}, {:atom_lit, :payload}],
      [:r_leaf, :r_leaf], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf}
   end
 

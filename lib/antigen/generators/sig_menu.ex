@@ -46,7 +46,7 @@ defmodule Antigen.Generators.SigMenu do
     env =
       Env.empty()
       |> Inductive.declare(
-        Inductive.family(:Nat, [], [], 0),
+        Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Z, [], []), Inductive.ctor(:S, [{:n, nat()}], [])]
       )
       # The :nat builtin binding — the SAME canonical family real Cure seeds via
@@ -63,7 +63,7 @@ defmodule Antigen.Generators.SigMenu do
       # clause through `int_type_value` (reads the :int builtin), which raises
       # "builtin :int not seeded" without this registration — exactly mirroring :nat.
       |> Inductive.declare(
-        Inductive.family(:Int, [], [], 0),
+        Inductive.family(:Int, [], [], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(:FromNat, [{:n, nat()}], []),
           Inductive.ctor(:NegativeSuccessor, [{:n, nat()}], [])
@@ -71,7 +71,7 @@ defmodule Antigen.Generators.SigMenu do
       )
       |> Inductive.register_builtin(:int, :Int)
       |> Inductive.declare(
-        Inductive.family(:Bd, [], [], 0),
+        Inductive.family(:Bd, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:T, [], []), Inductive.ctor(:F, [], [])]
       )
       # SList : Type0 — a snoc-free cons list of Nat, backing the carried-index
@@ -79,14 +79,14 @@ defmodule Antigen.Generators.SigMenu do
       # `app` def (added below, mirroring `plus`) is the stuck function whose
       # application forms `H`'s second, carried index.
       |> Inductive.declare(
-        Inductive.family(:SList, [], [], 0),
+        Inductive.family(:SList, [], [], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(:SNil, [], []),
           Inductive.ctor(:SCons, [{:h, nat()}, {:t, {:data, :SList, [], []}}], [], [:unrestricted, :unrestricted])
         ]
       )
       |> Inductive.declare(
-        Inductive.family(:Vec, [], [{:n, nat()}], 0),
+        Inductive.family(:Vec, [], [{:n, nat()}], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(:vnil, [], [z()]),
           # vcons : (n:Nat) -> Nat -> Vec(n) -> Vec(S(n))
@@ -104,7 +104,12 @@ defmodule Antigen.Generators.SigMenu do
         ]
       )
       |> Inductive.declare(
-        Inductive.family(:List, [{:A, {:type, 0}}], [], 0),
+        Inductive.family(
+          :List,
+          [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          [],
+          Cure.Core.Sort.finite_closed(0)
+        ),
         [
           # Nil : List(A). result_params = [{:var,0}]: with 0 ctor args bound, the
           # family param A sits at var 0 in the checking frame — required so
@@ -130,12 +135,12 @@ defmodule Antigen.Generators.SigMenu do
       # the v1 menu was previously missing. Required so prim comparisons/
       # connectives typecheck: `Kernel.infer_prim` resolves their result type via
       # `bool_type_value` (reads the :bool builtin) and `Eval.fold` folds them to
-      # the canonical `:True`/`:False` ctor values. The prims are the elaborator's
+      # canonical owner-qualified Bool constructor values. The prims are the elaborator's
       # native-BEAM-op lowering target (emit.ex), not migration debris — Bool's
       # *type* is inductive; the decidable *operations* producing it stay prim.
       |> Inductive.declare(
-        Inductive.family(:Bool, [], [], 0),
-        [Inductive.ctor(:False, [], []), Inductive.ctor(:True, [], [])]
+        Inductive.family(:Bool, [], [], Cure.Core.Sort.finite_closed(0)),
+        [Inductive.ctor(:"Std.Bool#False", [], []), Inductive.ctor(:"Std.Bool#True", [], [])]
       )
       |> Inductive.register_builtin(:bool, :Bool)
       # Sq : (i:Nat)(j:Nat) -> Type0, ctor mksq : (n:Nat) -> Sq n n. A TWO-index
@@ -146,7 +151,7 @@ defmodule Antigen.Generators.SigMenu do
       # resolve-before-bind path, and `head_key` (index refinement, not just Vec's
       # single Nat index). Consumed by Generators.DepMatch's Sq variant.
       |> Inductive.declare(
-        Inductive.family(:Sq, [], [{:i, nat()}, {:j, nat()}], 0),
+        Inductive.family(:Sq, [], [{:i, nat()}, {:j, nat()}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mksq, [{:n, nat()}], [{:var, 0}, {:var, 0}])]
       )
       # Ty : (a:Type0) -> Type0 — a family indexed BY A TYPE, with constructors
@@ -157,15 +162,20 @@ defmodule Antigen.Generators.SigMenu do
       # float clauses, head_key's :data clause, and unify_one's data-spine /
       # syntactic-equal clauses. Consumed by Generators.DepMatch's Ty variant.
       |> Inductive.declare(
-        Inductive.family(:Ty, [], [{:a, {:type, 0}}], 0),
+        Inductive.family(
+          :Ty,
+          [],
+          [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+          Cure.Core.Sort.finite_closed(0)
+        ),
         [
           Inductive.ctor(:tnat, [], [nat()]),
           Inductive.ctor(:tbd, [], [bd()]),
-          Inductive.ctor(:tint, [], [{:int_type}]),
+          Inductive.ctor(:tint, [], [{:data, :Int, [], []}]),
           Inductive.ctor(:tflt, [], [{:float_type}]),
           Inductive.ctor(:tpi, [], [{:pi, Cure.Core.Grade.unrestricted(), nat(), nat()}]),
           Inductive.ctor(:tsig, [], [{:data, :Sigma, [nat(), {:lam, Cure.Core.Grade.unrestricted(), nat(), nat()}], []}]),
-          Inductive.ctor(:tvec, [], [{:data, :Vec, [{:ctor, :Z, []}], []}])
+          Inductive.ctor(:tvec, [], [{:data, :Vec, [], [{:ctor, :Z, []}]}])
         ]
       )
       # Tg : (i:Int) -> Type0 / Tgf : (i:Float) -> Type0 — families indexed by a
@@ -173,11 +183,11 @@ defmodule Antigen.Generators.SigMenu do
       # literal indices, the only v1 shape reaching rigid_index?'s int_lit/float_lit
       # clauses. Consumed by Generators.DepMatch's tg/tgf variants.
       |> Inductive.declare(
-        Inductive.family(:Tg, [], [{:i, {:data, :Int, [], []}}], 0),
+        Inductive.family(:Tg, [], [{:i, {:data, :Int, [], []}}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:tg0, [], [{:int_lit, 0}]), Inductive.ctor(:tg1, [], [{:int_lit, 1}])]
       )
       |> Inductive.declare(
-        Inductive.family(:Tgf, [], [{:i, {:float_type}}], 0),
+        Inductive.family(:Tgf, [], [{:i, {:float_type}}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:tgf0, [], [{:float_lit, 0.0}]), Inductive.ctor(:tgf1, [], [{:float_lit, 1.5}])]
       )
       # Equivalent : (a:Type) -> a -> a -> Type, sole ctor reflexive (erased
@@ -188,7 +198,12 @@ defmodule Antigen.Generators.SigMenu do
       # inductive Equivalent propositions and J/subst `:case` transports, which
       # need the family in the menu signature.
       |> Inductive.declare(
-        Inductive.family(:Equivalent, [a: {:type, 0}], [x: {:var, 0}, y: {:var, 1}], 0),
+        Inductive.family(
+          :Equivalent,
+          [a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+          [x: {:var, 0}, y: {:var, 1}],
+          Cure.Core.Sort.finite_closed(0)
+        ),
         [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]
       )
       |> Inductive.register_builtin(:eq, :Equivalent)
@@ -201,9 +216,14 @@ defmodule Antigen.Generators.SigMenu do
       |> Inductive.declare(
         Inductive.family(
           :Sigma,
-          [a: {:type, 0}, b: {:pi, Cure.Core.Grade.unrestricted(), {:var, 0}, {:type, 0}}],
+          [
+            a: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+            b:
+              {:pi, Cure.Core.Grade.unrestricted(), {:var, 0},
+               {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+          ],
           [],
-          0
+          Cure.Core.Sort.finite_closed(0)
         ),
         [
           Inductive.ctor(
@@ -263,7 +283,7 @@ defmodule Antigen.Generators.SigMenu do
     env =
       env
       |> Inductive.declare(
-        Inductive.family(:H, [], [{:n, nat()}, {:xs, slist}], 0),
+        Inductive.family(:H, [], [{:n, nat()}, {:xs, slist}], Cure.Core.Sort.finite_closed(0)),
         [
           Inductive.ctor(
             :hmk,
@@ -274,7 +294,7 @@ defmodule Antigen.Generators.SigMenu do
         ]
       )
       |> Inductive.declare(
-        Inductive.family(:G, [], [{:cs, slist}], 0),
+        Inductive.family(:G, [], [{:cs, slist}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:gwrap, [{:cs, slist}], [{:var, 0}], [:erased])]
       )
 
@@ -361,11 +381,8 @@ defmodule Antigen.Generators.SigMenu do
     end
   end
 
-  # The Vec family has zero parameters and one index; the kernel's reified data
-  # normal form (`Quote.reify` of `{:vdata, :Vec, args}`) places that single arg
-  # in the *params* slot with an empty *indices* slot, while a freshly built
-  # `vec/1` term puts it in *indices* — so read the index position-agnostically
-  # from `params ++ indices` (exactly one element either way).
+  # Current producers/readback preserve Vec's zero-parameter, one-index split.
+  # This inspection helper only consumes the family's single argument.
   defp vec_index(params, indices) do
     [i] = params ++ indices
     i
@@ -401,7 +418,7 @@ defmodule Antigen.Generators.SigMenu do
 
     Enum.find_value(0..(depth - 1)//1, fn k ->
       ty_val = Context.lookup(ctx, k)
-      ty_term = Cure.Core.Normalise.quote(ty_val, depth)
+      ty_term = Cure.Core.Normalise.quote(ty_val, depth, sig)
 
       case Cure.Core.Conv.conv_within?(ty_term, goal, env, depth, sig, 500) do
         {:ok, true} -> {:var, k}
@@ -425,6 +442,6 @@ defmodule Antigen.Generators.SigMenu do
   def subst0(b, arg, ctx) do
     env = Context.env(ctx)
     arg_value = Eval.eval(arg, env)
-    Cure.Core.Normalise.quote(Eval.eval(b, [arg_value | env]), Context.length(ctx))
+    Cure.Core.Normalise.quote(Eval.eval(b, [arg_value | env]), Context.length(ctx), Context.signature(ctx))
   end
 end

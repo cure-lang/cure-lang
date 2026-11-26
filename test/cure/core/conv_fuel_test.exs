@@ -5,7 +5,15 @@ defmodule Cure.Core.ConvFuelTest do
 
   test "conv_within? returns {:ok, _} for a terminating conversion" do
     # two obviously-equal closed terms, no divergence
-    assert {:ok, true} = Conv.conv_within?({:type, 0}, {:type, 0}, [], 0, nil, 1000)
+    assert {:ok, true} =
+             Conv.conv_within?(
+               {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+               {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+               [],
+               0,
+               nil,
+               1000
+             )
   end
 
   test "conv_within? bounds δ on a certified diverging global (the hazard fuel guards against)" do
@@ -24,7 +32,14 @@ defmodule Cure.Core.ConvFuelTest do
   end
 
   test "the un-fueled conv?/5 path is unaffected (no fuel key leaks)" do
-    assert Conv.conv?({:type, 0}, {:type, 0}, [], 0, nil) == true
+    assert Conv.conv?(
+             {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+             {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+             [],
+             0,
+             nil
+           ) == true
+
     assert Process.get({Conv, :fuel}) == nil
   end
 end

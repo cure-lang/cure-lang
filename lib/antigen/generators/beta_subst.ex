@@ -25,7 +25,7 @@ defmodule Antigen.Generators.BetaSubst do
   alias Antigen.{Gen, Challenge}
 
   @nat {:data, :Nat, [], []}
-  @ty0 {:type, 0}
+  @ty0 {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
 
   # {ctx_types, result_type, T (redex binder), e (has a free ambient var), body, note}
   @cases [

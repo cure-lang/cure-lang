@@ -24,7 +24,7 @@ defmodule Cure.Elab.QuantityGradeTest do
   # A family `Box` with one constructor `mk` taking (erased witness, real value).
   defp env_with(quantities) do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Box, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Box, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:mk, [w: @nat, v: @nat], [], quantities)
     ])
   end
@@ -33,7 +33,7 @@ defmodule Cure.Elab.QuantityGradeTest do
     test "the default constructor quantity is a grade" do
       env =
         Env.empty()
-        |> Inductive.declare(Inductive.family(:Box, [], [], 0), [
+        |> Inductive.declare(Inductive.family(:Box, [], [], Cure.Core.Sort.finite_closed(0)), [
           Inductive.ctor(:mk, [w: @nat, v: @nat], [])
         ])
 
@@ -82,7 +82,7 @@ defmodule Cure.Elab.QuantityGradeTest do
       # All four grades on a four-argument ctor: only `:erased` disappears.
       env =
         Env.empty()
-        |> Inductive.declare(Inductive.family(:Quad, [], [], 0), [
+        |> Inductive.declare(Inductive.family(:Quad, [], [], Cure.Core.Sort.finite_closed(0)), [
           Inductive.ctor(:q, [a: @nat, b: @nat, c: @nat, d: @nat], [], [
             :erased,
             :linear,

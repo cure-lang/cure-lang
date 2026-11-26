@@ -118,6 +118,17 @@ defmodule Cure.Elab.Tactic.Computed do
 
   # Inspection is deliberately structural, not a quotation of evaluator values
   # or a lossy pass through parser-AST reflection. These nodes are data only.
+  defp core_syntax({:level_type}, _names), do: {:syn_node, :level_type, [], []}
+
+  defp core_syntax({:type, {:omega, n}}, _names),
+    do: {:syn_node, :type, [], [{:syn_node, :omega, [index: {:s_int, n}], []}]}
+
+  defp core_syntax({:type, {:finite, level}}, names),
+    do: {:syn_node, :type, [], [{:syn_node, :finite, [], [level_syntax(level, names)]}]}
+
+  defp core_syntax({:level_value, level}, names),
+    do: {:syn_node, :level_value, [], [level_syntax(level, names)]}
+
   defp core_syntax({:data, name, params, indices}, names),
     do:
       {:syn_node, short_name(name), [name: {:s_atom, name}, parameters: {:s_int, length(params)}],
@@ -164,6 +175,13 @@ defmodule Cure.Elab.Tactic.Computed do
   defp core_syntax(value, _names) when is_float(value), do: {:syn_raw, {:s_float, value}}
   defp core_syntax(value, _names) when is_binary(value), do: {:syn_raw, {:s_str, value}}
   defp core_syntax(value, _names) when is_atom(value), do: {:syn_raw, {:s_atom, value}}
+
+  defp level_syntax(%Cure.Core.UniverseLevel{constant: constant, atoms: atoms}, names) do
+    {:syn_node, :level_nf, [constant: {:s_int, constant}],
+     Enum.map(atoms, fn {atom, offset} ->
+       {:syn_node, :level_atom, [offset: {:s_int, offset}], [core_syntax(atom, names)]}
+     end)}
+  end
 
   defp short_name(name), do: name |> Atom.to_string() |> String.split("#") |> List.last() |> String.to_atom()
 

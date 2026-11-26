@@ -26,16 +26,16 @@ defmodule Cure.Core.BranchUnifyOccursTest do
   test "a strongly-rigid cyclic index equation is discharged :impossible (Cycle rule), never a solve, never a loop" do
     env =
       Env.empty()
-      |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:Dcoupled, [], []),
         Inductive.ctor(:Causal, [], [])
       ])
-      |> Inductive.declare(Inductive.family(:Wr, [], [], 0), [
+      |> Inductive.declare(Inductive.family(:Wr, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:MkWr, [{:d, @dec}], [])
       ])
       # adversarial: result index {:ctor, :MkWr, [{:var, 1}]} references var 1,
       # OUTSIDE the 1-slot telescope (arity 1 ⇒ own vars are < 1)
-      |> Inductive.declare(Inductive.family(:IW, [], [{:w, @wr}], 0), [
+      |> Inductive.declare(Inductive.family(:IW, [], [{:w, @wr}], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:iw, [{:p, @dec}], [{:ctor, :MkWr, [{:var, 1}]}])
       ])
 

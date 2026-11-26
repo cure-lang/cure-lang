@@ -1,40 +1,64 @@
 defmodule Mix.Tasks.Antigen.Migrate do
   use Mix.Task
-  alias Antigen.Corpus
+  alias Antigen.Corpus.Migration
 
-  @shortdoc "Rewrite banked Antigen corpora into the human-readable format (idempotent)."
+  @shortdoc "Explicit offline Antigen import/rekey audit; publication requires --write."
   @moduledoc """
-  Rewrites each given `.sexp` corpus file in place from any format (legacy Base64
-  or already-new) into the readable format — s-expr term pieces, plaintext note,
-  readable `fault=` field — preserving the byte-exact stored dedup key and record
-  order. Idempotent: a new-format file re-migrates to byte-identical output.
+  Audit historical corpora without modifying input files:
 
-      mix antigen.migrate test/antigen/seeds.sexp test/antigen/corpus.sexp test/antigen/reach.sexp
+      mix antigen.migrate --from fixed-ceiling-v1 test/antigen/corpus.sexp test/antigen/seeds.sexp test/antigen/coverage.sexp
+
+  Archive verbatim preimages, stage outputs and write a complete per-row inventory:
+
+      mix antigen.migrate --from fixed-ceiling-v1 --archive-dir /tmp/antigen-before --out-dir /tmp/antigen-after --inventory /tmp/antigen-inventory.json PATHS...
+
+  Add `--write` only to explicitly publish a fully successful staged migration.
+  Publication verifies original hashes and retains a per-file recovery journal;
+  it is not an atomic multi-file transaction. A pre-existing journal requires
+  inspection/recovery before another publication attempt.
+
+  Failed imports and non-`:ok` real assay verdicts fail the task. Staging retains
+  their evidence but never reports completion or publishes partial results.
   """
 
   @impl true
-  def run(paths) do
-    Enum.each(paths, &migrate_file/1)
-  end
+  def run(args) do
+    {opts, paths} =
+      OptionParser.parse!(args,
+        strict: [from: :string, archive_dir: :string, out_dir: :string, inventory: :string, write: :boolean]
+      )
 
-  defp migrate_file(path) do
-    lines = path |> File.stream!() |> Enum.to_list()
+    unless opts[:from] == "fixed-ceiling-v1", do: Mix.raise("--from fixed-ceiling-v1 is required")
+    if paths == [], do: Mix.raise("provide input corpus paths")
+    staging = Enum.map(~w(archive_dir out_dir inventory)a, &Keyword.has_key?(opts, &1))
 
-    out =
-      lines
-      |> Enum.map(fn line ->
-        trimmed = String.trim_trailing(line, "\n")
+    if Enum.any?(staging) and not Enum.all?(staging),
+      do: Mix.raise("--archive-dir, --out-dir and --inventory must be supplied together")
 
-        case Corpus.decode_record(trimmed) do
-          {:ok, c} -> Corpus.encode_record(c, Corpus.raw_key(trimmed))
-          # leave undecodable lines (e.g. blank) untouched
-          _ -> trimmed
-        end
-      end)
+    if opts[:write] == true and not Enum.all?(staging), do: Mix.raise("--write requires complete staging options")
+    opts = Keyword.put(opts, :from, :fixed_ceiling_v1)
+    result = if Enum.all?(staging), do: Migration.stage(paths, opts), else: Migration.audit(paths, opts)
+    {status, report, _state} = result
 
-    tmp = path <> ".migrating"
-    File.write!(tmp, Enum.map_join(out, "\n", & &1) <> "\n")
-    File.rename!(tmp, path)
-    Mix.shell().info("migrated #{path} (#{length(lines)} records)")
+    for file <- report["files"] do
+      Mix.shell().info(
+        "#{file["name"]}: #{file["physical_lines"]} input lines, #{file["output_records"]} staged output rows"
+      )
+    end
+
+    unless status == :ok do
+      Mix.raise(
+        "migration incomplete: #{length(report["failures"])} import/conservation errors, #{length(report["replay_failures"])} replay failures"
+      )
+    end
+
+    action =
+      cond do
+        opts[:write] -> "published with recovery journal"
+        Enum.all?(staging) -> "staged; inputs unchanged"
+        true -> "audited; no files written"
+      end
+
+    Mix.shell().info("migration #{action}")
   end
 end

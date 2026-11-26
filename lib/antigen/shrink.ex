@@ -7,7 +7,12 @@ defmodule Antigen.Shrink do
   alias Antigen.{Challenge, Coverage}
   alias Cure.Core.Term
 
-  @minimal_atoms [{:ctor, :Z, []}, {:ctor, :vnil, []}, {:ctor, :T, []}, {:type, 0}]
+  @minimal_atoms [
+    {:ctor, :Z, []},
+    {:ctor, :vnil, []},
+    {:ctor, :T, []},
+    {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
+  ]
 
   @spec minimize(Challenge.t(), (Challenge.t() -> boolean()), non_neg_integer()) :: Challenge.t()
   def minimize(%Challenge{} = ch, pred, budget) do
@@ -65,9 +70,13 @@ defmodule Antigen.Shrink do
     pieces
     |> Enum.with_index()
     |> Enum.flat_map(fn {{pid, term}, i} ->
-      Enum.map(term_candidates(term), fn term2 ->
+      Enum.flat_map(term_candidates(term), fn term2 ->
         new_pieces = List.replace_at(pieces, i, {pid, term2})
-        Challenge.from_pieces(k, a, l, s, n, scaffold, new_pieces)
+
+        case Challenge.safe_from_pieces(k, a, l, s, n, scaffold, new_pieces) do
+          {:ok, candidate} -> [candidate]
+          {:error, _} -> []
+        end
       end)
     end)
   end
@@ -123,14 +132,73 @@ defmodule Antigen.Shrink do
 
   # all single-edit variants of a term, pre-order (edits AT this node before children)
   defp term_candidates(t) do
-    here = rule1(t) ++ rule2(t) ++ rule4(t)
+    here = rule1(t) ++ rule2(t) ++ rule_level(t) ++ rule4(t)
 
     deeper =
       Enum.flat_map(child_slots(t), fn {rebuild, child} ->
         Enum.map(term_candidates(child), rebuild)
       end)
 
-    here ++ deeper
+    Enum.filter(here ++ deeper, &Term.term?/1)
+  end
+
+  # canonical shrinking for maximum-plus universe levels and omega sorts (Phase 5 U7):
+  # every candidate is constructed through `UniverseLevel.canonicalize/2` so shrinking
+  # never produces noncanonical Core.
+  defp rule_level({:level_value, %Cure.Core.UniverseLevel{} = level}) do
+    level
+    |> shrink_universe_level()
+    |> Enum.map(&{:level_value, &1})
+  end
+
+  defp rule_level({:type, {:finite, %Cure.Core.UniverseLevel{} = level}}) do
+    level
+    |> shrink_universe_level()
+    |> Enum.map(&{:type, {:finite, &1}})
+  end
+
+  defp rule_level({:type, {:omega, n}}) when is_integer(n) and n > 0 do
+    [{:type, {:omega, 0}}, {:type, {:omega, n - 1}}]
+    |> Enum.uniq()
+  end
+
+  defp rule_level(_), do: []
+
+  defp shrink_universe_level(%Cure.Core.UniverseLevel{constant: c, atoms: atoms} = level) do
+    alias Cure.Core.UniverseLevel
+    norm = fn const, ats -> UniverseLevel.normalize(%UniverseLevel{constant: const, atoms: ats}) end
+
+    const_cands =
+      if c > 0 do
+        [norm.(0, atoms), norm.(c - 1, atoms)]
+      else
+        []
+      end
+
+    offset_cands =
+      atoms
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {{atom, off}, idx} ->
+        if off > 0 do
+          [
+            norm.(c, List.replace_at(atoms, idx, {atom, 0})),
+            norm.(c, List.replace_at(atoms, idx, {atom, off - 1}))
+          ]
+        else
+          []
+        end
+      end)
+
+    drop_atom_cands =
+      atoms
+      |> Enum.with_index()
+      |> Enum.map(fn {_entry, idx} ->
+        norm.(c, List.delete_at(atoms, idx))
+      end)
+
+    (const_cands ++ offset_cands ++ drop_atom_cands)
+    |> Enum.uniq()
+    |> Enum.reject(&(&1 == level))
   end
 
   # rule 1: subterm → minimal atom, only for compound (>1 node) positions
@@ -158,9 +226,43 @@ defmodule Antigen.Shrink do
   defp rule4(_), do: []
 
   # child slots: {rebuild_fn, child} for every immediate sub-term (all Core formers)
+  defp child_slots({:type, sort} = term) do
+    Enum.map(Term.level_atoms(term), fn atom ->
+      rebuild = fn replacement ->
+        {:type, Cure.Core.Sort.map(sort, fn original -> if original == atom, do: replacement, else: original end)}
+      end
+
+      {rebuild, atom}
+    end)
+  end
+
+  defp child_slots({:level_value, level} = term) do
+    Enum.map(Term.level_atoms(term), fn atom ->
+      rebuild = fn replacement ->
+        {:level_value,
+         Cure.Core.UniverseLevel.map(level, fn original -> if original == atom, do: replacement, else: original end)}
+      end
+
+      {rebuild, atom}
+    end)
+  end
+
   defp child_slots({:app, f, a}), do: [{&{:app, &1, a}, f}, {&{:app, f, &1}, a}]
   defp child_slots({:lam, g, d, b}), do: [{&{:lam, g, &1, b}, d}, {&{:lam, g, d, &1}, b}]
   defp child_slots({:pi, g, d, c}), do: [{&{:pi, g, &1, c}, d}, {&{:pi, g, d, &1}, c}]
+
+  defp child_slots({:let, grade, type, value, body}),
+    do: [
+      {&{:let, grade, &1, value, body}, type},
+      {&{:let, grade, type, &1, body}, value},
+      {&{:let, grade, type, value, &1}, body}
+    ]
+
+  defp child_slots({tag, inner}) when tag in [:effect_type, :effect_pure], do: [{&{tag, &1}, inner}]
+
+  defp child_slots({:effect_bind, effect, continuation}),
+    do: [{&{:effect_bind, &1, continuation}, effect}, {&{:effect_bind, effect, &1}, continuation}]
+
   defp child_slots({:ctor, n, args}), do: slot_list(args, &{:ctor, n, &1})
 
   defp child_slots({:data, n, ps, is}) do
@@ -192,11 +294,22 @@ defmodule Antigen.Shrink do
   def size(%Challenge{payload: p}),
     do: node_count(p.term) + length(p.ctx) + numeral_magnitude(p.term)
 
+  defp node_count({tag, _} = term) when tag in [:type, :level_value],
+    do: 1 + Enum.sum(Enum.map(Term.level_atoms(term), &node_count/1))
+
   defp node_count(t) when is_tuple(t),
     do: 1 + (t |> Tuple.to_list() |> tl() |> Enum.map(&node_count/1) |> Enum.sum())
 
   defp node_count(l) when is_list(l), do: l |> Enum.map(&node_count/1) |> Enum.sum()
   defp node_count(_), do: 0
+
+  defp numeral_magnitude({:type, {:finite, %Cure.Core.UniverseLevel{} = lvl}}),
+    do: level_magnitude(lvl)
+
+  defp numeral_magnitude({:type, {:omega, n}}) when is_integer(n), do: n
+
+  defp numeral_magnitude({:level_value, %Cure.Core.UniverseLevel{} = lvl}),
+    do: level_magnitude(lvl)
 
   defp numeral_magnitude({:ctor, :S, [n]}), do: 1 + numeral_magnitude(n)
 
@@ -206,11 +319,21 @@ defmodule Antigen.Shrink do
   defp numeral_magnitude(l) when is_list(l), do: l |> Enum.map(&numeral_magnitude/1) |> Enum.sum()
   defp numeral_magnitude(_), do: 0
 
+  defp level_magnitude(%Cure.Core.UniverseLevel{constant: c, atoms: atoms}) do
+    c + Enum.sum(Enum.map(atoms, fn {atom, off} -> off + numeral_magnitude(atom) end))
+  end
+
   # free-occurrence of de-Bruijn index k (crosses binders, incrementing) — mirrors Runner.occurs?/2
+  def occurs?({tag, _} = term, k) when tag in [:type, :level_value],
+    do: Enum.any?(Term.level_atoms(term), &occurs?(&1, k))
+
   def occurs?({:var, k}, k), do: true
   def occurs?({:var, _}, _k), do: false
   def occurs?({:lam, _g, d, b}, k), do: occurs?(d, k) or occurs?(b, k + 1)
   def occurs?({:pi, _g, d, c}, k), do: occurs?(d, k) or occurs?(c, k + 1)
+
+  def occurs?({:let, _grade, type, value, body}, k),
+    do: occurs?(type, k) or occurs?(value, k) or occurs?(body, k + 1)
 
   def occurs?({:case, s, m, brs}, k) do
     occurs?(s, k) or occurs?(m, k) or
@@ -241,10 +364,16 @@ defmodule Antigen.Shrink do
   end
 
   # highest free index (relative to `depth` binders already entered), or -1 if closed-at-depth
+  defp max_index_below({tag, _} = term, depth) when tag in [:type, :level_value],
+    do: term |> Term.level_atoms() |> Enum.map(&max_index_below(&1, depth)) |> max_or(-1)
+
   defp max_index_below({:var, k}, depth) when k >= depth, do: k - depth
   defp max_index_below({:var, _}, _depth), do: -1
   defp max_index_below({:lam, _g, d, b}, depth), do: max(max_index_below(d, depth), max_index_below(b, depth + 1))
   defp max_index_below({:pi, _g, d, c}, depth), do: max(max_index_below(d, depth), max_index_below(c, depth + 1))
+
+  defp max_index_below({:let, _grade, type, value, body}, depth),
+    do: Enum.max([max_index_below(type, depth), max_index_below(value, depth), max_index_below(body, depth + 1)])
 
   defp max_index_below({:case, s, m, brs}, depth) do
     [

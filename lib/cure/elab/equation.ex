@@ -455,6 +455,24 @@ defmodule Cure.Elab.Equation do
     Map.put_new(current, {:field, field}, replacement)
   end
 
+  defp collect_index_refinements(
+         {:type, {:finite, left}},
+         {:type, {:finite, right}},
+         current,
+         total_fields,
+         parameter_count
+       ),
+       do: collect_level_refinements(left, right, current, total_fields, parameter_count)
+
+  defp collect_index_refinements(
+         {:level_value, left},
+         {:level_value, right},
+         current,
+         total_fields,
+         parameter_count
+       ),
+       do: collect_level_refinements(left, right, current, total_fields, parameter_count)
+
   defp collect_index_refinements(left, right, current, total_fields, parameter_count)
        when is_tuple(left) and is_tuple(right) and tuple_size(left) == tuple_size(right) and
               elem(left, 0) == elem(right, 0) do
@@ -475,6 +493,27 @@ defmodule Cure.Elab.Equation do
   end
 
   defp collect_index_refinements(_left, _right, current, _total_fields, _parameter_count), do: current
+
+  defp collect_level_refinements(
+         %Cure.Core.UniverseLevel{constant: constant, atoms: left},
+         %Cure.Core.UniverseLevel{constant: constant, atoms: right},
+         current,
+         total_fields,
+         parameter_count
+       ) do
+    if Enum.map(left, &elem(&1, 1)) == Enum.map(right, &elem(&1, 1)),
+      do:
+        collect_index_refinements(
+          Enum.map(left, &elem(&1, 0)),
+          Enum.map(right, &elem(&1, 0)),
+          current,
+          total_fields,
+          parameter_count
+        ),
+      else: current
+  end
+
+  defp collect_level_refinements(_left, _right, current, _total_fields, _parameter_count), do: current
 
   defp apply_original_replacements(term, replacements, total_fields) do
     Enum.reduce(replacements, term, fn {key, replacement}, current ->
@@ -523,6 +562,9 @@ defmodule Cure.Elab.Equation do
     end)
   end
 
+  defp accessible_field_refs?({tag, _} = term, remaining, total_fields) when tag in [:type, :level_value],
+    do: Enum.all?(Cure.Core.Term.level_atoms(term), &accessible_field_refs?(&1, remaining, total_fields))
+
   defp accessible_field_refs?({:var, index}, remaining, total_fields),
     do: index >= remaining or index >= total_fields
 
@@ -533,6 +575,12 @@ defmodule Cure.Elab.Equation do
     do: Enum.all?(terms, &accessible_field_refs?(&1, remaining, total_fields))
 
   defp accessible_field_refs?(_leaf, _remaining, _total_fields), do: true
+
+  defp replace_frame_vars({:type, sort}, mapping, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &replace_frame_vars(&1, mapping, depth))}
+
+  defp replace_frame_vars({:level_value, level}, mapping, depth),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &replace_frame_vars(&1, mapping, depth))}
 
   defp replace_frame_vars({:var, index}, mapping, depth) do
     case Map.fetch(mapping, index - depth) do
@@ -555,7 +603,25 @@ defmodule Cure.Elab.Equation do
   defp replace_frame_vars({:ctor, name, args}, mapping, depth),
     do: {:ctor, name, Enum.map(args, &replace_frame_vars(&1, mapping, depth))}
 
-  defp replace_frame_vars(other, _mapping, _depth), do: other
+  defp replace_frame_vars({:let, grade, type, value, body}, mapping, depth),
+    do:
+      {:let, grade, replace_frame_vars(type, mapping, depth), replace_frame_vars(value, mapping, depth),
+       replace_frame_vars(body, mapping, depth + 1)}
+
+  defp replace_frame_vars({:case, scrutinee, motive, branches}, mapping, depth),
+    do:
+      {:case, replace_frame_vars(scrutinee, mapping, depth), replace_frame_vars(motive, mapping, depth),
+       Enum.map(branches, fn {constructor, arity, body} ->
+         {constructor, arity, replace_frame_vars(body, mapping, depth + arity)}
+       end)}
+
+  defp replace_frame_vars({tag, inner}, mapping, depth) when tag in [:effect_type, :effect_pure],
+    do: {tag, replace_frame_vars(inner, mapping, depth)}
+
+  defp replace_frame_vars({:effect_bind, effect, continuation}, mapping, depth),
+    do: {:effect_bind, replace_frame_vars(effect, mapping, depth), replace_frame_vars(continuation, mapping, depth)}
+
+  defp replace_frame_vars(leaf, _mapping, _depth), do: leaf
 
   defp peel(term, tag), do: peel(term, tag, [])
   defp peel({tag, grade, domain, body}, tag, acc), do: peel(body, tag, acc ++ [{grade, domain}])
@@ -571,7 +637,7 @@ defmodule Cure.Elab.Equation do
     end)
   end
 
-  defp equality_terms(_env, {:type, 0}, left, right) do
+  defp equality_terms(_env, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, left, right) do
     family = Name.qualify("Std.Equivalent", :TypeEquivalent)
     constructor = Name.qualify("Std.Equivalent", :type_reflexive)
     {{:data, family, [], [left, right]}, {:ctor, constructor, [right]}}

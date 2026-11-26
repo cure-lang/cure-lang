@@ -23,21 +23,20 @@ mod Std.Sigma
   ## `%[..]`/`.1`/`.2` surface sugar onto them. `mk_pair(x, y) : Sigma(a, b)` is the
   ## sole constructor.
   @builtin(:sigma)
-  type Sigma(a: Type, b: (a) -> Type) indices ()
-    mk_pair : (x: a) -> b(x) -> Sigma(a, b)
+  type Sigma(la: UniverseLevel, lb: UniverseLevel, a: Type(la), b: (a) -> Type(lb)) indices ()
+    mk_pair : (x: a) -> b(x) -> Sigma(la, lb, a, b)
 
   ## First projection: the witness. Surface users write `p.1`; the compiler lowers
   ## it to this global (inlined to `element(1, p)` at codegen, keeping the bare
-  ## 2-tuple ABI). `a`/`b` are erased at runtime. The parameter type is written with
-  ## the `Sigma(x: T, U)` surface (a plain `Sigma(a, b)` is reserved by the parser).
+  ## 2-tuple ABI). `la`/`lb`/`a`/`b` are erased at runtime.
   @reducible
-  fn sigma_first({a: Type}, {b: (a) -> Type}, p: Sigma(x: a, b(x))) -> a = match p
+  fn sigma_first({la: UniverseLevel}, {lb: UniverseLevel}, {a: Type(la)}, {b: (a) -> Type(lb)}, p: Sigma(x: a, b(x))) -> a = match p
     mk_pair(x, y) -> x
 
   ## Second projection: the dependent payload, at type `b(sigma_first(p))`. Surface
   ## users write `p.2`; lowered to this global (inlined to `element(2, p)`).
   @reducible
-  fn sigma_second({a: Type}, {b: (a) -> Type}, p: Sigma(x: a, b(x))) -> b(sigma_first(p)) = match p
+  fn sigma_second({la: UniverseLevel}, {lb: UniverseLevel}, {a: Type(la)}, {b: (a) -> Type(lb)}, p: Sigma(x: a, b(x))) -> b(sigma_first(p)) = match p
     mk_pair(x, y) -> y
 
   ## --- flat-telescope positional projections `tproj2 … tproj8` ---------------

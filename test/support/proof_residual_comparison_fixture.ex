@@ -1,4 +1,6 @@
 defmodule Cure.Test.ProofResidualComparisonFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Conv, Eval, Grade, Inductive, ProofRecipe, ProofWire, Quote, Term}
@@ -41,7 +43,10 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
 
     atom = {:atom_type}
     g = Grade.unrestricted()
-    case_node = fn name, ar -> {:case, {:global, :"Boundary#packed"}, atom, [{name, ar, atom}]} end
+
+    case_node = fn name, ar ->
+      {:case, {:global, :"Boundary#packed"}, atom, [{name, ar, atom}]}
+    end
 
     previous ++
       checking ++
@@ -49,7 +54,7 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
         {:delta_boundary, {:global, :"Boundary#answer"}, {:atom_lit, :answer}, [], 0},
         {:eta_boundary, {:lam, g, atom, {:app, {:var, 1}, {:var, 0}}}, {:var, 0}, [{:vneutral, {:nvar, 0}}], 1},
         {:grade_boundary, {:pi, Grade.one(), atom, atom}, {:pi, g, atom, atom}, [], 0},
-        {:universe_boundary, {:type, 0}, {:type, 1}, [], 0},
+        {:universe_boundary, {:type, @u0}, {:type, @u1}, [], 0},
         {:name_boundary, case_node.(:"Boundary#Pack", 2), case_node.(:"Boundary#Alternate", 2), [], 0},
         {:arity_boundary, case_node.(:"Boundary#Pack", 2), case_node.(:"Boundary#Pack", 3), [], 0}
       ]
@@ -120,7 +125,9 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
 
   defp environment(_key, []), do: "[]"
   defp environment(:eta_boundary, [_value]), do: "(E.v-neutral (E.n-var 0) ∷ [])"
-  defp environment(key, _env), do: "Prior.#{key |> Atom.to_string() |> String.replace("_", "-")}-environment"
+
+  defp environment(key, _env),
+    do: "Prior.#{key |> Atom.to_string() |> String.replace("_", "-")}-environment"
 
   defp checking_key(:residual), do: :checking_residual
   defp checking_key(:reverse), do: :checking_reverse
@@ -142,9 +149,12 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
     g = Grade.unrestricted()
     atom = {:atom_type}
     global = {:global, :"Boundary#packed"}
-    motive = {:lam, g, {:type, 0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, 0}}}
+
+    motive =
+      {:lam, g, {:type, @u0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, @u0}}}
+
     beta_kind = {:r_app, {:r_lam, :r_leaf, :r_leaf}, :r_leaf}
-    beta_type = {:app, {:lam, g, {:type, 0}, {:var, 0}}, atom}
+    beta_type = {:app, {:lam, g, {:type, @u0}, {:var, 0}}, atom}
 
     {body, body_recipe} =
       cond do
@@ -154,7 +164,10 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
       end
 
     ctors =
-      Enum.map([:"Boundary#Pack", :"Boundary#Alternate"], &Inductive.get_ctor(ProofSnapshotFixture.environment(), &1))
+      Enum.map(
+        [:"Boundary#Pack", :"Boundary#Alternate"],
+        &Inductive.get_ctor(ProofSnapshotFixture.environment(), &1)
+      )
 
     branches = Enum.map(ctors, fn ctor -> {ctor.name, 2, body} end)
 
@@ -169,9 +182,12 @@ defmodule Cure.Test.ProofResidualComparisonFixture do
 
     kind = {:r_pi, :r_leaf, {:r_pi, {:r_data, [], [:r_leaf]}, :r_leaf}}
     motive_recipe = {:r_lam, :r_leaf, {:r_lam, {:r_data, [], [:r_leaf]}, :r_leaf}}
-    case_recipe = {:r_case, :r_leaf, [], [:r_leaf], 1, kind, motive_recipe, branch_recipes}
+    case_recipe = {:r_case, :r_leaf, [], [:r_leaf], @u1, kind, motive_recipe, branch_recipes}
     program = {:case, global, motive, branches}
-    recipe = {:r_convert, {:type, 0}, two_beta({:app, {:app, motive, atom}, global}), case_recipe}
+
+    recipe =
+      {:r_convert, {:type, @u0}, two_beta({:app, {:app, motive, atom}, global}), case_recipe}
+
     {program, recipe}
   end
 

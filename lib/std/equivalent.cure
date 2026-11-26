@@ -36,26 +36,25 @@ mod Std.Equivalent
   ## the sole constructor — the proof that `x` equals itself; its witness is
   ## erased at runtime.
   @builtin(:eq)
-  type Equivalent(a: Type) indices (x: a, y: a)
-    reflexive : Equivalent(a, w, w)
+  type Equivalent(l: UniverseLevel, a: Type(l)) indices (x: a, y: a)
+    reflexive : Equivalent(l, a, w, w)
 
-  ## Equality between small types themselves. `Equivalent(Type, A, B)` would
-  ## require `Type 0 : Type 0`, violating Cure's predicative hierarchy, so
-  ## type-valued defining equations use this ordinary indexed family instead.
+  ## Equality between small types themselves (retained for compatibility alongside
+  ## universe-polymorphic `Equivalent`).
   type TypeEquivalent indices (x: Type, y: Type)
     type_reflexive : TypeEquivalent(w, w)
 
   ## Symmetry: from `x = y` derive `y = x`.
-  fn sym({a: Type}, {x: a}, {y: a}, p: Equivalent(a, x, y)) -> Equivalent(a, y, x) = 
+  fn sym({l: UniverseLevel}, {a: Type(l)}, {x: a}, {y: a}, p: Equivalent(l, a, x, y)) -> Equivalent(l, a, y, x) = 
     match p
       reflexive() -> reflexive(x)
 
   ## Transitivity: from `x = y` and `y = z` derive `x = z`.
-  fn trans({a: Type}, {x: a}, {y: a}, {z: a}, p: Equivalent(a, x, y), q: Equivalent(a, y, z)) -> Equivalent(a, x, z) = 
+  fn trans({l: UniverseLevel}, {a: Type(l)}, {x: a}, {y: a}, {z: a}, p: Equivalent(l, a, x, y), q: Equivalent(l, a, y, z)) -> Equivalent(l, a, x, z) = 
     match p
       reflexive() -> q
 
   ## Congruence: equal inputs give equal `f`-outputs.
-  fn cong({a: Type}, {b: Type}, {x: a}, {y: a}, f: (a) -> b, p: Equivalent(a, x, y)) -> Equivalent(b, f(x), f(y)) = 
+  fn cong({la: UniverseLevel}, {lb: UniverseLevel}, {a: Type(la)}, {b: Type(lb)}, {x: a}, {y: a}, f: (a) -> b, p: Equivalent(la, a, x, y)) -> Equivalent(lb, b, f(x), f(y)) = 
     match p
       reflexive() -> reflexive(f(x))

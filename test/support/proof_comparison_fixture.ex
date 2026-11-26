@@ -1,4 +1,6 @@
 defmodule Cure.Test.ProofComparisonFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Conv, Eval, Grade, ProofWire, Quote}
@@ -11,7 +13,7 @@ defmodule Cure.Test.ProofComparisonFixture do
     payload = {:atom_lit, :payload}
     identity = {:lam, g, atom, {:var, 0}}
     beta = {:app, identity, payload}
-    beta_type = {:app, {:lam, g, {:type, 0}, {:var, 0}}, atom}
+    beta_type = {:app, {:lam, g, {:type, @u0}, {:var, 0}}, atom}
     neutral = [{:vneutral, {:nvar, 0}}]
     data = {:data, :"Boundary#Packed", [], [atom]}
 
@@ -22,10 +24,10 @@ defmodule Cure.Test.ProofComparisonFixture do
       {:pi, {:pi, g, atom, beta_type}, {:pi, g, atom, atom}, [], 0, false},
       {:lambda_grade, {:lam, Grade.one(), atom, {:var, 0}}, identity, [], 0, false},
       {:pi_grade, {:pi, Grade.one(), atom, atom}, {:pi, g, atom, atom}, [], 0, false},
-      {:universe, {:type, 0}, {:type, 1}, [], 0, false},
+      {:universe, {:type, @u0}, {:type, @u1}, [], 0, false},
       {:name, payload, {:atom_lit, :hidden}, [], 0, false},
       {:eta, {:lam, g, atom, {:app, {:var, 1}, {:var, 0}}}, {:var, 0}, neutral, 1, false},
-      {:domain, {:lam, g, atom, payload}, {:lam, g, {:type, 0}, payload}, [], 0, false},
+      {:domain, {:lam, g, atom, payload}, {:lam, g, {:type, @u0}, payload}, [], 0, false},
       {:delta, {:global, :"Boundary#answer"}, {:atom_lit, :answer}, [], 0, true},
       {:data, data, data, [], 0, true}
     ]
@@ -86,6 +88,8 @@ defmodule Cure.Test.ProofComparisonFixture do
   defp environment(values),
     do:
       "(" <>
-        Enum.map_join(values, " ∷ ", fn {:vneutral, {:nvar, level}} -> "(E.v-neutral (E.n-var #{level}))" end) <>
+        Enum.map_join(values, " ∷ ", fn {:vneutral, {:nvar, level}} ->
+          "(E.v-neutral (E.n-var #{level}))"
+        end) <>
         " ∷ [])"
 end

@@ -3,7 +3,7 @@ defmodule Cure.Core.InductiveTest do
   alias Cure.Core.{Inductive, Env}
 
   test "stores a nullary family Dec with its constructors" do
-    dec = Inductive.family(:Dec, [], [], 0)
+    dec = Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0))
 
     env =
       Env.empty()
@@ -24,7 +24,7 @@ defmodule Cure.Core.InductiveTest do
     # In seq's body scope (telescope [as,bs,cs,d1,d2,l,r]): as=#6, cs=#4, d1=#3, d2=#2.
     and_term = {:app, {:app, {:global, :and}, {:var, 3}}, {:var, 2}}
 
-    sf = Inductive.family(:SF, [], [{:as, svdesc}, {:bs, svdesc}, {:d, dec}], 0)
+    sf = Inductive.family(:SF, [], [{:as, svdesc}, {:bs, svdesc}, {:d, dec}], Cure.Core.Sort.finite_closed(0))
 
     seq =
       Inductive.ctor(

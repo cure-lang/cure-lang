@@ -22,7 +22,7 @@ defmodule Cure.Core.StuckCaseMotiveConvTest do
     motive_cl = {:closure, [captured], @motive_term}
     # one branch for a nullary ctor `foo`, trivial body (its own de Bruijn 0 slot
     # is never reached because the scrutinee stays neutral).
-    branches = [{:foo, 0, {:closure, [captured], {:type, 0}}}]
+    branches = [{:foo, 0, {:closure, [captured], {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}]
     {:vneutral, {:ncase, {:nvar, 0}, motive_cl, branches}}
   end
 

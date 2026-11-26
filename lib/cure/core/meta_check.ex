@@ -44,6 +44,8 @@ defmodule Cure.Core.MetaCheck do
   defp canonical_head?({:lam, _, _, _}), do: true
   defp canonical_head?({:ctor, _, _}), do: true
   defp canonical_head?({:type, _}), do: true
+  defp canonical_head?({:level_type}), do: true
+  defp canonical_head?({:level_value, _}), do: true
   defp canonical_head?({:pi, _, _, _}), do: true
   defp canonical_head?({:data, _, _, _}), do: true
   # NOTE(int-facade): kept for totality on a legacy/deserialized `{:int_type}`

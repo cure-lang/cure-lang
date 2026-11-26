@@ -74,8 +74,14 @@ defmodule Antigen.Coverage do
     do: Enum.flat_map(defs, fn d -> [d.type, d.body] end)
 
   def terms_of(%Challenge{kind: :family, payload: %{family: fam, ctors: ctors}}) do
-    fam_terms = Enum.map(fam.params, fn {_n, t} -> t end) ++ Enum.map(fam.indices, fn {_n, t} -> t end)
-    ctor_terms = Enum.flat_map(ctors, fn ct -> Enum.map(ct.args, fn {_n, t} -> t end) ++ ct.result_indices end)
+    fam_terms =
+      [{:type, fam.sort}] ++ Enum.map(fam.params, fn {_n, t} -> t end) ++ Enum.map(fam.indices, fn {_n, t} -> t end)
+
+    ctor_terms =
+      Enum.flat_map(ctors, fn ct ->
+        Enum.map(ct.args, fn {_n, t} -> t end) ++ Map.get(ct, :result_params, []) ++ ct.result_indices
+      end)
+
     fam_terms ++ ctor_terms
   end
 
@@ -86,9 +92,12 @@ defmodule Antigen.Coverage do
   def terms_of(%Challenge{kind: k, payload: p}) when k in [:indexed_case, :rewrite_eq] do
     fam_terms =
       Enum.flat_map(p.families, fn {fam, ctors} ->
-        Enum.map(fam.params, fn {_n, t} -> t end) ++
+        [{:type, fam.sort}] ++
+          Enum.map(fam.params, fn {_n, t} -> t end) ++
           Enum.map(fam.indices, fn {_n, t} -> t end) ++
-          Enum.flat_map(ctors, fn ct -> Enum.map(ct.args, fn {_n, t} -> t end) ++ ct.result_indices end)
+          Enum.flat_map(ctors, fn ct ->
+            Enum.map(ct.args, fn {_n, t} -> t end) ++ Map.get(ct, :result_params, []) ++ ct.result_indices
+          end)
       end)
 
     fam_terms ++ [p.def_type, p.def_body]
@@ -139,6 +148,15 @@ defmodule Antigen.Coverage do
     :"binder_depth_#{bucket(d)}"
   end
 
+  defp binder_depth({tag, _} = term) when tag in [:type, :level_value],
+    do: term |> Cure.Core.Term.level_atoms() |> Enum.map(&binder_depth/1) |> Enum.max(fn -> 0 end)
+
+  defp binder_depth({tag, _grade, domain, body}) when tag in [:lam, :pi],
+    do: max(binder_depth(domain), 1 + binder_depth(body))
+
+  defp binder_depth({:let, _grade, type, value, body}),
+    do: Enum.max([binder_depth(type), binder_depth(value), 1 + binder_depth(body)])
+
   defp binder_depth({t, _dom, body}) when t in [:lam, :pi, :sigma], do: 1 + binder_depth(body)
 
   defp binder_depth({:case, s, m, brs}) do
@@ -160,6 +178,9 @@ defmodule Antigen.Coverage do
   # not count; only nesting (e.g. a curried `{:pi, Cure.Core.Grade.unrestricted(), _, {:pi, Cure.Core.Grade.unrestricted(), _, _}}`) does.
   defp has_shadowing?(t), do: nested_binder?(t, false)
 
+  defp nested_binder?({tag, _} = term, inside?) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &nested_binder?(&1, inside?))
+
   defp nested_binder?(t, inside?) when is_tuple(t) do
     tag = elem(t, 0)
     binder? = tag in [:lam, :pi, :sigma]
@@ -177,6 +198,9 @@ defmodule Antigen.Coverage do
   defp tag(t) when is_tuple(t), do: elem(t, 0)
   defp tag(_), do: nil
 
+  defp fold({tag, _} = term, acc, f) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), f.(term, acc), &fold(&1, &2, f))
+
   defp fold(t, acc, f) when is_tuple(t) do
     acc = f.(t, acc)
     t |> Tuple.to_list() |> Enum.reduce(acc, fn child, a -> fold(child, a, f) end)
@@ -192,6 +216,13 @@ defmodule Antigen.Coverage do
   # Step-1 fixtures: `{:app, {:lam, Cure.Core.Grade.unrestricted(), {:type,0}, {:var,0}}, {:type,0}}` computes
   # to depth 2 (bucket `:b0_2`) and the four-`:app` `deep` fixture computes to
   # depth 3 (bucket `:b3_5`).
+  defp fold_depth({tag, _} = term) when tag in [:type, :level_value] do
+    case Cure.Core.Term.level_atoms(term) do
+      [] -> 0
+      atoms -> 1 + Enum.max(Enum.map(atoms, &fold_depth/1))
+    end
+  end
+
   defp fold_depth(t) when is_tuple(t) do
     child_depths =
       t

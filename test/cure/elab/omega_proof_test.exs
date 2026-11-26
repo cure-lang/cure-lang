@@ -164,7 +164,14 @@ defmodule Cure.Elab.Omega.ProofTest do
     {ctx, names} = context(env, [:a, :b], [{:ab, :a, :b}])
     [a, b] = Enum.map([:a, :b], &var(names, &1))
     assert :unknown = Proof.solve({:data, :"Std.Proof.IntOrder#IsLessThan", [], [a, b]}, ctx, env)
-    assert :unknown = Proof.solve({:data, :"Std.Equivalent#Equivalent", [@int], [a, a]}, ctx, env)
+
+    assert :unknown =
+             Proof.solve(
+               {:data, :"Std.Equivalent#Equivalent", [{:level_value, Cure.Core.UniverseLevel.zero()}, @int], [a, a]},
+               ctx,
+               env
+             )
+
     product = call(:"Std.Proof.IntOrder#multiply_int", [a, b])
     assert :unknown = Proof.solve(order(product, product), ctx, env)
     assert :unknown = Proof.solve(order(add(a, b), add(b, a)), ctx, env)

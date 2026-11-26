@@ -16,7 +16,7 @@ defmodule Cure.Core.ValidatorTest do
       assert MapSet.new(Map.keys(Validator.wave0_config())) == MapSet.new(Validator.clauses())
     end
 
-    test "only the retired-primitive clauses are :reject in Wave 0" do
+    test "retired primitives, stale binders and noncanonical levels reject in Wave 0" do
       # Wave 0 was pure instrumentation until Phase C retired the primitive
       # identity forms; a smuggled {:eq}/{:refl} node now rejects even in the
       # dev-time default (the kernel has no clauses for them, so any such node
@@ -29,7 +29,7 @@ defmodule Cure.Core.ValidatorTest do
       rejecting = for {c, :reject} <- Validator.wave0_config(), do: c
 
       assert Enum.sort(rejecting) ==
-               [:grade_on_binders, :no_eq_node, :no_prim_node, :no_sigma_node]
+               [:grade_on_binders, :level_expr, :no_eq_node, :no_prim_node, :no_sigma_node]
     end
 
     test "legacy-detecting clauses warn; retired-primitive and stale-binder clauses reject" do
@@ -41,27 +41,37 @@ defmodule Cure.Core.ValidatorTest do
       assert cfg.no_absurd_node == :warn
       assert cfg.grade_on_binders == :reject
       assert cfg.qualified_syms == :off
-      assert cfg.level_expr == :off
+      assert cfg.level_expr == :reject
     end
   end
 
   describe "nodes/1 walker" do
     test "enumerates the term and all sub-terms pre-order" do
-      term = {:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:int_lit, 3}}
+      term =
+        {:app,
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:var, 0}}, {:int_lit, 3}}
+
       got = Cure.Core.Validator.nodes(term)
       assert hd(got) == term
-      assert {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}} in got
-      assert {:type, 0} in got
+
+      assert {:lam, Cure.Core.Grade.unrestricted(),
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}} in got
+
+      assert {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}} in got
       assert {:var, 0} in got
       assert {:int_lit, 3} in got
     end
 
     test "descends into case scrut/motive/branch bodies without yielding branch tuples" do
       # a branch for a constructor literally named :refl must NOT surface as a {:refl, _} node
-      term = {:case, {:var, 0}, {:type, 0}, [{:refl, 1, {:var, 0}}]}
+      term =
+        {:case, {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{:refl, 1, {:var, 0}}]}
+
       got = Cure.Core.Validator.nodes(term)
       assert {:var, 0} in got
-      assert {:type, 0} in got
+      assert {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}} in got
       refute Enum.any?(got, &match?({:refl, _}, &1))
     end
 
@@ -75,11 +85,19 @@ defmodule Cure.Core.ValidatorTest do
 
   describe "validate/2 (Wave-0 active clauses)" do
     test "a clean current-grammar term yields no diagnostics" do
-      assert {:ok, []} = Validator.validate({:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}})
+      assert {:ok, []} =
+               Validator.validate(
+                 {:lam, Cure.Core.Grade.unrestricted(),
+                  {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}}
+               )
     end
 
     test "a smuggled legacy :eq node REJECTS even under the Wave-0 default (Phase C flip)" do
-      assert {:error, [r]} = Validator.validate({:eq, {:type, 0}, {:var, 0}, {:var, 0}})
+      assert {:error, [r]} =
+               Validator.validate(
+                 {:eq, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:var, 0}, {:var, 0}}
+               )
+
       assert r.clause == :no_eq_node and r.mode == :reject
 
       assert {:error, [r2]} = Validator.validate({:refl, {:var, 0}})
@@ -109,7 +127,8 @@ defmodule Cure.Core.ValidatorTest do
     # smuggled non-grammar, exactly like Phase C's no_eq_node endgame).
     test "each primitive Sigma node rejects under Wave-0 AND release_config (D2 ratchet complete)" do
       for node <- [
-            {:sigma, {:type, 0}, {:type, 0}},
+            {:sigma, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+             {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
             {:pair, {:var, 0}, {:var, 0}},
             {:fst, {:var, 0}},
             {:snd, {:var, 0}}
@@ -134,7 +153,11 @@ defmodule Cure.Core.ValidatorTest do
     defp stale_pi, do: :erlang.list_to_tuple([:pi, {:type, 0}, {:var, 0}])
 
     test "fires on a stale ungraded binder when set to :warn" do
-      cfg = Map.put(Validator.wave0_config(), :grade_on_binders, :warn)
+      cfg =
+        Validator.wave0_config()
+        |> Map.put(:grade_on_binders, :warn)
+        |> Map.put(:level_expr, :warn)
+
       assert {:ok, ws} = Validator.validate(stale_pi(), cfg)
       assert Enum.any?(ws, &(&1.clause == :grade_on_binders))
     end
@@ -146,7 +169,11 @@ defmodule Cure.Core.ValidatorTest do
 
     test "does NOT fire on a graded binder" do
       cfg = Map.put(Validator.wave0_config(), :grade_on_binders, :warn)
-      graded = {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}
+
+      graded =
+        {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         {:var, 0}}
+
       assert {:ok, ws} = Validator.validate(graded, cfg)
       refute Enum.any?(ws, &(&1.clause == :grade_on_binders))
     end
@@ -163,7 +190,11 @@ defmodule Cure.Core.ValidatorTest do
     end
 
     test "in Wave-0 config these deferred clauses stay silent (are :off)" do
-      assert {:ok, []} = Validator.validate({:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:global, :foo}})
+      assert {:ok, []} =
+               Validator.validate(
+                 {:pi, Cure.Core.Grade.unrestricted(),
+                  {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:global, :foo}}
+               )
     end
   end
 
@@ -180,8 +211,10 @@ defmodule Cure.Core.ValidatorTest do
         Env.add_def(
           Env.empty(),
           :idty,
-          {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}},
-          {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}
+          {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+          {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           {:var, 0}}
         )
 
       assert :ok == Kernel.check_def(env, :idty)
@@ -192,8 +225,10 @@ defmodule Cure.Core.ValidatorTest do
         Env.add_def(
           Env.empty(),
           :withhole,
-          {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}},
-          {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:hole, :h}}
+          {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+          {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+           {:hole, :h}}
         )
 
       Application.put_env(:cure, :final_core_config, Map.put(Validator.wave0_config(), :no_hole, :reject))
@@ -225,7 +260,11 @@ defmodule Cure.Core.ValidatorTest do
 
       env =
         env0
-        |> Env.add_def(:natty, {:type, 0}, {:data, :Nat, [], []})
+        |> Env.add_def(
+          :natty,
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:data, :Nat, [], []}
+        )
         |> Env.add_def(:natalias, {:global, :natty}, {:hole, "inhabit"})
 
       cfg = Map.put(Validator.wave0_config(), :qualified_syms, :reject)
@@ -264,7 +303,9 @@ defmodule Cure.Core.ValidatorTest do
 
     test "rejects a hole hidden in an erased (rewrite-proof) position — the #102 leak" do
       # Erase would drop the rewrite proof, but the validator descends into it.
-      term = {:rewrite, {:hole, "p"}, {:type, 0}, {:ctor, :ok, []}}
+      term =
+        {:rewrite, {:hole, "p"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:ctor, :ok, []}}
+
       assert {:error, rejections} = Validator.validate(term, Validator.release_config())
       assert Enum.any?(rejections, &(&1.clause == :no_hole))
     end
@@ -289,7 +330,10 @@ defmodule Cure.Core.ValidatorTest do
       # Phase B retired the {:rewrite} producers (rewrite → J/subst :case
       # transport) and Phase C stripped the kernel clauses; a {:rewrite} node in
       # final Core is now a smuggled non-grammar node and must block release.
-      rw = {:rewrite, {:ctor, :refl, [{:int_type}, {:int_lit, 1}]}, {:type, 0}, {:ctor, :ok, []}}
+      rw =
+        {:rewrite, {:ctor, :refl, [{:int_type}, {:int_lit, 1}]},
+         {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, {:ctor, :ok, []}}
+
       assert {:error, rejections} = Validator.validate(rw, Validator.release_config())
       assert Enum.any?(rejections, &(&1.clause == :no_rewrite_node and &1.mode == :reject))
     end

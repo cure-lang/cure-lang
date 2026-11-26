@@ -78,7 +78,10 @@ defmodule Cure.Elab.SourceSessionObservationTest do
 
   test "session scopes restore after nested returns and exceptions, leaving standalone observations active" do
     env = Env.empty()
-    goal = ProofGoal.new({:type, 0}, [], Context.empty(env), env)
+
+    goal =
+      ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [], Context.empty(env), env)
+
     statement = {:variable, [], "standalone"}
 
     assert {:ok, [state]} =
@@ -103,7 +106,9 @@ defmodule Cure.Elab.SourceSessionObservationTest do
 
   test "blocked pending application refusal exposes its concrete root rather than apparent closure" do
     env = Env.empty()
-    goal = ProofGoal.new({:type, 0}, [], Context.empty(env), env)
+
+    goal =
+      ProofGoal.new({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [], Context.empty(env), env)
 
     assert {{:error, {:proof_chain_mismatch, problem}}, [state]} =
              ProofState.capture(fn -> ProofGoal.pending_application(goal, 2) end)

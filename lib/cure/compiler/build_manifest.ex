@@ -85,6 +85,9 @@ defmodule Cure.Compiler.BuildManifest do
     :producer_snapshot,
     :provenance_hash,
     :compiler_hash,
+    :universe_identity,
+    :cure_universe,
+    :max_plus_finite_omega,
     :warning_count,
     :language_edition,
     :otp_release,
@@ -226,7 +229,7 @@ defmodule Cure.Compiler.BuildManifest do
 
   @doc "SHA-256 over the compiler source and build-definition inputs embedded at build time."
   @spec toolchain_fingerprint() :: binary()
-  def toolchain_fingerprint, do: @toolchain_fingerprint
+  def toolchain_fingerprint, do: Cure.Core.UniverseCodec.semantic_hash(@toolchain_fingerprint)
 
   @doc false
   @spec semantic_toolchain_beam?(Path.t()) :: boolean()
@@ -326,7 +329,9 @@ defmodule Cure.Compiler.BuildManifest do
     |> Map.new(fn {key, value} -> {key, strip_stat_metadata(value)} end)
   end
 
-  defp strip_stat_metadata(values) when is_list(values), do: Enum.map(values, &strip_stat_metadata/1)
+  defp strip_stat_metadata(values) when is_list(values),
+    do: Enum.map(values, &strip_stat_metadata/1)
+
   defp strip_stat_metadata(value), do: value
 
   defp resolve_published_root(output_dir) do

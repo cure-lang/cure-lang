@@ -3,7 +3,13 @@ defmodule Antigen.CoverageTest do
   alias Antigen.{Challenge, Coverage}
 
   test "constructor set and depth bucket for a small term" do
-    c = Challenge.stub({:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:type, 0}})
+    c =
+      Challenge.stub(
+        {:app,
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:var, 0}}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+      )
+
     {ctors, bucket, _flags, label} = Coverage.key(c)
     assert :app in ctors and :lam in ctors and :type in ctors and :var in ctors
     assert bucket == :b0_2
@@ -24,18 +30,23 @@ defmodule Antigen.CoverageTest do
   end
 
   test "key_string is stable and identical for equal keys" do
-    c = Challenge.stub({:type, 0})
+    c = Challenge.stub({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
     assert Coverage.key_string(Coverage.key(c)) == Coverage.key_string(Coverage.key(c))
     assert is_binary(Coverage.key_string(Coverage.key(c)))
   end
 
   test "has_shadowing flag fires for a binder nested under another binder, not for a single binder" do
-    single = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}
+    single =
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:var, 0}}
+
     {_c, _b, flags1, _l} = Coverage.key(Challenge.stub(single))
     refute :has_shadowing in flags1
 
     curried_pi =
-      {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, {:type, 0}}}
+      {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}}
 
     {_c, _b, flags2, _l} = Coverage.key(Challenge.stub(curried_pi))
     assert :has_shadowing in flags2
@@ -43,7 +54,7 @@ defmodule Antigen.CoverageTest do
 
   test "terms_of returns every embedded term of an indexed_case challenge" do
     dec = {:data, :Dec, [], []}
-    fam = Cure.Core.Inductive.family(:Box, [], [{:d, dec}], 0)
+    fam = Cure.Core.Inductive.family(:Box, [], [{:d, dec}], Cure.Core.Sort.finite_closed(0))
     ctors = [Cure.Core.Inductive.ctor(:mk, [{:x, dec}], [{:var, 0}])]
 
     body =

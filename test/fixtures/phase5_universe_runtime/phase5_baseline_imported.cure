@@ -1,0 +1,2 @@
+mod Phase5BaselineImported
+  fn imported_id({a: Type}, x: a) -> a = x

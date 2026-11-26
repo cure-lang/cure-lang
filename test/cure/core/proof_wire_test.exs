@@ -1,4 +1,5 @@
 defmodule Cure.Core.ProofWireTest do
+  @u3 {:finite, Cure.Core.UniverseLevel.closed(3)}
   @moduledoc """
   Producer-side vectors for the wire format formalised in
   `proof/Core/Wire.agda`.
@@ -75,7 +76,10 @@ defmodule Cure.Core.ProofWireTest do
   describe "binder grades" do
     test "grades render as 0..3 and are not interchangeable" do
       {:ok, erased} = ProofWire.encode_term({:lam, :erased, {:atom_type}, {:var, 0}}, @table)
-      {:ok, unrestricted} = ProofWire.encode_term({:lam, :unrestricted, {:atom_type}, {:var, 0}}, @table)
+
+      {:ok, unrestricted} =
+        ProofWire.encode_term({:lam, :unrestricted, {:atom_type}, {:var, 0}}, @table)
+
       refute erased == unrestricted
     end
   end
@@ -116,6 +120,7 @@ defmodule Cure.Core.ProofWireTest do
   describe "fail-closed representation boundaries" do
     test "out-of-range universes and invalid binder grades return errors" do
       for term <- [
+            {:type, 0},
             {:type, 3},
             {:type, -1},
             {:type, 1.0},
@@ -125,22 +130,35 @@ defmodule Cure.Core.ProofWireTest do
           ] do
         assert {:error, {:malformed_term, ^term}} = ProofWire.encode_term(term, @table)
       end
+
+      assert {:error, {:unsupported_term, {:type, @u3}}} =
+               ProofWire.encode_term({:type, @u3}, @table)
     end
 
     test "Float payloads are unsupported rather than silently erased" do
       assert {:error, {:unsupported_term, {:float_lit, 0.5}}} =
                ProofWire.encode_term({:float_lit, 0.5}, @table)
 
-      assert {:error, {:malformed_term, {:float_lit}}} = ProofWire.encode_term({:float_lit}, @table)
+      assert {:error, {:malformed_term, {:float_lit}}} =
+               ProofWire.encode_term({:float_lit}, @table)
     end
 
     test "invalid symbolic identities do not become name-table indices" do
-      for term <- [{:global, 42}, {:atom_lit, []}, {:hole, %{}}, {:ctor, 42, []}, {:data, 42, [], []}] do
+      for term <- [
+            {:global, 42},
+            {:atom_lit, []},
+            {:hole, %{}},
+            {:ctor, 42, []},
+            {:data, 42, [], []}
+          ] do
         assert {:error, {:malformed_term, ^term}} = ProofWire.encode_term(term, @table)
       end
 
       assert {:error, {:malformed_term, _}} =
-               ProofWire.encode_term({:case, {:var, 0}, {:atom_type}, [{42, 1, {:var, 0}}]}, @table)
+               ProofWire.encode_term(
+                 {:case, {:var, 0}, {:atom_type}, [{42, 1, {:var, 0}}]},
+                 @table
+               )
     end
 
     test "malformed and invalid UTF-8 name tables are rejected in full" do

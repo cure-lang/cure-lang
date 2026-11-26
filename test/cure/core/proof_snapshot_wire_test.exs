@@ -1,4 +1,5 @@
 defmodule Cure.Core.ProofSnapshotWireTest do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc """
   Producer vectors and audit-boundary regressions. These are not universal
   extraction proofs; Agda independently checks the generated full bundle.
@@ -35,7 +36,7 @@ defmodule Cure.Core.ProofSnapshotWireTest do
 
     assert {:error, %{reason: :unsupported_opaque_family}} =
              ProofSnapshotWire.encode(
-               Inductive.declare(env, Inductive.opaque_family(:Carrier, [], 0), []),
+               Inductive.declare(env, Inductive.opaque_family(:Carrier, [], @u0), []),
                ProofBundleFixture.table()
              )
   end

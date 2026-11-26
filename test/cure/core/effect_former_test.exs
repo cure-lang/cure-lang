@@ -44,11 +44,13 @@ defmodule Cure.Core.EffectFormerTest do
 
   describe "formation — Effect : Type ℓ → Type ℓ" do
     test "Effect(Int) infers at Type 0 (level-preserving)" do
-      assert {:ok, {:vtype, 0}} = Kernel.infer(empty(), effect_int())
+      assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} =
+               Kernel.infer(empty(), effect_int())
     end
 
     test "Effect(Int) checks at Type 0" do
-      assert :ok = Kernel.check(empty(), effect_int(), {:vtype, 0})
+      assert :ok =
+               Kernel.check(empty(), effect_int(), {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     end
 
     test "Effect over a non-type is rejected" do

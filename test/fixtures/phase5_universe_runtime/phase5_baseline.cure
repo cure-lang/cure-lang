@@ -1,0 +1,44 @@
+mod Phase5Baseline
+  use Phase5BaselineImported
+  use Std.Option
+  use Std.Result
+
+  fn id({a: Type}, x: a) -> a = x
+  fn apply_to({a: Type}, {b: Type}, f: a -> b, x: a) -> b = f(x)
+  fn id_result() -> Int = id(41)
+  fn apply_result() -> Int = apply_to(fn(x: Int) -> x + 1, 41)
+  fn imported_result() -> Int = imported_id(43)
+
+  fn list_empty() -> List(Int) = []
+  fn list_cons() -> List(Int) = Cons(11, Cons(12, Nil()))
+  fn list_match(xs: List(Int)) -> Int = match xs
+    [] -> 0
+    [x | _] -> x
+
+  fn option_none() -> Option(Int) = None()
+  fn option_some() -> Option(Int) = Some(13)
+  fn option_match(x: Option(Int)) -> Int = match x
+    None() -> 0
+    Some(v) -> v
+
+  fn result_ok() -> Result(Int, Int) = Ok(14)
+  fn result_error() -> Result(Int, Int) = Error(15)
+  fn result_match(x: Result(Int, Int)) -> Int = match x
+    Ok(v) -> v
+    Error(e) -> e
+
+  fn pack_sigma() -> Sigma(x: Int, Int) = %[16, 17]
+  fn project_first(p: Sigma(x: Int, Int)) -> Int = p.1
+  fn project_second(p: Sigma(x: Int, Int)) -> Int = p.2
+
+  fn tuple2() -> Tuple(Int, Int) = %[1, 2]
+  fn tuple3() -> Tuple(Int, Int, Int) = %[1, 2, 3]
+  fn tuple4() -> Tuple(Int, Int, Int, Int) = %[1, 2, 3, 4]
+  fn tuple5() -> Tuple(Int, Int, Int, Int, Int) = %[1, 2, 3, 4, 5]
+  fn tuple6() -> Tuple(Int, Int, Int, Int, Int, Int) = %[1, 2, 3, 4, 5, 6]
+  fn tuple7() -> Tuple(Int, Int, Int, Int, Int, Int, Int) = %[1, 2, 3, 4, 5, 6, 7]
+  fn tuple8() -> Tuple(Int, Int, Int, Int, Int, Int, Int, Int) = %[1, 2, 3, 4, 5, 6, 7, 8]
+  fn tuple_last(t: Tuple(Int, Int, Int, Int, Int, Int, Int, Int)) -> Int = t.8
+
+  fn equivalent(n: Int) -> Equivalent(Int, n, n) = reflexive(n)
+  fn erase_equivalent({p: Equivalent(Int, 18, 18)}, n: Int) -> Int = n

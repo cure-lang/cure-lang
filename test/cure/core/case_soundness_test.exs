@@ -8,10 +8,12 @@ defmodule Cure.Core.CaseSoundnessTest do
     env =
       Env.empty()
       |> Inductive.declare(
-        Inductive.family(:Dec, [], [], 0),
+        Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
       )
-      |> Inductive.declare(Inductive.family(:Foo, [], [], 0), [Inductive.ctor(:MkFoo, [], [])])
+      |> Inductive.declare(Inductive.family(:Foo, [], [], Cure.Core.Sort.finite_closed(0)), [
+        Inductive.ctor(:MkFoo, [], [])
+      ])
       |> Env.add_def(
         :probe,
         @dec,

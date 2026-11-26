@@ -54,29 +54,51 @@ defmodule Antigen.Generators.TypeFormer do
   # {term, its universe, cover cell} — the claimed type is always a {:type, _}.
   defp former do
     Gen.frequency([
-      # a bare universe: Type N : Type (N+1). Capped at N=1 — the kernel's
-      # universe ceiling rejects Type 2's sort (Type 3).
-      {2, Gen.bind(Gen.int(0, 1), fn n -> Gen.return({{:type, n}, {:type, n + 1}, :universe}) end)},
+      # a bare universe: Type N : Type (N+1) across arbitrary finite levels.
+      {2,
+       Gen.bind(Gen.int(0, 5), fn n ->
+         Gen.return({{:type, Cure.Core.Sort.finite_closed(n)}, {:type, Cure.Core.Sort.finite_closed(n + 1)}, :universe})
+       end)},
       # Π/Σ over base types → Type 0
       {3,
        Gen.bind(small(), fn a ->
-         Gen.bind(small(), fn b -> Gen.return({{:pi, Cure.Core.Grade.unrestricted(), a, b}, {:type, 0}, :pi_base}) end)
+         Gen.bind(small(), fn b ->
+           Gen.return(
+             {{:pi, Cure.Core.Grade.unrestricted(), a, b},
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, :pi_base}
+           )
+         end)
        end)},
       {3,
        Gen.bind(small(), fn a ->
          Gen.bind(small(), fn b ->
-           Gen.return({{:data, :Sigma, [a, {:lam, Cure.Core.Grade.unrestricted(), a, b}], []}, {:type, 0}, :sigma_base})
+           Gen.return(
+             {{:data, :Sigma, [a, {:lam, Cure.Core.Grade.unrestricted(), a, b}], []},
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, :sigma_base}
+           )
          end)
        end)},
       # dependent Π with a universe codomain → Type 1
       {2,
        Gen.bind(small(), fn a ->
-         Gen.return({{:pi, Cure.Core.Grade.unrestricted(), a, {:type, 0}}, {:type, 1}, :pi_universe})
+         Gen.return(
+           {{:pi, Cure.Core.Grade.unrestricted(), a,
+             {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+            {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}}, :pi_universe}
+         )
        end)},
       # indexed data type Vec n → Type 0
-      {2, Gen.bind(nat_numeral(), fn n -> Gen.return({{:data, :Vec, [], [n]}, {:type, 0}, :vec_indexed}) end)},
+      {2,
+       Gen.bind(nat_numeral(), fn n ->
+         Gen.return(
+           {{:data, :Vec, [], [n]}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, :vec_indexed}
+         )
+       end)},
       # a bare base type in type position (Int/Float/Nat/Bd) → Type 0
-      {1, Gen.bind(small(), fn a -> Gen.return({a, {:type, 0}, :base_type}) end)}
+      {1,
+       Gen.bind(small(), fn a ->
+         Gen.return({a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, :base_type})
+       end)}
     ])
   end
 

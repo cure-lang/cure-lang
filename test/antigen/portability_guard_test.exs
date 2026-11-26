@@ -30,8 +30,17 @@ defmodule Antigen.PortabilityGuardTest do
   # `:many` shape that slipped past banking and crashed the replay gate.
   defp unportable_challenge do
     bogus = String.to_atom("antigen_unportable_probe_qty")
-    fam = Inductive.family(:P, [{:a, {:type, 0}}], [], 0)
-    ct = Inductive.ctor(:pc, [{:x, {:type, 0}}], [], [bogus], [])
+
+    fam =
+      Inductive.family(
+        :P,
+        [{:a, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        [],
+        Cure.Core.Sort.finite_closed(0)
+      )
+
+    ct =
+      Inductive.ctor(:pc, [{:x, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}], [], [bogus], [])
 
     Challenge.new(
       kind: :family,

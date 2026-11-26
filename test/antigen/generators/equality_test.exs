@@ -36,7 +36,8 @@ defmodule Antigen.Generators.EqualityTest do
 
     # an Equivalent-type challenge is a Type-0 proposition (family formation)
     assert Enum.any?(sample, fn c ->
-             match?({:data, :Equivalent, _, _}, c.payload.term) and c.payload.type == {:type, 0}
+             match?({:data, :Equivalent, _, _}, c.payload.term) and
+               c.payload.type == {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
            end)
 
     # a transport challenge is an :app whose head is a :case over a reflexive

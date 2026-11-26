@@ -1,6 +1,6 @@
 defmodule Cure.Core.TermFromExternalValidationTest do
   use ExUnit.Case, async: true
-  alias Cure.Core.{Serialize, Term}
+  alias Cure.Core.{Serialize, Term, UniverseCodec}
 
   # `Serialize.decode/1` and `Term.from_external/1` are the two external-decode
   # entry points for the same Core node grammar, and both are trust boundaries:
@@ -13,14 +13,14 @@ defmodule Cure.Core.TermFromExternalValidationTest do
   # perfectly well-typed input and is only caught by the shape gate.
   test "a negative de Bruijn index is rejected by both external-decode entry points" do
     malformed_index = -1
-    external = %{"node" => "var", "index" => malformed_index}
+    external = UniverseCodec.frame(%{"node" => "var", "index" => malformed_index})
 
     refute Term.term?({:var, malformed_index}),
            "the premise of this test: {:var, -1} is not a well-formed term"
 
     # `Serialize.decode/1` reports it, because its contract is a result tuple.
     assert {:error, {:ill_formed_term, {:var, -1}}} ==
-             Serialize.decode("(var #{malformed_index})")
+             Serialize.decode("(cure-core #{UniverseCodec.version()} (var #{malformed_index}))")
 
     # `from_external/1` returns a term or nothing at all, so it raises rather
     # than handing back the ungated `{:var, -1}`.

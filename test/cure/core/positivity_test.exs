@@ -6,7 +6,7 @@ defmodule Cure.Core.PositivityTest do
     svdesc = {:data, :SVDesc, [], []}
     dec = {:data, :Dec, [], []}
 
-    sf = Inductive.family(:SF, [], [{:as, svdesc}, {:bs, svdesc}, {:d, dec}], 0)
+    sf = Inductive.family(:SF, [], [{:as, svdesc}, {:bs, svdesc}, {:d, dec}], Cure.Core.Sort.finite_closed(0))
 
     seq =
       Inductive.ctor(
@@ -24,8 +24,8 @@ defmodule Cure.Core.PositivityTest do
       )
 
     Env.empty()
-    |> Inductive.declare(Inductive.family(:SVDesc, [], [], 0), [])
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:SVDesc, [], [], Cure.Core.Sort.finite_closed(0)), [])
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
@@ -39,7 +39,7 @@ defmodule Cure.Core.PositivityTest do
   end
 
   test "a constructor with the family in a negative position is rejected" do
-    bad = Inductive.family(:Bad, [], [], 0)
+    bad = Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0))
     # mk : (Bad -> Dec) -> Bad — Bad occurs to the left of an arrow (negative)
     mk =
       Inductive.ctor(

@@ -97,7 +97,10 @@ defmodule Cure.Elab.OmegaPipelineTest do
   end
 
   test "equality needs two independent obligations and canonical integer carrier", %{context: context, env: env} do
-    equality = {:data, :"Std.Equivalent#Equivalent", [{:data, :"Std.Int#Int", [], []}], [{:var, 2}, {:var, 1}]}
+    equality =
+      {:data, :"Std.Equivalent#Equivalent",
+       [{:level_value, Cure.Core.UniverseLevel.zero()}, {:data, :"Std.Int#Int", [], []}], [{:var, 2}, {:var, 1}]}
+
     assert {:ok, [{left, _}, {right, _}]} = Linear.obligations([{"h", equality}], equality, context, env)
     assert {:prf, left_witness} = Omega.solve(left)
     assert {:prf, right_witness} = Omega.solve(right)

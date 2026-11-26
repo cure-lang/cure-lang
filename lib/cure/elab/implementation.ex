@@ -544,10 +544,11 @@ defmodule Cure.Elab.Implementation do
   defp pad_head_args(ctor, args, env, depth) do
     case Inductive.get_family(env, String.to_atom(ctor)) do
       %{params: params, indices: indices} ->
-        arity = length(params) + length(indices)
+        level_prefix = Enum.take_while(params, fn {_n, d} -> d == {:level_type} end) |> length()
+        surface_arity = length(params) - level_prefix + length(indices)
 
-        if arity > length(args) do
-          args ++ Enum.map(length(args)..(arity - 1)//1, &fresh_head_var(&1, depth))
+        if surface_arity > length(args) do
+          args ++ Enum.map(length(args)..(surface_arity - 1)//1, &fresh_head_var(&1, depth))
         else
           args
         end

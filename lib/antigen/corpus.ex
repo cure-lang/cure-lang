@@ -1,50 +1,80 @@
 defmodule Antigen.Corpus do
-  @moduledoc "Committed, never-pruned, generator-independent stores (spec §7). Replay runs the kernel, not the generator."
+  @moduledoc """
+  Committed, never-pruned, generator-independent stores (spec §7).
+
+  Current decoding accepts only format 2 and the current universe checker
+  epoch. Core pieces and diagnostic faults use separate bounded OTP JSON
+  carriers. Historical records remain on disk and surface as decode errors;
+  there is no automatic import, pruning, certification or seed regeneration.
+  Replay runs the kernel, not the generator.
+  """
   alias Antigen.{Challenge, Coverage}
-  alias Cure.Core.Serialize
+  alias Cure.Core.{Serialize, Term, UniverseCodec}
 
   @marker "antigen-record"
+  @format_version 2
+  @antibody_version 3
+  @universe_epoch UniverseCodec.identity() |> Tuple.to_list() |> Enum.map_join("/", &to_string/1)
+  @key_prefix "antigen/2|" <> @universe_epoch <> "|"
+  @max_record_bytes UniverseCodec.max_bytes()
+  @required_fields ~w(format universe kind assay label seed note scaffold key pieces64)
+  @optional_fields ~w(fault64)
+  @fault_keys ~w(kind witness expected_head injected_head scope depth wrap_path expected_index actual_index reduction required carrier)
+  @fault_paths [:app_arg, :ctor_nat, :case_scrut, :case_branch, :pair]
+
+  def format_version, do: @format_version
+  def antibody_version, do: @antibody_version
+  def universe_epoch, do: @universe_epoch
 
   @doc "Encode a challenge to a one-line record, storing its antibody dedup key."
   @spec encode_record(Challenge.t()) :: String.t()
   def encode_record(%Challenge{} = c), do: encode_record(c, dedup_key(c, :antibody))
 
   @doc """
-  Encode a challenge, storing `key` verbatim in the `key=` field. `append/3`
-  passes the exact key it dedups on, so seeds (coverage key) and antibodies
-  (assay+terms key) both round-trip their own dedup identity — see the `seen?`
-  path.
+  Encode a challenge, scoping its supplied key by the current corpus/checker
+  epoch. Already-scoped keys are retained verbatim. Both seed coverage keys
+  and antibody keys therefore invalidate obsolete unchanged-source records.
   """
   @spec encode_record(Challenge.t(), String.t()) :: String.t()
   def encode_record(%Challenge{} = c, key) do
+    unless is_binary(c.assay) and String.valid?(c.assay) and not String.contains?(c.assay, ["\t", "\r", "\n"]),
+      do: raise(ArgumentError, "invalid corpus assay identity")
+
     {scaffold, pieces} = Challenge.to_pieces(c)
 
-    piece_str =
-      pieces
-      |> Enum.map(fn {id, t} -> "#{id}::#{Serialize.encode(t)}" end)
-      |> Enum.join(";;")
+    pieces64 = pieces |> Enum.map(fn {id, term} -> [id, Serialize.encode(term)] end) |> json64()
 
     {fault, scaffold_rest} = Map.pop(scaffold, "fault")
 
-    fault_field = if is_map(fault), do: ["fault=#{encode_fault(fault)}"], else: []
+    fault_field =
+      case fault do
+        nil -> []
+        fault when is_map(fault) and not is_struct(fault) -> ["fault64=#{encode_fault(fault)}"]
+        _ -> raise ArgumentError, "malformed fault metadata"
+      end
 
-    Enum.join(
-      [
-        @marker,
-        "kind=#{c.kind}",
-        "assay=#{c.assay}",
-        "label=#{c.label}",
-        "seed=#{c.seed || "-"}",
-        "note=#{enc_note(c.note)}",
-        "scaffold=#{encode_scaffold(scaffold_rest)}"
-      ] ++
-        fault_field ++
+    line =
+      Enum.join(
         [
-          "key=#{Base.encode64(key)}",
-          "pieces=#{piece_str}"
-        ],
-      "\t"
-    )
+          @marker,
+          "format=#{@format_version}",
+          "universe=#{@universe_epoch}",
+          "kind=#{c.kind}",
+          "assay=#{c.assay}",
+          "label=#{c.label}",
+          "seed=#{c.seed || "-"}",
+          "note=#{enc_note(c.note)}",
+          "scaffold=#{encode_scaffold(scaffold_rest)}"
+        ] ++
+          fault_field ++
+          [
+            "key=#{Base.encode64(scope_key(key))}",
+            "pieces64=#{pieces64}"
+          ],
+        "\t"
+      )
+
+    if byte_size(line) <= @max_record_bytes, do: line, else: raise(ArgumentError, "corpus record budget exceeded")
   end
 
   @spec decode_record(String.t()) :: {:ok, Challenge.t()} | {:error, term()}
@@ -56,23 +86,26 @@ defmodule Antigen.Corpus do
     # loaded `Challenge` (async suite ordering) fails to decode. See spec §7.
     _ = Challenge.__known_atoms__()
 
-    with [@marker | fields] <- String.split(String.trim_trailing(line, "\n"), "\t"),
-         m <- Map.new(fields, fn f -> List.to_tuple(String.split(f, "=", parts: 2)) end),
-         {:ok, pieces} <- decode_pieces(m["pieces"]) do
+    with {:ok, m} <- current_fields(line),
+         {:ok, pieces} <- decode_pieces64(m["pieces64"]) do
       kind = Challenge.known_atom!(m["kind"])
       label = Challenge.known_atom!(m["label"])
       seed = if m["seed"] == "-", do: nil, else: String.to_integer(m["seed"])
       base_scaffold = decode_scaffold(m["scaffold"] || "-")
+      if Map.has_key?(base_scaffold, "fault"), do: raise(ArgumentError, "fault metadata requires fault64")
 
       scaffold =
-        case m["fault"] do
-          # legacy: fault (if any) already in scaffold
+        case m["fault64"] do
           nil -> base_scaffold
           f_str -> Map.put(base_scaffold, "fault", decode_fault(f_str))
         end
 
-      note = if legacy_record?(m["pieces"]), do: dec_opt(m["note"]), else: dec_note(m["note"])
-      {:ok, Challenge.from_pieces(kind, m["assay"], label, seed, note, scaffold, pieces)}
+      note = dec_note(m["note"])
+
+      with {:ok, challenge} <- Challenge.safe_from_pieces(kind, m["assay"], label, seed, note, scaffold, pieces),
+           :ok <- exact_pieces(challenge, scaffold, pieces) do
+        {:ok, challenge}
+      end
     else
       other -> {:error, {:bad_record, other}}
     end
@@ -83,16 +116,39 @@ defmodule Antigen.Corpus do
   @doc "Encode arbitrary (non-Term) challenge metadata for the `scaffold=` field. `%{}` → `\"-\"`."
   @spec encode_scaffold(map()) :: String.t()
   def encode_scaffold(scaffold) when scaffold == %{}, do: "-"
-  def encode_scaffold(scaffold), do: Base.encode64(:erlang.term_to_binary(scaffold))
+
+  def encode_scaffold(scaffold) when is_map(scaffold) and not is_struct(scaffold) do
+    opaque_budget!(scaffold)
+    Base.encode64(:erlang.term_to_binary(scaffold, [:deterministic]))
+  end
 
   @doc "Decode the `scaffold=` field. `:safe` refuses to mint new atoms on decode — see the safety note in the plan."
   @spec decode_scaffold(String.t()) :: map()
   def decode_scaffold("-"), do: %{}
-  def decode_scaffold(b64), do: :erlang.binary_to_term(Base.decode64!(b64), [:safe])
+
+  def decode_scaffold(b64) when is_binary(b64) and byte_size(b64) <= @max_record_bytes do
+    binary = Base.decode64!(b64)
+
+    case binary do
+      <<131, 80, _::binary>> -> raise ArgumentError, "compressed corpus scaffold is not current syntax"
+      _ -> :ok
+    end
+
+    {scaffold, used} = :erlang.binary_to_term(binary, [:safe, :used])
+
+    unless used == byte_size(binary) and is_map(scaffold) and not is_struct(scaffold),
+      do: raise(ArgumentError, "malformed corpus scaffold")
+
+    opaque_budget!(scaffold)
+    scaffold
+  end
+
+  def decode_scaffold(_), do: raise(ArgumentError, "corpus scaffold budget exceeded")
 
   @spec append(String.t(), Challenge.t(), String.t()) ::
-          :appended | :duplicate | {:rejected, Exception.t()}
+          :appended | :duplicate | {:rejected, term()}
   def append(path, %Challenge{} = c, dedup_key) do
+    dedup_key = scope_key(dedup_key)
     File.mkdir_p!(Path.dirname(path))
 
     if seen?(path, dedup_key) do
@@ -115,14 +171,16 @@ defmodule Antigen.Corpus do
           {:rejected, reason}
       end
     end
+  rescue
+    exception -> {:rejected, exception}
   end
 
-  # :ok unless decoding the encoded line raises the whitelist error; any other
-  # decode outcome is out of scope here (a separate concern) and does not block banking.
+  # A malformed current record must never be banked, regardless of which
+  # structural decoder refused it. This check is not kernel admission.
   defp portability_check(line) do
     case decode_record(line) do
-      {:error, %Challenge.UnknownAtomError{} = e} -> {:error, e}
-      _ -> :ok
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -213,11 +271,42 @@ defmodule Antigen.Corpus do
   end
 
   @spec dedup_key(Challenge.t(), :antibody | :seed) :: String.t()
-  def dedup_key(%Challenge{} = c, :seed), do: Coverage.key_string(Coverage.key(c))
+  def dedup_key(%Challenge{} = c, :seed), do: scope_key(Coverage.key_string(Coverage.key(c)))
 
-  def dedup_key(%Challenge{assay: a} = c, :antibody) do
-    {_s, pieces} = Challenge.to_pieces(c)
-    a <> "|" <> (pieces |> Enum.map(fn {id, t} -> id <> Serialize.encode(t) end) |> Enum.join("|"))
+  def dedup_key(%Challenge{} = challenge, :antibody) do
+    digest = challenge |> semantic_descriptor() |> UniverseCodec.semantic_hash() |> Base.encode16(case: :lower)
+    scope_key("antibody/#{@antibody_version}|" <> digest)
+  end
+
+  @doc """
+  Bounded deterministic antibody identity, excluding only nonsemantic capture
+  metadata (`seed`, `note`, `cover_tag`). No normalization or inference occurs.
+
+  The ordered descriptor includes the complete kind-specific scaffold, fault
+  provenance and ordered canonical Core pieces. Thus zero-piece recipes and
+  raw decoder inputs do not collapse merely because they have no Core pieces.
+  """
+  @spec semantic_descriptor(Challenge.t()) :: binary()
+  def semantic_descriptor(%Challenge{} = challenge) do
+    {scaffold, pieces} = Challenge.to_pieces(challenge)
+    {fault, scaffold} = Map.pop(scaffold, "fault")
+    fault = if is_nil(fault), do: "-", else: encode_fault(fault)
+
+    descriptor = [
+      ["identity", "antibody/#{@antibody_version}"],
+      ["universe", @universe_epoch],
+      ["kind", Atom.to_string(challenge.kind)],
+      ["assay", challenge.assay],
+      ["label", Atom.to_string(challenge.label)],
+      ["scaffold", encode_scaffold(scaffold)],
+      ["fault64", fault],
+      ["pieces", Enum.map(pieces, fn {id, term} -> [id, Serialize.encode(term)] end)]
+    ]
+
+    case UniverseCodec.budget(descriptor) do
+      :ok -> descriptor |> :json.encode() |> IO.iodata_to_binary()
+      {:error, reason} -> raise ArgumentError, "antibody identity budget exceeded: #{inspect(reason)}"
+    end
   end
 
   defp seen?(path, key) do
@@ -228,158 +317,280 @@ defmodule Antigen.Corpus do
   @doc "The Base64-decoded stored dedup key of one record line, or nil if absent."
   @spec raw_key(String.t()) :: binary() | nil
   def raw_key(line) do
-    line
-    |> String.split("\t")
-    |> Enum.find_value(fn f ->
-      case String.split(f, "=", parts: 2) do
-        ["key", b64] -> Base.decode64!(String.trim(b64))
-        _ -> nil
-      end
-    end)
+    case current_fields(line) do
+      {:ok, fields} -> Base.decode64!(fields["key"])
+      {:error, _} -> nil
+    end
   rescue
     _ -> nil
   end
 
   defp extract_key(line), do: raw_key(line)
 
-  defp decode_pieces(nil), do: {:error, :no_pieces}
-  defp decode_pieces(""), do: {:ok, []}
+  defp current_fields(line) when is_binary(line) and byte_size(line) <= @max_record_bytes do
+    line = if String.ends_with?(line, "\n"), do: binary_part(line, 0, byte_size(line) - 1), else: line
 
-  defp decode_pieces(str) do
-    str
-    |> String.split(";;")
-    |> Enum.reduce_while({:ok, []}, fn piece, {:ok, acc} ->
-      case String.split(piece, "::", parts: 2) do
-        [id, body] ->
-          decoded =
-            case body do
-              # new: inline s-expr
-              "(" <> _ -> Serialize.decode(body)
-              # legacy: Base64-wrapped
-              _ -> Serialize.decode(Base.decode64!(body))
-            end
+    with true <- String.valid?(line),
+         [@marker | fields] <- String.split(line, "\t", parts: length(@required_fields) + length(@optional_fields) + 2),
+         {:ok, fields} <- field_map(fields),
+         true <- Enum.all?(@required_fields, &Map.has_key?(fields, &1)),
+         true <- fields["format"] == Integer.to_string(@format_version),
+         true <- fields["universe"] == @universe_epoch,
+         true <- byte_size(fields["seed"]) <= UniverseCodec.max_digits() + 1,
+         {:ok, key} <- Base.decode64(fields["key"]),
+         true <- String.starts_with?(key, @key_prefix) do
+      {:ok, fields}
+    else
+      _ -> {:error, :incompatible_or_malformed_corpus_record}
+    end
+  end
 
-          case decoded do
-            {:ok, t} -> {:cont, {:ok, [{id, t} | acc]}}
-            err -> {:halt, err}
-          end
+  defp current_fields(_), do: {:error, :corpus_record_budget_exceeded}
+
+  defp field_map(fields) do
+    Enum.reduce_while(fields, {:ok, %{}}, fn field, {:ok, acc} ->
+      case String.split(field, "=", parts: 2) do
+        [key, value] when key in @required_fields or key in @optional_fields ->
+          if Map.has_key?(acc, key) or String.contains?(value, ["\n", "\r"]),
+            do: {:halt, {:error, :duplicate_or_malformed_corpus_field}},
+            else: {:cont, {:ok, Map.put(acc, key, value)}}
 
         _ ->
-          {:halt, {:error, {:bad_piece, piece}}}
+          {:halt, {:error, :unknown_corpus_field}}
       end
     end)
-    |> case do
-      {:ok, ps} -> {:ok, Enum.reverse(ps)}
-      err -> err
+  end
+
+  defp scope_key(@key_prefix <> _ = key), do: key
+  defp scope_key(key) when is_binary(key), do: @key_prefix <> key
+
+  defp opaque_budget!(value) do
+    opaque_budget(value, 0, UniverseCodec.max_nodes())
+    :ok
+  end
+
+  defp opaque_budget(_value, depth, remaining) when depth > 256 or remaining <= 0,
+    do: raise(ArgumentError, "corpus scaffold budget exceeded")
+
+  defp opaque_budget(value, depth, remaining) when is_map(value) and not is_struct(value) do
+    if map_size(value) > remaining, do: raise(ArgumentError, "corpus scaffold budget exceeded")
+
+    Enum.reduce(value, remaining - 1, fn
+      {key, child}, budget when is_binary(key) ->
+        opaque_budget(child, depth + 1, opaque_budget(key, depth + 1, budget))
+
+      _, _ ->
+        raise ArgumentError, "invalid corpus scaffold key"
+    end)
+  end
+
+  defp opaque_budget(value, depth, remaining) when is_tuple(value),
+    do: opaque_list(Tuple.to_list(value), depth + 1, remaining - 1)
+
+  defp opaque_budget(value, depth, remaining) when is_list(value),
+    do: opaque_list(value, depth + 1, remaining - 1)
+
+  defp opaque_budget(value, _depth, remaining)
+       when is_binary(value) or is_number(value) or is_atom(value),
+       do: remaining - 1
+
+  defp opaque_budget(_, _, _), do: raise(ArgumentError, "invalid corpus scaffold value")
+  defp opaque_list([], _depth, remaining), do: remaining
+
+  defp opaque_list([head | tail], depth, remaining),
+    do: opaque_list(tail, depth, opaque_budget(head, depth, remaining))
+
+  defp opaque_list(_, _, _), do: raise(ArgumentError, "improper corpus scaffold list")
+
+  defp json64(value), do: value |> :json.encode() |> IO.iodata_to_binary() |> Base.encode64()
+
+  defp decode_json64(encoded) when is_binary(encoded) and byte_size(encoded) <= @max_record_bytes do
+    with {:ok, json} <- Base.decode64(encoded),
+         :ok <- json_input_budget(json),
+         {value, :ok, rest} <- :json.decode(json, :ok, json_decoders()),
+         true <- String.trim(rest) == "",
+         :ok <- UniverseCodec.budget(value) do
+      {:ok, value}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_corpus_json}
+    end
+  rescue
+    _ -> {:error, :invalid_corpus_json}
+  end
+
+  defp decode_json64(_), do: {:error, :invalid_corpus_json}
+
+  defp json_decoders do
+    %{
+      object_start: fn _ -> %{} end,
+      object_push: fn key, value, map ->
+        if Map.has_key?(map, key) or map_size(map) >= UniverseCodec.max_atoms(),
+          do: raise(ArgumentError, "duplicate or oversized corpus JSON object")
+
+        Map.put(map, key, value)
+      end,
+      object_finish: fn map, old -> {map, old} end,
+      array_start: fn _ -> {0, []} end,
+      array_push: fn value, {count, values} ->
+        if count >= UniverseCodec.max_atoms(), do: raise(ArgumentError, "oversized corpus JSON array")
+        {count + 1, [value | values]}
+      end,
+      array_finish: fn {_count, values}, old -> {Enum.reverse(values), old} end
+    }
+  end
+
+  defp decode_pieces64(encoded) do
+    with {:ok, rows} <- decode_json64(encoded),
+         :ok <- UniverseCodec.bounded(rows, UniverseCodec.max_atoms()),
+         {:ok, pieces} <- decode_piece_rows(rows, %{}, []),
+         :ok <- UniverseCodec.budget(Enum.map(pieces, fn {id, term} -> [id, Term.to_external_node(term)] end)) do
+      {:ok, pieces}
     end
   end
 
-  # dec_opt: legacy Base64 note decode (still used by the legacy-record branch).
-  defp dec_opt("-"), do: nil
-  defp dec_opt(b64), do: Base.decode64!(b64)
+  defp decode_piece_rows([], _seen, acc), do: {:ok, Enum.reverse(acc)}
 
-  # ── fault provenance codec (readable assoc-sexpr) ────────────────────────────
-  # Encodes a flat fault map as `((key val)…)`, keys sorted for determinism.
-  # Values: atom->name, int->digits, nil->"nil", {i,i}->"(pair i i)",
-  # [atoms]->"(list a b …)", Core-term tuple->"(term <serialize>)".
-  defp encode_fault(map) do
-    body =
-      map
-      |> Enum.sort_by(fn {k, _} -> Atom.to_string(k) end)
-      |> Enum.map(fn {k, v} -> "(#{k} #{enc_fault_val(v)})" end)
-      |> Enum.join(" ")
-
-    "(" <> body <> ")"
-  end
-
-  defp enc_fault_val(nil), do: "nil"
-  defp enc_fault_val(v) when is_integer(v), do: Integer.to_string(v)
-  defp enc_fault_val({a, b}) when is_integer(a) and is_integer(b), do: "(pair #{a} #{b})"
-  defp enc_fault_val(v) when is_atom(v), do: Atom.to_string(v)
-
-  defp enc_fault_val(v) when is_list(v),
-    do: "(list " <> Enum.map_join(v, " ", &Atom.to_string/1) <> ")"
-
-  defp enc_fault_val(v) when is_tuple(v) do
-    if Cure.Core.Term.term?(v),
-      do: "(term " <> Serialize.encode(v) <> ")",
-      else: raise(ArgumentError, "unencodable fault value: #{inspect(v)}")
-  end
-
-  # decode_fault: parse the assoc-sexpr back into the flat map.
-  defp decode_fault(str) do
-    # sexp = list of [key | value-tokens] groups
-    {sexp, _rest} = read_sexp(str)
-
-    sexp
-    |> Enum.map(fn [k | vtoks] -> {String.to_atom(k), dec_fault_val(vtoks)} end)
-    |> Map.new()
-  end
-
-  # a value is a single token (atom/int/"nil") or a nested group [tag | rest]
-  defp dec_fault_val(["nil"]), do: nil
-
-  defp dec_fault_val([tok]) when is_binary(tok) do
-    case Integer.parse(tok) do
-      {n, ""} -> n
-      _ -> String.to_atom(tok)
+  defp decode_piece_rows([[id, body] | rest], seen, acc)
+       when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 1024 and is_binary(body) do
+    if Map.has_key?(seen, id) do
+      {:error, :duplicate_corpus_piece_id}
+    else
+      with {:ok, term} <- Serialize.decode(body) do
+        decode_piece_rows(rest, Map.put(seen, id, true), [{id, term} | acc])
+      end
     end
   end
 
-  defp dec_fault_val([["pair", a, b]]), do: {String.to_integer(a), String.to_integer(b)}
-  defp dec_fault_val([["list" | elems]]), do: Enum.map(elems, &String.to_atom/1)
-  # a "(term X)" group parses to ["term", X] where X is the single nested term
-  # s-expr (itself a token list). Re-serialize X (NOT the wrapping list) so
-  # Serialize.decode rebuilds it.
-  defp dec_fault_val([["term", term_sexp]]) do
-    {:ok, t} = Serialize.decode(reassemble_tok(term_sexp))
-    t
-  end
+  defp decode_piece_rows(_, _, _), do: {:error, :malformed_corpus_piece}
 
-  # ── minimal s-expr reader: string -> {[group|token], rest} ───────────────────
-  # tokens are bare words (binaries); a "(" opens a nested list. Returns the
-  # top-level list's children. Used only for the small, trusted fault field.
-  defp read_sexp("(" <> rest), do: read_list(String.trim_leading(rest), [])
-  defp read_list(")" <> rest, acc), do: {Enum.reverse(acc), rest}
+  defp exact_pieces(challenge, scaffold, pieces) do
+    {expected_scaffold, expected_pieces} = Challenge.to_pieces(challenge)
 
-  defp read_list("(" <> _ = s, acc) do
-    {child, rest} = read_sexp(s)
-    read_list(String.trim_leading(rest), [child | acc])
-  end
-
-  defp read_list(s, acc) do
-    {word, rest} = read_word(s, [])
-    read_list(String.trim_leading(rest), [word | acc])
-  end
-
-  defp read_word(<<c, _::binary>> = s, acc) when c in [?\s, ?(, ?)],
-    do: {acc |> Enum.reverse() |> List.to_string(), s}
-
-  defp read_word(<<>>, acc), do: {acc |> Enum.reverse() |> List.to_string(), <<>>}
-  defp read_word(<<c, rest::binary>>, acc), do: read_word(rest, [c | acc])
-
-  # Re-serialize an already-parsed token tree back to a flat Serialize string.
-  defp reassemble_tok(tok) when is_binary(tok), do: tok
-
-  defp reassemble_tok(list) when is_list(list),
-    do: "(" <> Enum.map_join(list, " ", &reassemble_tok/1) <> ")"
-
-  # A record is legacy iff its (first) piece body is Base64, i.e. does not start
-  # with "(" — every Serialize.encode output starts with "(", Base64 never does.
-  # Empty/absent pieces ⇒ treat as new-format (plaintext note); real records
-  # always carry ≥1 term piece, so this default is not exercised by live data.
-  defp legacy_record?(nil), do: false
-  defp legacy_record?(""), do: false
-
-  defp legacy_record?(pieces_str) do
-    case String.split(pieces_str, ";;", parts: 2) do
-      [first | _] ->
-        case String.split(first, "::", parts: 2) do
-          [_id, "(" <> _] -> false
-          [_id, _body] -> true
-          _ -> false
+    if expected_scaffold == scaffold and expected_pieces == pieces do
+      fault_terms =
+        case scaffold["fault"] do
+          fault when is_map(fault) -> for {_key, term} <- fault, is_tuple(term), Term.term?(term), do: term
+          _ -> []
         end
+
+      core = Enum.map(pieces, fn {id, term} -> [id, Term.to_external_node(term)] end)
+      diagnostics = Enum.map(fault_terms, &Term.to_external_node/1)
+      UniverseCodec.budget(core ++ diagnostics)
+    else
+      {:error, :noncanonical_corpus_pieces_or_scaffold}
     end
+  end
+
+  defp json_input_budget(json), do: scan_json(json, 0, false, false, 0)
+
+  defp scan_json(_rest, depth, _quoted, _escaped, digits) when depth > 256 or digits > 4096,
+    do: {:error, :corpus_json_budget_exceeded}
+
+  defp scan_json(<<>>, _depth, _quoted, _escaped, _digits), do: :ok
+  defp scan_json(<<_, rest::binary>>, depth, true, true, _digits), do: scan_json(rest, depth, true, false, 0)
+  defp scan_json(<<?\\, rest::binary>>, depth, true, false, _digits), do: scan_json(rest, depth, true, true, 0)
+  defp scan_json(<<?", rest::binary>>, depth, quoted, false, _digits), do: scan_json(rest, depth, not quoted, false, 0)
+  defp scan_json(<<_, rest::binary>>, depth, true, false, _digits), do: scan_json(rest, depth, true, false, 0)
+
+  defp scan_json(<<open, rest::binary>>, depth, false, false, _digits) when open in [?[, ?{],
+    do: scan_json(rest, depth + 1, false, false, 0)
+
+  defp scan_json(<<close, rest::binary>>, depth, false, false, _digits) when close in [?], ?}],
+    do: scan_json(rest, depth - 1, false, false, 0)
+
+  defp scan_json(<<digit, rest::binary>>, depth, false, false, digits) when digit in ?0..?9,
+    do: scan_json(rest, depth, false, false, digits + 1)
+
+  defp scan_json(<<_, rest::binary>>, depth, false, false, _digits), do: scan_json(rest, depth, false, false, 0)
+
+  # Faults are diagnostic metadata, not checked Core or proof evidence. A Core
+  # syntax witness is tagged explicitly and decoded by the strict current
+  # syntax codec; malformed diagnostic trees never acquire a Core identity.
+  defp encode_fault(map) do
+    validate_fault!(map)
+    map |> Map.new(fn {key, value} -> {Atom.to_string(key), enc_fault_val(value)} end) |> json64()
+  end
+
+  defp enc_fault_val(nil), do: %{"tag" => "nil"}
+  defp enc_fault_val(value) when is_integer(value), do: %{"tag" => "integer", "value" => value}
+  defp enc_fault_val({a, b}) when is_integer(a) and is_integer(b), do: %{"tag" => "pair", "value" => [a, b]}
+
+  defp enc_fault_val(value) when is_atom(value) do
+    name = Atom.to_string(value)
+    Challenge.known_atom!(name)
+    %{"tag" => "atom", "value" => name}
+  end
+
+  defp enc_fault_val(value) when is_list(value) do
+    names = Enum.map(value, fn atom -> atom |> Atom.to_string() |> tap(&Challenge.known_atom!/1) end)
+    %{"tag" => "list", "value" => names}
+  end
+
+  defp enc_fault_val(value) when is_tuple(value) do
+    if Term.term?(value),
+      do: %{"tag" => "core_syntax", "value" => Serialize.encode(value)},
+      else: raise(ArgumentError, "malformed Core syntax in diagnostic metadata")
+  end
+
+  defp enc_fault_val(_), do: raise(ArgumentError, "unsupported fault metadata value")
+
+  defp decode_fault(encoded) do
+    with {:ok, map} when is_map(map) <- decode_json64(encoded) do
+      fault =
+        Map.new(map, fn {key, value} ->
+          unless key in @fault_keys, do: raise(ArgumentError, "unknown fault metadata key")
+          {Challenge.known_atom!(key), dec_fault_val(value)}
+        end)
+
+      validate_fault!(fault)
+      fault
+    else
+      _ -> raise ArgumentError, "malformed fault metadata"
+    end
+  end
+
+  defp dec_fault_val(%{"tag" => "nil"} = value) when map_size(value) == 1, do: nil
+
+  defp dec_fault_val(%{"tag" => "integer", "value" => number} = value)
+       when map_size(value) == 2 and is_integer(number), do: number
+
+  defp dec_fault_val(%{"tag" => "pair", "value" => [a, b]} = value)
+       when map_size(value) == 2 and is_integer(a) and is_integer(b), do: {a, b}
+
+  defp dec_fault_val(%{"tag" => "atom", "value" => name} = value)
+       when map_size(value) == 2 and is_binary(name), do: Challenge.known_atom!(name)
+
+  defp dec_fault_val(%{"tag" => "list", "value" => names} = value)
+       when map_size(value) == 2 and is_list(names), do: Enum.map(names, &Challenge.known_atom!/1)
+
+  defp dec_fault_val(%{"tag" => "core_syntax", "value" => wire} = value)
+       when map_size(value) == 2 and is_binary(wire) do
+    case Serialize.decode(wire) do
+      {:ok, term} -> term
+      {:error, _} -> raise ArgumentError, "malformed Core syntax in diagnostic metadata"
+    end
+  end
+
+  defp dec_fault_val(_), do: raise(ArgumentError, "unknown or malformed fault metadata tag")
+
+  defp validate_fault!(map) do
+    Enum.each(map, fn {key, _value} ->
+      unless is_atom(key) and Atom.to_string(key) in @fault_keys,
+        do: raise(ArgumentError, "unknown fault metadata key")
+
+      Challenge.known_atom!(Atom.to_string(key))
+    end)
+
+    if Map.has_key?(map, :depth) and not (is_integer(map.depth) and map.depth >= 0 and map.depth <= 256),
+      do: raise(ArgumentError, "invalid fault depth")
+
+    if Map.has_key?(map, :wrap_path) and
+         not (is_list(map.wrap_path) and length(map.wrap_path) <= 256 and
+                Enum.all?(map.wrap_path, &(&1 in @fault_paths))),
+       do: raise(ArgumentError, "invalid fault wrapper path")
+
+    :ok
   end
 
   # note: nil -> "-"; a literal "-" -> "%2D"; else percent-escape %/tab/newline.
@@ -392,6 +603,7 @@ defmodule Antigen.Corpus do
     |> String.replace("%", "%25")
     |> String.replace("\t", "%09")
     |> String.replace("\n", "%0A")
+    |> String.replace("\r", "%0D")
   end
 
   defp dec_note("-"), do: nil
@@ -401,6 +613,7 @@ defmodule Antigen.Corpus do
     |> String.replace("%2D", "-")
     |> String.replace("%09", "\t")
     |> String.replace("%0A", "\n")
+    |> String.replace("%0D", "\r")
     |> String.replace("%25", "%")
   end
 end

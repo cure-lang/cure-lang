@@ -150,7 +150,7 @@ defmodule Cure.Elab.Subst do
                    elem(t, 0) in [
                      :var,
                      :meta,
-                     :type,
+                     :level_type,
                      :global,
                      :int_type,
                      :int_lit,
@@ -181,6 +181,12 @@ defmodule Cure.Elab.Subst do
 
   # `env` maps de Bruijn index j (0-based, innermost telescope binder first) to
   # its replacement; `k` = telescope size; `depth` = binders crossed so far.
+  defp replace({:type, sort}, env, k, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &replace(&1, env, k, depth))}
+
+  defp replace({:level_value, level}, env, k, depth),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &replace(&1, env, k, depth))}
+
   defp replace({:var, i}, env, k, depth) do
     cond do
       i < depth -> {:var, i}
@@ -235,6 +241,12 @@ defmodule Cure.Elab.Subst do
   @doc "Shift free de Bruijn variables of a (meta-bearing) term above `cutoff` by `amount`."
   @spec shift(uterm(), integer(), non_neg_integer()) :: uterm()
   def shift(term, 0, _cutoff), do: term
+
+  def shift({:type, sort}, amount, cutoff),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &shift(&1, amount, cutoff))}
+
+  def shift({:level_value, level}, amount, cutoff),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &shift(&1, amount, cutoff))}
 
   def shift({:var, i}, amount, cutoff) when i >= cutoff, do: {:var, i + amount}
   def shift({:var, _} = v, _amount, _cutoff), do: v

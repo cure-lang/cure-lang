@@ -18,6 +18,7 @@ defmodule Antigen.Generators.Malformed do
     * `rewrite <non-Eq proof>` → `ensure_eq` guard
   """
   alias Antigen.{Gen, Challenge}
+  alias Cure.Core.Sort
 
   @nat {:data, :Nat, [], []}
   @bd {:data, :Bd, [], []}
@@ -39,7 +40,7 @@ defmodule Antigen.Generators.Malformed do
           :app_non_function,
           :rewrite_bad_proof,
           :rewrite_premise,
-          :universe_ceiling,
+          :universe_application,
           :unknown_op_global,
           :builtin_op_nonnumeric,
           :case_unknown_ctor_branch,
@@ -50,6 +51,12 @@ defmodule Antigen.Generators.Malformed do
           :motive_napp_reject
         ],
         do: {"term/rejection", cell}
+  end
+
+  @doc false
+  def universe_application(level \\ 37) when is_integer(level) and level >= 0 do
+    universe = {:type, Sort.finite_closed(level)}
+    {:app, {:lam, Cure.Core.Grade.unrestricted(), universe, {:var, 0}}, universe}
   end
 
   @spec gen(keyword()) :: Gen.t()
@@ -78,7 +85,12 @@ defmodule Antigen.Generators.Malformed do
       {2, app_non_function()},
       {2, rewrite_bad_proof()},
       {2, rewrite_premise()},
-      {1, tagged({:type, 2}, "universe ceiling (Type 2 has no sort)", :universe_ceiling)},
+      {1,
+       tagged(
+         universe_application(),
+         "a universe cannot inhabit itself as an application argument",
+         :universe_application
+       )},
       # an UNREGISTERED op-named global spine → :unknown_global (K2: the
       # {:prim,<unknown op>} seed re-encodes as a global-app error, R5-enumerated)
       {1, tagged({:app, {:global, :nosuchop}, @z}, "unknown builtin-op global", :unknown_op_global)},
@@ -86,7 +98,8 @@ defmodule Antigen.Generators.Malformed do
       # (check-against-{:vint_type} mismatch; was infer_prim's :prim_type)
       {1,
        tagged(
-         {:app, {:app, {:global, :int_add}, {:type, 0}}, {:type, 0}},
+         {:app, {:app, {:global, :int_add}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+          {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
          "builtin-op on non-numeric operands",
          :builtin_op_nonnumeric
        )},
@@ -230,8 +243,8 @@ defmodule Antigen.Generators.Malformed do
   # values / types that are NOT data values (so `case` over them is not_data)
   defp non_data do
     Gen.one_of([
-      literal(),
-      Gen.return({:type, 0}),
+      Gen.bind(Gen.int(-9, 9), fn n -> Gen.return({:float_lit, n / 2}) end),
+      Gen.return({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
       Gen.return({:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}),
       Gen.return({:lam, Cure.Core.Grade.unrestricted(), @nat, @z})
     ])
@@ -239,7 +252,11 @@ defmodule Antigen.Generators.Malformed do
 
   # terms that do NOT infer to a Π type (so applying them trips ensure_pi)
   defp non_function do
-    Gen.one_of([literal(), Gen.return(@z), Gen.return({:type, 0})])
+    Gen.one_of([
+      literal(),
+      Gen.return(@z),
+      Gen.return({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}})
+    ])
   end
 
   # terms that do NOT infer to an Eq type (so rewrite trips ensure_eq)

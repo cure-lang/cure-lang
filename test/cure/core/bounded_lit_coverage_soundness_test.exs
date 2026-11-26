@@ -68,7 +68,7 @@ defmodule Cure.Core.BoundedLitCoverageSoundnessTest do
     bounded_fid = Inductive.builtin(base, :bounded)
     bounded10 = {:data, bounded_fid, [], [{:nat_lit, 10}]}
 
-    Inductive.declare(base, Inductive.family(:Bx, [], [{:k, bounded10}], 0), [
+    Inductive.declare(base, Inductive.family(:Bx, [], [{:k, bounded10}], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:bx0, [], [{:bounded_lit, 0}]),
       Inductive.ctor(:bx1, [], [{:bounded_lit, 1}])
     ])

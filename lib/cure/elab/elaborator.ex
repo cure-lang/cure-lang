@@ -529,7 +529,8 @@ defmodule Cure.Elab.Elaborator do
              equivalent = Inductive.ctor_family(env, reflexive),
              term = {:ctor, reflexive, [arg_term]},
              arg_val = Eval.eval(arg_term, Context.env(ctx)),
-             type = {:vdata, equivalent, [arg_type, arg_val, arg_val]},
+             level_val = infer_carrier_level_value(ctx, arg_type),
+             type = {:vdata, equivalent, [level_val, arg_type, arg_val, arg_val]},
              :ok <- Kernel.check(ctx, term, type) do
           {:ok, term, type}
         end
@@ -993,19 +994,32 @@ defmodule Cure.Elab.Elaborator do
   @spec elaborate_expr_typed(term(), [String.t()], Context.t(), Env.t()) ::
           {:ok, term(), Cure.Core.Value.t()} | {:error, term()}
   def elaborate_expr_typed({:variable, _meta, "Type"}, _names, _ctx, _env),
-    do: {:ok, {:type, 0}, {:vtype, 1}}
+    do:
+      {:ok, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}}
 
   def elaborate_expr_typed({:variable, meta, name}, names, ctx, env) do
     case Enum.find_index(names, &(&1 == name)) do
       nil ->
-        case resolve_free(name, env) do
+        case Cure.Elab.UniverseSurface.lower_variable(name) do
           {:ok, term} ->
-            with {:ok, type} <- Kernel.infer(ctx, term) do
+            with {:ok, type} <- Cure.Elab.UniverseSurface.type_of_core(term, ctx) do
               {:ok, term, type}
             end
 
-          {:error, reason} ->
-            {:error, attach_variable_context(reason, meta, name)}
+          {:error, _} = err ->
+            err
+
+          :not_universe ->
+            case resolve_free(name, env) do
+              {:ok, term} ->
+                with {:ok, type} <- Kernel.infer(ctx, term) do
+                  {:ok, term, type}
+                end
+
+              {:error, reason} ->
+                {:error, attach_variable_context(reason, meta, name)}
+            end
         end
 
       index ->
@@ -1244,7 +1258,7 @@ defmodule Cure.Elab.Elaborator do
             {:error, attach_expectation_context(reason, t, :branch, :if, 0)}
 
           {:ok, t_core, t_type} ->
-            t_type_core = Quote.reify(t_type, Context.length(ctx))
+            t_type_core = Quote.reify(t_type, Context.length(ctx), Context.signature(ctx))
 
             case elaborate_expr_checked(e, t_type_core, names, ctx, env) do
               {:error, reason} ->
@@ -1421,7 +1435,7 @@ defmodule Cure.Elab.Elaborator do
            branch_ctx = extend_context(ctx, telescope, param_vals),
            {:ok, _b_term, t_branch_val} <-
              elaborate_expr_typed(body_expr, branch_names, branch_ctx, env),
-           t_branch = Quote.reify(t_branch_val, Context.length(branch_ctx)),
+           t_branch = Quote.reify(t_branch_val, Context.length(branch_ctx), Context.signature(branch_ctx)),
            {:ok, result_type_term} <- strengthen_inferred_type(t_branch, arity),
            {:ok, term} <- elaborate_match(scrut, arms, result_type_term, names, ctx, env),
            result_type_val = Eval.eval(result_type_term, Context.env(ctx)),
@@ -1769,21 +1783,8 @@ defmodule Cure.Elab.Elaborator do
     end)
   end
 
-  defp replace_equation_field_vars({:var, index}, field_terms) when is_integer(index) do
-    Enum.at(field_terms, length(field_terms) - 1 - index)
-  end
-
-  defp replace_equation_field_vars(tuple, field_terms) when is_tuple(tuple) do
-    tuple
-    |> Tuple.to_list()
-    |> Enum.map(&replace_equation_field_vars(&1, field_terms))
-    |> List.to_tuple()
-  end
-
-  defp replace_equation_field_vars(list, field_terms) when is_list(list),
-    do: Enum.map(list, &replace_equation_field_vars(&1, field_terms))
-
-  defp replace_equation_field_vars(other, _field_terms), do: other
+  defp replace_equation_field_vars(term, field_terms),
+    do: Subst.instantiate(term, field_terms)
 
   defp equation_call_parts(name) when is_binary(name) do
     case String.split(name, ".", trim: true) do
@@ -1859,7 +1860,7 @@ defmodule Cure.Elab.Elaborator do
 
     Enum.reduce_while(elems, {:ok, []}, fn e, {:ok, acc} ->
       case elaborate_expr_typed(e, names, ctx, env) do
-        {:ok, core, type} -> {:cont, {:ok, acc ++ [{core, Quote.reify(type, len)}]}}
+        {:ok, core, type} -> {:cont, {:ok, acc ++ [{core, Quote.reify(type, len, Context.signature(ctx))}]}}
         {:error, _} = err -> {:halt, err}
       end
     end)
@@ -1872,7 +1873,7 @@ defmodule Cure.Elab.Elaborator do
   # supplies the codomain family); synthesis is the non-dependent product, which
   # is exactly a Tuple. Folds from the right so each accumulated type shifts +1
   # under the fresh Σ binder (non-dependent, so the binder is unused).
-  defp build_telescope_value(parts, _ctx, env) do
+  defp build_telescope_value(parts, ctx, env) do
     mk_pair = sigma_ctor_name(env)
     fam = Inductive.builtin(env, :sigma)
     unit_ctor = unit_ctor_name(env)
@@ -1882,9 +1883,18 @@ defmodule Cure.Elab.Elaborator do
       {core, type_term}, {val_acc, type_acc} ->
         value = {:ctor, mk_pair, [core, val_acc]}
         cod = {:lam, Cure.Core.Grade.unrestricted(), type_term, Cure.Core.Term.shift(type_acc, 1)}
-        type = {:data, fam, [type_term, cod], []}
+        la = sigma_level_term(ctx, type_term)
+        lb = sigma_level_term(ctx, type_acc)
+        type = {:data, fam, [la, lb, type_term, cod], []}
         {value, type}
     end)
+  end
+
+  defp sigma_level_term(ctx, term) do
+    case infer_finite_level(ctx, term) do
+      {:ok, level} -> {:level_value, level}
+      :error -> {:level_value, Cure.Core.UniverseLevel.zero()}
+    end
   end
 
   # Desugar a concatenation operator to the `Std.Semigroup.combine` method call,
@@ -2199,6 +2209,9 @@ defmodule Cure.Elab.Elaborator do
   # add one, each `:case` branch adds its own arity), so a positive answer means
   # strengthening by `-arity` at cutoff 0 would capture/underflow — i.e. the type
   # depends on the constructor-bound variables.
+  defp occurs_below?({tag, _} = term, arity, depth) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &occurs_below?(&1, arity, depth))
+
   defp occurs_below?({:var, k}, arity, depth), do: k >= depth and k < depth + arity
 
   defp occurs_below?({:pi, _g, d, c}, arity, depth),
@@ -2211,6 +2224,11 @@ defmodule Cure.Elab.Elaborator do
     occurs_below?(s, arity, depth) or occurs_below?(m, arity, depth) or
       Enum.any?(brs, fn {_cn, ar, b} -> occurs_below?(b, arity, depth + ar) end)
   end
+
+  defp occurs_below?({:let, _grade, type, value, body}, arity, depth),
+    do:
+      occurs_below?(type, arity, depth) or occurs_below?(value, arity, depth) or
+        occurs_below?(body, arity, depth + 1)
 
   defp occurs_below?(t, arity, depth) when is_tuple(t),
     do: t |> Tuple.to_list() |> Enum.any?(&occurs_below?(&1, arity, depth))
@@ -2508,6 +2526,10 @@ defmodule Cure.Elab.Elaborator do
   defp telescope_prefix(type, remaining, ctx, sigma_fam, unit_ctor, components)
        when remaining > 0 do
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma_fam, [_la, _lb, domain, codomain], []} ->
+        tail = Kernel.normalize(ctx, {:app, codomain, {:ctor, unit_ctor, []}})
+        telescope_prefix(tail, remaining - 1, ctx, sigma_fam, unit_ctor, [domain | components])
+
       {:data, ^sigma_fam, [domain, codomain], []} ->
         tail = Kernel.normalize(ctx, {:app, codomain, {:ctor, unit_ctor, []}})
         telescope_prefix(tail, remaining - 1, ctx, sigma_fam, unit_ctor, [domain | components])
@@ -2543,6 +2565,10 @@ defmodule Cure.Elab.Elaborator do
   # so the applied argument is discarded) until a `Unit` terminator is reached.
   defp count_tele(type, ctx, sigma_fam, unit_fam, unit_ctor, n) do
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma_fam, [_la, _lb, _dom, cod], []} ->
+        next = Kernel.normalize(ctx, {:app, cod, {:ctor, unit_ctor, []}})
+        count_tele(next, ctx, sigma_fam, unit_fam, unit_ctor, n + 1)
+
       {:data, ^sigma_fam, [_dom, cod], []} ->
         tail = Kernel.normalize(ctx, {:app, cod, {:ctor, unit_ctor, []}})
         count_tele(tail, ctx, sigma_fam, unit_fam, unit_ctor, n + 1)
@@ -2581,7 +2607,7 @@ defmodule Cure.Elab.Elaborator do
 
   defp record_projection(inner, field, names, ctx, env) do
     with {:ok, _obj_term, obj_type} <- elaborate_expr_typed(inner, names, ctx, env) do
-      case Quote.reify(obj_type, Context.length(ctx)) do
+      case Quote.reify(obj_type, Context.length(ctx), Context.signature(ctx)) do
         {:data, rec, params, _indices} ->
           ctor = Inductive.get_ctor(env, rec)
 
@@ -2647,6 +2673,9 @@ defmodule Cure.Elab.Elaborator do
   # genuine context/parameter reference stays far below the threshold.
   defp mentions_prior_field?(term), do: mentions_prior_field?(term, 0)
 
+  defp mentions_prior_field?({tag, _} = term, depth) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &mentions_prior_field?(&1, depth))
+
   defp mentions_prior_field?({:var, k}, depth), do: k - depth >= @proj_field_sentinel
 
   defp mentions_prior_field?({:lam, _g, d, b}, depth),
@@ -2654,6 +2683,16 @@ defmodule Cure.Elab.Elaborator do
 
   defp mentions_prior_field?({:pi, _g, d, c}, depth),
     do: mentions_prior_field?(d, depth) or mentions_prior_field?(c, depth + 1)
+
+  defp mentions_prior_field?({:let, _grade, type, value, body}, depth),
+    do:
+      mentions_prior_field?(type, depth) or mentions_prior_field?(value, depth) or
+        mentions_prior_field?(body, depth + 1)
+
+  defp mentions_prior_field?({:case, scrutinee, motive, branches}, depth),
+    do:
+      mentions_prior_field?(scrutinee, depth) or mentions_prior_field?(motive, depth) or
+        Enum.any?(branches, fn {_constructor, arity, body} -> mentions_prior_field?(body, depth + arity) end)
 
   defp mentions_prior_field?(tuple, depth) when is_tuple(tuple),
     do: tuple |> Tuple.to_list() |> Enum.any?(&mentions_prior_field?(&1, depth))
@@ -2982,9 +3021,22 @@ defmodule Cure.Elab.Elaborator do
            normalized_expected = Kernel.normalize(ctx, expected_core),
            {:ok, build, body_expected} <- Rewrite.legacy_plan(proof_term, ty, a, b, normalized_expected),
            {:ok, body_term} <- elaborate_expr_checked(body_ast, body_expected, names, ctx, env),
-           term = build.(body_term),
-           :ok <- Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
-        {:ok, term}
+           term = build.(body_term) do
+        case Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
+          :ok ->
+            {:ok, term}
+
+          {:error, :bad_motive} = original ->
+            retry_reflexive_legacy_transport(
+              original,
+              {proof_term, proof_type, ty, a, b, normalized_expected, body_expected, body_term},
+              expected_core,
+              ctx
+            )
+
+          error ->
+            error
+        end
       end
 
     attach_rewrite_context(result, meta, proof_ast, body_ast)
@@ -3048,6 +3100,7 @@ defmodule Cure.Elab.Elaborator do
         {:ok, term} ->
           case Kernel.check_with_branch_details(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
             :ok -> {:ok, term}
+            {:error, :bad_motive} = original -> retry_checked_whole_index_alias(original, term, expected_core, ctx)
             {:error, _reason} = error -> error
           end
 
@@ -3121,6 +3174,12 @@ defmodule Cure.Elab.Elaborator do
     sigma_fam = Inductive.builtin(env, :sigma)
 
     case Kernel.normalize(ctx, expected_core) do
+      {:data, fam, [_la, _lb, _dom, _b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
+        with {:ok, term} <- check_tuple_against(elems, expected_core, names, ctx, env),
+             :ok <- Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
+          {:ok, term}
+        end
+
       {:data, fam, [_dom, _b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
         with {:ok, term} <- check_tuple_against(elems, expected_core, names, ctx, env),
              :ok <- Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
@@ -3193,6 +3252,13 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:list, meta, elements} = node, expected_core, names, ctx, env) do
     result =
       case Kernel.normalize(ctx, expected_core) do
+        {:data, family, [_level, element_type], []} ->
+          if family == Inductive.builtin(env, :list) do
+            check_list_literal(meta, elements, expected_core, element_type, names, ctx, env)
+          else
+            elaborate_expr_checked(desugar_list(node), expected_core, names, ctx, env)
+          end
+
         {:data, family, [element_type], []} ->
           if family == Inductive.builtin(env, :list) do
             check_list_literal(meta, elements, expected_core, element_type, names, ctx, env)
@@ -3475,6 +3541,370 @@ defmodule Cure.Elab.Elaborator do
 
   def elaborate_expr_checked(expr, expected_core, names, ctx, env),
     do: elaborate_expr_checked_fallback(expr, expected_core, names, ctx, env)
+
+  # Only a checked match's existing final rejection reaches this retry. Keep its
+  # major, branches and complete typed motive prefix; abstract a closed whole
+  # index alias only at a separately licensed present data-value argument.
+  defp retry_checked_whole_index_alias(
+         original,
+         {:case, {:var, _} = major, motive, branches},
+         {:data, _, _, _} = raw_goal,
+         ctx
+       ) do
+    signature = Context.signature(ctx)
+
+    with :ok <- whole_index_raw_sort(ctx, raw_goal),
+         {:ok, major_type} <- Kernel.infer(ctx, major),
+         {:vdata, family_name, combined} <- Normalise.whnf_value(major_type, signature),
+         %{indices: [_ | _] = indices} = family <- Inductive.get_family(signature, family_name),
+         false <- Inductive.opaque_family?(family),
+         true <- length(indices) <= 8,
+         {params, actual} = Enum.split(combined, Inductive.param_count(signature, family_name)),
+         true <- length(actual) == length(indices),
+         param_terms = Enum.map(params, &Quote.reify(&1, ctx.length, signature)),
+         actual_terms = Enum.map(actual, &Quote.reify(&1, ctx.length, signature)),
+         authority = build_constant_motive(family_name, indices, param_terms, raw_goal),
+         {domains, _} = peel_lams(authority, length(indices) + 1, []),
+         {:ok, body, fresh} <- whole_index_prefix(motive, domains, ctx),
+         true <- length(Cure.Core.Validator.nodes(body)) <= 4_096,
+         {:ok, targets} <- whole_index_targets(indices, param_terms, actual_terms, ctx),
+         [_ | _] <- targets,
+         state = %{seen: MapSet.new(), eligible: MapSet.new(), cache: %{}, changed: false},
+         {:ok, prepared, %{changed: true}} <- whole_index_data(body, fresh, ctx, targets, state),
+         repaired =
+           Enum.reduce(Enum.reverse(domains), prepared, fn {grade, domain}, result ->
+             {:lam, grade, domain, result}
+           end),
+         {:ok, _} <- Kernel.infer(ctx, repaired),
+         candidate = {:case, major, repaired, branches},
+         :ok <- Kernel.check(ctx, candidate, Eval.eval(raw_goal, Context.env(ctx))) do
+      {:ok, candidate}
+    else
+      _ -> original
+    end
+  end
+
+  defp retry_checked_whole_index_alias(original, _term, _goal, _ctx), do: original
+
+  defp whole_index_raw_sort(ctx, term) do
+    with {:ok, kind} <- Kernel.infer(ctx, term),
+         {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(ctx)) do
+      :ok
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp whole_index_prefix({:data, _, _, _} = body, [], ctx), do: {:ok, body, ctx}
+
+  defp whole_index_prefix({:lam, grade, domain, body}, [{grade, domain} | rest], ctx) do
+    with :ok <- whole_index_raw_sort(ctx, domain) do
+      fresh = Context.extend(ctx, Eval.eval(domain, Context.env(ctx)), grade)
+      whole_index_prefix(body, rest, fresh)
+    end
+  end
+
+  defp whole_index_prefix(_motive, _domains, _ctx), do: :unsupported
+
+  defp whole_index_targets(indices, params, actual, ctx) do
+    indices
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {{_name, domain}, position}, {:ok, targets} ->
+      domain = Subst.instantiate(domain, params ++ Enum.take(actual, position))
+
+      with :ok <- whole_index_raw_sort(ctx, domain) do
+        type = Eval.eval(domain, Context.env(ctx))
+        term = Enum.at(actual, position)
+
+        if match?({:ctor, _, _}, term) and Term.closed?(term) do
+          case whole_index_constructor_target(term, Context.signature(ctx)) do
+            :ok ->
+              case Kernel.check(ctx, term, type) do
+                :ok ->
+                  target = %{term: term, type: type, fresh: {:var, length(indices) - position}}
+                  {:cont, {:ok, targets ++ [target]}}
+
+                _ ->
+                  {:halt, :unsupported}
+              end
+
+            _ ->
+              {:halt, :unsupported}
+          end
+        else
+          {:cont, {:ok, targets}}
+        end
+      else
+        _ -> {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp whole_index_data({:data, name, params, indices}, fresh, caller, targets, state) do
+    signature = Context.signature(caller)
+
+    with %{params: parameter_types, indices: index_types} <- Inductive.get_family(signature, name),
+         true <- length(params) == length(parameter_types) and length(indices) == length(index_types),
+         {:ok, ^params, state} <-
+           whole_index_telescope(params, parameter_types, [], false, fresh, caller, targets, state),
+         {:ok, prepared, state} <-
+           whole_index_telescope(indices, index_types, params, true, fresh, caller, targets, state) do
+      {:ok, {:data, name, params, prepared}, state}
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp whole_index_telescope(values, telescope, preceding, visit?, fresh, caller, targets, state) do
+    Enum.zip(values, telescope)
+    |> Enum.reduce_while({:ok, [], state}, fn {value, {_name, domain}}, {:ok, prepared, current} ->
+      domain = Subst.instantiate(domain, preceding ++ prepared)
+
+      with :ok <- whole_index_raw_sort(fresh, domain),
+           type = Eval.eval(domain, Context.env(fresh)),
+           {:ok, value, current} <-
+             whole_index_value_if(visit?, value, type, fresh, caller, targets, current),
+           :ok <- Kernel.check(fresh, value, type) do
+        # Only checked prepared values enter later dependent domain evaluation.
+        {:cont, {:ok, prepared ++ [value], current}}
+      else
+        _ -> {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp whole_index_value_if(true, value, type, fresh, caller, targets, state) do
+    case Normalise.whnf_value(type, Context.signature(fresh)) do
+      {:vdata, _, _} -> whole_index_value(value, fresh, caller, targets, state)
+      _ -> {:ok, value, state}
+    end
+  end
+
+  defp whole_index_value_if(false, value, _type, _fresh, _caller, _targets, state),
+    do: {:ok, value, state}
+
+  defp whole_index_value({:app, _, _} = term, fresh, caller, targets, state) do
+    {head, arguments} = whole_index_spine(term, [])
+
+    if match?({:global, _}, head) or match?({:var, _}, head) do
+      whole_index_arguments(head, arguments, fresh, caller, targets, state)
+    else
+      {:ok, term, state}
+    end
+  end
+
+  defp whole_index_value(term, _fresh, _caller, _targets, state), do: {:ok, term, state}
+
+  defp whole_index_spine({:app, function, argument}, arguments),
+    do: whole_index_spine(function, [argument | arguments])
+
+  defp whole_index_spine(head, arguments), do: {head, arguments}
+
+  defp whole_index_arguments(function, [], _fresh, _caller, _targets, state),
+    do: {:ok, function, state}
+
+  defp whole_index_arguments(function, [argument | rest], fresh, caller, targets, state) do
+    signature = Context.signature(fresh)
+
+    with {:ok, function_type} <- Kernel.infer(fresh, function),
+         {:vpi, grade, domain, _codomain} <- Normalise.whnf_value(function_type, signature),
+         {:ok, prepared, state} <-
+           whole_index_argument(argument, grade, domain, fresh, caller, targets, state),
+         :ok <- Kernel.check(fresh, prepared, domain) do
+      whole_index_arguments({:app, function, prepared}, rest, fresh, caller, targets, state)
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp whole_index_argument(argument, grade, domain, fresh, caller, targets, state) do
+    cond do
+      not Grade.grade?(grade) ->
+        :unsupported
+
+      Grade.present?(grade) and match?({:vdata, _, _}, Normalise.whnf_value(domain, Context.signature(fresh))) ->
+        case argument do
+          {:global, name} ->
+            with :ok <- Kernel.check(fresh, argument, domain) do
+              whole_index_alias_argument(name, argument, domain, fresh, caller, targets, state)
+            end
+
+          {:app, _, _} ->
+            whole_index_value(argument, fresh, caller, targets, state)
+
+          _ ->
+            {:ok, argument, state}
+        end
+
+      true ->
+        {:ok, argument, state}
+    end
+  end
+
+  defp whole_index_alias_argument(name, argument, domain, fresh, caller, targets, state) do
+    signature = Context.signature(caller)
+    canonical = Env.resolve_key(signature, signature.defs, name)
+
+    with {:ok, info, state} <- whole_index_alias_info(canonical, caller, state) do
+      candidates =
+        Enum.filter(targets, fn target ->
+          Kernel.check(caller, argument, target.type) == :ok and
+            Kernel.check(fresh, target.fresh, domain) == :ok
+        end)
+
+      if info == :skip or candidates == [] do
+        {:ok, argument, state}
+      else
+        with {:ok, normalized, state} <- whole_index_alias_nf(canonical, name, info, caller, state) do
+          case Enum.filter(candidates, &(&1.term == normalized)) do
+            [] -> {:ok, argument, state}
+            [target] -> {:ok, target.fresh, %{state | changed: true}}
+            _ -> :unsupported
+          end
+        end
+      end
+    end
+  end
+
+  defp whole_index_alias_info(name, ctx, state) do
+    signature = Context.signature(ctx)
+
+    cond do
+      Map.has_key?(state.cache, name) ->
+        {:ok, Map.fetch!(state.cache, name), state}
+
+      MapSet.size(state.seen) >= 32 ->
+        :unsupported
+
+      true ->
+        state = %{state | seen: MapSet.put(state.seen, name)}
+
+        case Env.get_def(signature, name) do
+          %{body: {:ctor, _, _} = body, reducible: true} ->
+            if Env.certified?(signature, name) and Term.closed?(body) do
+              with :ok <- whole_index_constructor_body(body, signature),
+                   true <- MapSet.size(state.eligible) < 16,
+                   {:ok, type} <- Kernel.infer(ctx, {:global, name}),
+                   {:vdata, _, _} <- Normalise.whnf_value(type, signature),
+                   :ok <- Kernel.check(ctx, body, type) do
+                info = %{type: type, normalized: :pending}
+                state = %{state | eligible: MapSet.put(state.eligible, name), cache: Map.put(state.cache, name, info)}
+                {:ok, info, state}
+              else
+                _ -> :unsupported
+              end
+            else
+              {:ok, :skip, %{state | cache: Map.put(state.cache, name, :skip)}}
+            end
+
+          _ ->
+            {:ok, :skip, %{state | cache: Map.put(state.cache, name, :skip)}}
+        end
+    end
+  end
+
+  defp whole_index_constructor_body(body, signature) do
+    nodes = Cure.Core.Validator.nodes(body)
+
+    if length(nodes) <= 64 and
+         Enum.all?(nodes, fn
+           {:ctor, name, arguments} ->
+             case Inductive.ctor_application_quantities(signature, name, length(arguments)) do
+               quantities when is_list(quantities) -> Enum.all?(quantities, &Grade.grade?/1)
+               _ -> false
+             end
+
+           _ ->
+             false
+         end) do
+      :ok
+    else
+      :unsupported
+    end
+  end
+
+  # Closed targets have the same bounded constructor representation as eligible
+  # bodies, except for the canonical Bounded readback literal inside a constructor.
+  # Expected-type recovery of an omitted prefix is not a representation license.
+  defp whole_index_constructor_target(term, signature) do
+    nodes = Cure.Core.Validator.nodes(term)
+
+    if length(nodes) <= 64 and
+         Enum.all?(nodes, fn
+           {:ctor, name, arguments} ->
+             case Inductive.ctor_application_quantities(signature, name, length(arguments)) do
+               quantities when is_list(quantities) -> Enum.all?(quantities, &Grade.grade?/1)
+               _ -> false
+             end
+
+           {:bounded_lit, value} when is_integer(value) and value >= 0 ->
+             true
+
+           _ ->
+             false
+         end) do
+      :ok
+    else
+      :unsupported
+    end
+  end
+
+  defp whole_index_alias_nf(_canonical, _spelling, %{normalized: normalized}, _ctx, state)
+       when normalized != :pending,
+       do: {:ok, normalized, state}
+
+  defp whole_index_alias_nf(canonical, spelling, info, ctx, state) do
+    fuel =
+      case Process.get(Normalise.fuel_key(), :absent) do
+        :absent -> 512
+        _active -> :infinity
+      end
+
+    normalized =
+      Normalise.nf(ctx, {:global, canonical},
+        delta: :reducible,
+        delta_allow: MapSet.new([canonical, spelling]),
+        fuel: fuel
+      )
+
+    with false <- normalized == :fuel_exhausted,
+         :ok <- Kernel.check(ctx, normalized, info.type) do
+      cache = Map.put(state.cache, canonical, %{info | normalized: normalized})
+      {:ok, normalized, %{state | cache: cache}}
+    else
+      _ -> :unsupported
+    end
+  end
+
+  # A fields-only polymorphic constructor can have the same syntax at distinct
+  # carriers. Legacy abstraction can therefore capture unrelated occurrences
+  # even when both normalized endpoints coincide and the body goal is unchanged.
+  # Keep that proof and body, and retry only the failed final motive through an
+  # ordinary constant transport independently checked at the raw original goal.
+  defp retry_reflexive_legacy_transport(
+         original,
+         {proof, proof_type, ty, a, b, normalized_expected, body_expected, body},
+         raw_goal,
+         ctx
+       ) do
+    if a == b and body_expected == normalized_expected do
+      with :ok <- Kernel.check(ctx, proof, proof_type),
+           {:ok, kind} <- Kernel.infer(ctx, raw_goal),
+           {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(ctx)),
+           expected = Eval.eval(raw_goal, Context.env(ctx)),
+           :ok <- Kernel.check(ctx, body, expected),
+           motive = Rewrite.constant_motive(ty, raw_goal),
+           {:ok, _} <- Kernel.infer(ctx, motive),
+           candidate = {:app, Rewrite.transport_case(proof, ty, motive, a), body},
+           :ok <- Kernel.check(ctx, candidate, expected) do
+        {:ok, candidate}
+      else
+        _ -> original
+      end
+    else
+      original
+    end
+  end
 
   defp attach_rewrite_context({:error, {:source_context, _, _}} = error, _meta, _proof, _body), do: error
 
@@ -3880,8 +4310,8 @@ defmodule Cure.Elab.Elaborator do
   defp check_tuple_against([e | rest], expected_core, names, ctx, env, index) do
     sigma_fam = Inductive.builtin(env, :sigma)
 
-    case Kernel.normalize(ctx, expected_core) do
-      {:data, fam, [dom, b_fn], []} when fam == sigma_fam and not is_nil(sigma_fam) ->
+    case sigma_data_dom_cod(Kernel.normalize(ctx, expected_core), sigma_fam) do
+      {:ok, dom, b_fn} ->
         if rest == [] and not telescope_terminator?(b_fn, ctx, env) do
           # Last element, tail is an ordinary type → e IS the whole second
           # component (a bare pair, possibly itself a nested tuple).
@@ -4507,7 +4937,7 @@ defmodule Cure.Elab.Elaborator do
     sigma_fam = Inductive.builtin(env, :sigma)
 
     with false <- is_nil(sigma_fam),
-         {:data, ^sigma_fam, [dom, cod], []} <- Kernel.normalize(ctx, expected_core),
+         {:ok, dom, cod} <- sigma_data_dom_cod(Kernel.normalize(ctx, expected_core), sigma_fam),
          # Exclude a flat tuple / bare nested-pair Σ (`Tuple(T1,…,Tn)` lowers to a
          # unit-terminated Σ telescope that shares this shape). Its instantiated
          # second component is itself a Σ, which `ProofSearch` would happily "prove"
@@ -4613,18 +5043,43 @@ defmodule Cure.Elab.Elaborator do
     sig = Context.signature(ctx)
 
     with false <- is_nil(sigma_fam),
-         {:vdata, ^sigma_fam, [dom_value, predicate_value]} <- Normalise.whnf_value(type, sig),
+         {:ok, la_val, lb_val, dom_value, predicate_value} <-
+           sigma_vdata_parts(Normalise.whnf_value(type, sig), sigma_fam),
          # Do not coerce when the expected type is itself that Sigma (no coercion
          # needed) — only when expected is the base component type.
          false <- sigma_typed?(expected_core, sigma_fam, ctx),
          dom_term <- Quote.reify(dom_value, depth, sig),
          true <- convertible?(dom_term, expected_core, ctx, env) do
       predicate_term = Quote.reify(predicate_value, depth, sig)
-      build_app({:global, first_projection_head(env)}, [dom_term, predicate_term, term])
+      head = first_projection_head(env)
+
+      args =
+        if head == :sigma_first do
+          la_term = Quote.reify(la_val, depth, sig)
+          lb_term = Quote.reify(lb_val, depth, sig)
+          [la_term, lb_term, dom_term, predicate_term, term]
+        else
+          [dom_term, predicate_term, term]
+        end
+
+      build_app({:global, head}, args)
     else
       _ -> term
     end
   end
+
+  defp sigma_data_dom_cod({:data, fam, [_la, _lb, dom, cod], []}, fam), do: {:ok, dom, cod}
+  defp sigma_data_dom_cod({:data, fam, [dom, cod], []}, fam), do: {:ok, dom, cod}
+  defp sigma_data_dom_cod(_, _), do: :error
+
+  defp sigma_vdata_parts({:vdata, fam, [la, lb, dom, pred]}, fam), do: {:ok, la, lb, dom, pred}
+
+  defp sigma_vdata_parts({:vdata, fam, [dom, pred]}, fam),
+    do:
+      {:ok, {:vlevel, %Cure.Core.LevelValue{constant: 0, atoms: []}},
+       {:vlevel, %Cure.Core.LevelValue{constant: 0, atoms: []}}, dom, pred}
+
+  defp sigma_vdata_parts(_, _), do: :error
 
   # The global to head the first projection with: `Std.Refine.refined_value` when
   # the refinement API is in scope (the idiomatic accessor a human writes,
@@ -4742,7 +5197,7 @@ defmodule Cure.Elab.Elaborator do
     sig = Context.signature(ctx)
 
     not is_nil(sigma_fam) and
-      match?({:vdata, ^sigma_fam, [_dom, _pred]}, Normalise.whnf_value(type, sig))
+      match?({:ok, _, _, _, _}, sigma_vdata_parts(Normalise.whnf_value(type, sig), sigma_fam))
   end
 
   # A refinement / bare dependent-pair Σ and a flat tuple Σ share ONE Core shape
@@ -4892,11 +5347,21 @@ defmodule Cure.Elab.Elaborator do
   defp call_placeholder?({:variable, _meta, "_"}), do: true
   defp call_placeholder?(_arg), do: false
 
+  defp children({tag, _} = term) when tag in [:type, :level_value],
+    do: Term.level_atoms(term)
+
+  defp children({:level_type}), do: []
   defp children(term) when is_tuple(term), do: term |> Tuple.to_list() |> tl()
 
   # Free de Bruijn indices in `term`, counted from `depth` binders in (binder-
   # aware for Π/λ/Σ/case, mirroring abstract_term). Used to check convoy sibling
   # independence.
+  defp free_indices({tag, _} = term, depth) when tag in [:type, :level_value],
+    do:
+      Enum.reduce(Cure.Core.Term.level_atoms(term), MapSet.new(), fn atom, acc ->
+        MapSet.union(acc, free_indices(atom, depth))
+      end)
+
   defp free_indices({:var, i}, depth) when i >= depth, do: MapSet.new([i - depth])
   defp free_indices({:var, _}, _depth), do: MapSet.new()
 
@@ -4910,6 +5375,12 @@ defmodule Cure.Elab.Elaborator do
     base = MapSet.union(free_indices(s, depth), free_indices(m, depth))
     Enum.reduce(brs, base, fn {_c, ar, b}, acc -> MapSet.union(acc, free_indices(b, depth + ar)) end)
   end
+
+  defp free_indices({:let, _grade, type, value, body}, depth),
+    do:
+      free_indices(type, depth)
+      |> MapSet.union(free_indices(value, depth))
+      |> MapSet.union(free_indices(body, depth + 1))
 
   defp free_indices(term, depth) when is_tuple(term),
     do: term |> children() |> Enum.reduce(MapSet.new(), &MapSet.union(&2, free_indices(&1, depth)))
@@ -4935,6 +5406,12 @@ defmodule Cure.Elab.Elaborator do
   # family's declared param count, so the kernel's `:data` rule — which checks
   # params and indices against separate telescopes — accepts reified sibling and
   # transport types.
+  defp resplit_data({:type, sort}, env),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &resplit_data(&1, env))}
+
+  defp resplit_data({:level_value, level}, env),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &resplit_data(&1, env))}
+
   defp resplit_data({:data, name, params, indices}, env) do
     combined = Enum.map(params ++ indices, &resplit_data(&1, env))
     {ps, is} = Enum.split(combined, Inductive.param_count(env, name))
@@ -4949,8 +5426,24 @@ defmodule Cure.Elab.Elaborator do
 
   defp resplit_data(term, _env), do: term
 
+  defp rebuild({:type, sort} = term, atoms),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, level_replacements(term, atoms))}
+
+  defp rebuild({:level_value, level} = term, atoms),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, level_replacements(term, atoms))}
+
   defp rebuild(term, children) when is_tuple(term) do
     [elem(term, 0) | children] |> List.to_tuple()
+  end
+
+  defp level_replacements(term, replacements) do
+    original = Term.level_atoms(term)
+
+    unless length(original) == length(replacements),
+      do: raise(ArgumentError, "universe traversal changed its atom-slot arity")
+
+    table = Map.new(Enum.zip(original, replacements))
+    &Map.fetch!(table, &1)
   end
 
   defp implicit_def?(env, atom) do
@@ -5395,27 +5888,20 @@ defmodule Cure.Elab.Elaborator do
           # motive construction and per-branch goal refinement; otherwise
           # `replace_term` cannot abstract the discriminant and every branch is
           # checked against the original, unrefined result index.
-          result_type_term =
-            case scrut_term do
-              {:var, _} ->
-                result_type_term
+          original_result_type_term = result_type_term
 
-              computed ->
-                result_type_term
-                |> expose_reducible_dependency(computed, ctx, env)
-                |> expose_sibling_result_indices(computed, ctx, env)
-            end
+          result_type_term = prepare_computed_match_goal(result_type_term, scrut_term, ctx, env)
 
           # The scrutinee's args are parameters ++ indices; split off the leading
           # parameters. Only the indices are abstracted by the motive and refined
           # per branch — parameters are uniform (never matched).
           pc = Inductive.param_count(env, dname)
           {param_vals, idx_vals} = Enum.split(combined_vals, pc)
-          param_terms = Enum.map(param_vals, &Quote.reify(&1, Context.length(ctx)))
-          idx_terms = Enum.map(idx_vals, &Quote.reify(&1, Context.length(ctx)))
+          param_terms = Enum.map(param_vals, &Quote.reify(&1, Context.length(ctx), Context.signature(ctx)))
+          idx_terms = Enum.map(idx_vals, &Quote.reify(&1, Context.length(ctx), Context.signature(ctx)))
 
           motive0 =
-            build_motive(dname, family.indices, param_terms, idx_terms, scrut_term, result_type_term)
+            build_motive(dname, family.indices, param_terms, idx_terms, scrut_term, result_type_term, env)
 
           # Step 3b: a *sibling* whose type mentions the scrutinee's stuck computed
           # index (`w : F(app(p,q))`) is not refined by 3a's motive (that only
@@ -5472,8 +5958,17 @@ defmodule Cure.Elab.Elaborator do
                          carried,
                          motive
                        ) do
-                  case_term = wrap_join({:case, scrut_term, motive, branches}, join)
-                  {:ok, if(carried, do: {:app, case_term, mk_refl(carried.idx_term)}, else: case_term)}
+                  if branches == [] and is_nil(join) do
+                    # No branch can run: the kernel independently rechecks
+                    # indexed impossibility. Generalizing fixed indices here
+                    # can make a valid constant result ill-typed (constructors
+                    # retain their declared result indices).
+                    empty_motive = build_constant_motive(dname, family.indices, param_terms, result_type_term)
+                    {:ok, {:case, scrut_term, empty_motive, []}}
+                  else
+                    case_term = wrap_join({:case, scrut_term, motive, branches}, join)
+                    {:ok, if(carried, do: {:app, case_term, mk_refl(carried.idx_term)}, else: case_term)}
+                  end
                 end
               end
 
@@ -5500,6 +5995,16 @@ defmodule Cure.Elab.Elaborator do
                 end
               else
                 []
+              end
+
+            # An indexed value convoy must also carry siblings that depend
+            # only on its indices. Otherwise evidence may be rebound at a
+            # fresh index while its ambient carrier still has the old index.
+            siblings =
+              if family.indices == [] do
+                siblings
+              else
+                merge_motive_siblings(index_siblings, siblings)
               end
 
             retry_value_siblings = fn ->
@@ -5551,23 +6056,83 @@ defmodule Cure.Elab.Elaborator do
               )
             end
 
-            cond do
-              siblings != [] and match?({:error, _}, standard) ->
-                retry_value_siblings.()
+            candidate =
+              cond do
+                siblings != [] and match?({:error, _}, standard) ->
+                  retry_value_siblings.()
 
-              siblings != [] and match_term_kernel_rejects?(elem(standard, 1), result_type_term, ctx) ->
-                retry_value_siblings.()
+                siblings != [] and match_term_kernel_rejects?(elem(standard, 1), result_type_term, ctx) ->
+                  retry_value_siblings.()
 
-              index_siblings != [] and match?({:error, _}, standard) ->
-                retry_index_siblings.()
+                index_siblings != [] and match?({:error, _}, standard) ->
+                  retry_index_siblings.()
 
-              index_siblings != [] and
-                  match_term_kernel_rejects?(elem(standard, 1), result_type_term, ctx) ->
-                retry_index_siblings.()
+                index_siblings != [] and
+                    match_term_kernel_rejects?(elem(standard, 1), result_type_term, ctx) ->
+                  retry_index_siblings.()
 
-              true ->
-                standard
-            end
+                true ->
+                  standard
+              end
+
+            retry_constant? =
+              family.indices != [] and
+                (match?({:error, _}, candidate) or
+                   match_term_kernel_rejects?(elem(candidate, 1), result_type_term, ctx))
+
+            candidate =
+              if retry_constant? do
+                # Generalizing a computed index and its dependent ambient values
+                # independently can lose their defining equation. Keep the
+                # original goal instead; ordinary branch refinement supplies only
+                # equations justified by this case. No fresh equality is assumed.
+                constant = build_constant_motive(dname, family.indices, param_terms, result_type_term)
+
+                with {:ok, branches, join} <-
+                       elaborate_branches(
+                         arms,
+                         names,
+                         ctx,
+                         env,
+                         dname,
+                         idx_vals,
+                         idx_terms,
+                         param_vals,
+                         scrut_term,
+                         result_type_term,
+                         nil,
+                         constant
+                       ),
+                     term = wrap_join({:case, scrut_term, constant, branches}, join),
+                     :ok <- Kernel.check(ctx, term, Eval.eval(result_type_term, Context.env(ctx))) do
+                  {:ok, term}
+                else
+                  _ -> candidate
+                end
+              else
+                candidate
+              end
+
+            cfg = %{
+              scrut_term: scrut_term,
+              family: family,
+              param_terms: param_terms,
+              idx_terms: idx_terms,
+              param_vals: param_vals,
+              arms: arms,
+              original_goal: original_result_type_term,
+              siblings: siblings,
+              names: names,
+              ctx: ctx,
+              env: env
+            }
+
+            candidate
+            |> retry_fixed_index_match(cfg)
+            |> retry_index_alias_match(cfg)
+            |> retry_goal_value_operand_match(cfg)
+            |> retry_computed_index_carrier_match(cfg)
+            |> retry_multi_fixed_index_match(cfg)
           end
 
         _ ->
@@ -5580,6 +6145,1406 @@ defmodule Cure.Elab.Elaborator do
             }}}
       end
     end
+  end
+
+  # Projection consumers can retain a reconstructed dependent carrier that a
+  # generic motive cannot abstract. Normalize one typed value operand only after
+  # all original candidates reject, then use the ordinary branch finisher once.
+  # No equality or inverse is inferred from the dependency that normalization
+  # removes; the raw original goal and complete resulting case remain checked.
+  defp retry_computed_index_carrier_match(candidate, cfg) do
+    key = {__MODULE__, :computed_index_carrier_retry}
+
+    rejected? =
+      case candidate do
+        {:error, _} -> true
+        {:ok, term} -> match_term_kernel_rejects?(term, cfg.original_goal, cfg.ctx)
+      end
+
+    if rejected? and length(cfg.family.indices) == 1 and cfg.siblings == [] and
+         match?({:var, _}, cfg.scrut_term) and Process.get(key, false) != true do
+      previous = Process.get(key, :absent)
+      fuel_key = Normalise.fuel_key()
+      Process.put(key, true)
+
+      try do
+        do_retry_computed_index_carrier_match(candidate, cfg)
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      after
+        if previous == :absent, do: Process.delete(key), else: Process.put(key, previous)
+      end
+    else
+      candidate
+    end
+  end
+
+  defp do_retry_computed_index_carrier_match(candidate, cfg) do
+    [idx_term] = cfg.idx_terms
+    {:var, scrut_orig} = cfg.scrut_term
+    expected = Eval.eval(cfg.original_goal, Context.env(cfg.ctx))
+
+    with false <- match?({:var, _}, idx_term) or match?({:ctor, _, _}, idx_term),
+         :ok <- whole_index_raw_sort(cfg.ctx, cfg.original_goal),
+         true <- length(Cure.Core.Validator.nodes(cfg.original_goal)) <= 4_096,
+         carriers when carriers != [] and length(carriers) <= 8 <-
+           collect_index_dependent_carriers(cfg.original_goal, idx_term, cfg.scrut_term, cfg.ctx, cfg.env),
+         ctors when ctors != [] <- Inductive.ctors_of(cfg.env, cfg.family.name),
+         {:ok, ctor_specs} <- computed_carrier_ctor_specs(ctors, cfg.env),
+         {:ok, {arm_map, nil}} <- partition_arms(cfg.arms, cfg.ctx, cfg.env, cfg.family.name),
+         true <- Enum.all?(ctor_specs, &Map.has_key?(arm_map, &1.ctor.name)),
+         {:ok, motive, pi_chain} <-
+           build_computed_carrier_motive(cfg, idx_term, scrut_orig, carriers, ctor_specs),
+         {:ok, _} <- Kernel.infer(cfg.ctx, motive),
+         {:ok, branches} <-
+           build_computed_carrier_branches(ctor_specs, idx_term, length(carriers), pi_chain),
+         {:ok, continuations} <-
+           elaborate_computed_carrier_continuations(
+             ctor_specs,
+             arm_map,
+             idx_term,
+             carriers,
+             pi_chain,
+             cfg
+           ),
+         term =
+           Enum.reduce(
+             Enum.map(carriers, & &1.term) ++ continuations,
+             {:case, cfg.scrut_term, motive, branches},
+             fn arg, acc -> {:app, acc, arg} end
+           ),
+         :ok <- Kernel.check(cfg.ctx, term, expected) do
+      {:ok, term}
+    else
+      _ -> candidate
+    end
+  end
+
+  defp collect_index_dependent_carriers(goal, idx_term, scrut_term, ctx, env) do
+    depth = Context.length(ctx)
+    sig = Context.signature(ctx)
+
+    goal
+    |> do_collect_carriers(idx_term, scrut_term, ctx, env, depth, sig, [])
+    |> Enum.reverse()
+    |> Enum.uniq_by(& &1.term)
+  end
+
+  defp do_collect_carriers({tag, _, _, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc)
+       when tag in [:lam, :pi, :case],
+       do: acc
+
+  defp do_collect_carriers({:let, _, _, _, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:var, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:type, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:level_type}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+  defp do_collect_carriers({:level_value, _}, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+
+  defp do_collect_carriers({:data, _name, params, indices}, idx, scrut, ctx, env, depth, sig, acc) do
+    Enum.reduce(params ++ indices, acc, fn child, a ->
+      do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+    end)
+  end
+
+  defp do_collect_carriers(term, idx, scrut, _ctx, _env, _depth, _sig, acc)
+       when term == idx or term == scrut,
+       do: acc
+
+  defp do_collect_carriers(term, idx, scrut, ctx, env, depth, sig, acc) when is_tuple(term) do
+    cond do
+      contains_term_scoped?(term, scrut) ->
+        Enum.reduce(children(term), acc, fn child, a ->
+          do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+        end)
+
+      match?({:app, _, _}, term) or match?({:global, _}, term) or match?({:ctor, _, _}, term) ->
+        case Kernel.infer(ctx, term) do
+          {:ok, type_val} ->
+            type_term = resplit_data(Quote.reify(type_val, depth, sig), env)
+
+            if contains_term_scoped?(type_term, idx) do
+              [%{term: term, type_term: type_term} | acc]
+            else
+              Enum.reduce(children(term), acc, fn child, a ->
+                do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+              end)
+            end
+
+          _ ->
+            Enum.reduce(children(term), acc, fn child, a ->
+              do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+            end)
+        end
+
+      true ->
+        Enum.reduce(children(term), acc, fn child, a ->
+          do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+        end)
+    end
+  end
+
+  defp do_collect_carriers(term, idx, scrut, ctx, env, depth, sig, acc) when is_list(term) do
+    Enum.reduce(term, acc, fn child, a ->
+      do_collect_carriers(child, idx, scrut, ctx, env, depth, sig, a)
+    end)
+  end
+
+  defp do_collect_carriers(_term, _idx, _scrut, _ctx, _env, _depth, _sig, acc), do: acc
+
+  defp computed_carrier_ctor_specs(ctors, env) do
+    Enum.reduce_while(ctors, {:ok, []}, fn ctor, {:ok, acc} ->
+      arity = length(ctor.args)
+
+      with [{:var, idx_arg_db}] <- ctor.result_indices,
+           true <- idx_arg_db >= 0 and idx_arg_db < arity,
+           grades when is_list(grades) <- Inductive.ctor_application_quantities(env, ctor.name, arity) do
+        p_idx = arity - 1 - idx_arg_db
+
+        rem_specs =
+          ctor.args
+          |> Enum.zip(grades)
+          |> Enum.with_index()
+          |> Enum.reject(fn {_entry, pos} -> pos == p_idx end)
+          |> Enum.map(fn {{arg, grade}, pos} -> %{orig_pos: pos, arg: arg, grade: grade} end)
+
+        {:cont, {:ok, acc ++ [%{ctor: ctor, arity: arity, p_idx: p_idx, rem_specs: rem_specs}]}}
+      else
+        _ -> {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp build_computed_carrier_motive(cfg, idx_term, scrut_orig, carriers, ctor_specs) do
+    r = length(carriers)
+    m = length(ctor_specs)
+    outer_domains = motive_domains(cfg.family.name, cfg.family.indices, cfg.param_terms)
+
+    sentinel_base =
+      1 + max_free_ref([cfg.original_goal, cfg.scrut_term, idx_term | Enum.map(carriers, & &1.term)])
+
+    {goal_marked, carrier_rebind} =
+      carriers
+      |> Enum.with_index()
+      |> Enum.reduce({cfg.original_goal, %{}}, fn {%{term: c_term}, i}, {rt, acc} ->
+        sentinel = sentinel_base + i
+        {replace_term_scoped(rt, c_term, {:var, sentinel}), Map.put(acc, sentinel, r - 1 - i)}
+      end)
+
+    idx_sentinel = sentinel_base + r
+    goal_marked = replace_term_scoped(goal_marked, idx_term, {:var, idx_sentinel})
+    rebind = carrier_rebind |> Map.put(idx_sentinel, r + 1) |> Map.put(scrut_orig, r)
+    g_open = generalize(goal_marked, rebind, 2 + r, 0)
+
+    carrier_domains =
+      carriers
+      |> Enum.with_index()
+      |> Enum.map(fn {%{type_term: c_type}, i} ->
+        c_sentinel = 1 + max_free_ref([c_type, idx_term])
+        marked = replace_term_scoped(c_type, idx_term, {:var, c_sentinel})
+        generalize(marked, %{c_sentinel => i + 1}, 2 + i, 0)
+      end)
+
+    cont_domains =
+      ctor_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, c_idx} ->
+        build_computed_carrier_cont_domain(spec, c_idx, r, g_open, cfg.param_terms)
+      end)
+
+    pi_chain =
+      cont_domains
+      |> Enum.reverse()
+      |> Enum.reduce(Subst.shift(g_open, m, 0), fn dom, acc ->
+        {:pi, Grade.unrestricted(), dom, acc}
+      end)
+
+    pi_chain =
+      carrier_domains
+      |> Enum.reverse()
+      |> Enum.reduce(pi_chain, fn dom, acc -> {:pi, :erased, dom, acc} end)
+
+    motive =
+      outer_domains
+      |> Enum.reverse()
+      |> Enum.reduce(pi_chain, fn dom, acc -> {:lam, motive_domain_grade(dom), dom, acc} end)
+
+    {:ok, motive, pi_chain}
+  end
+
+  defp build_computed_carrier_cont_domain(spec, c_idx, r, g_open, param_terms) do
+    q = length(spec.rem_specs)
+
+    rem_domains =
+      spec.rem_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {%{orig_pos: orig_pos, arg: {_name, arg_type}, grade: grade}, k} ->
+        depth_above = 2 + r + c_idx + k
+        j_var = {:var, r + 1 + c_idx + k}
+        shifted_params = Enum.map(param_terms, &Subst.shift(&1, depth_above, 0))
+
+        prev_args =
+          for pos <- 0..(orig_pos - 1)//1 do
+            if pos == spec.p_idx do
+              j_var
+            else
+              prev_k = Enum.find_index(spec.rem_specs, &(&1.orig_pos == pos))
+              {:var, k - 1 - prev_k}
+            end
+          end
+
+        {grade, Subst.instantiate(arg_type, shifted_params ++ prev_args)}
+      end)
+
+    ctor_args =
+      for pos <- 0..(spec.arity - 1)//1 do
+        if pos == spec.p_idx do
+          {:var, r + 1 + c_idx + q}
+        else
+          k = Enum.find_index(spec.rem_specs, &(&1.orig_pos == pos))
+          {:var, q - 1 - k}
+        end
+      end
+
+    ctor_term = {:ctor, spec.ctor.name, ctor_args}
+    cod = g_open |> Subst.shift(c_idx + q, 0) |> replace_var_no_shift(r + c_idx + q, ctor_term, 0)
+
+    rem_domains
+    |> Enum.reverse()
+    |> Enum.reduce(cod, fn {grade, dom}, acc -> {:pi, grade, dom, acc} end)
+  end
+
+  defp replace_var_no_shift({:var, i}, target, replacement, depth) when i == target + depth,
+    do: Subst.shift(replacement, depth, 0)
+
+  defp replace_var_no_shift({:var, _} = v, _target, _replacement, _depth), do: v
+
+  defp replace_var_no_shift({:type, sort}, target, replacement, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &replace_var_no_shift(&1, target, replacement, depth))}
+
+  defp replace_var_no_shift({:level_value, level}, target, replacement, depth),
+    do:
+      {:level_value,
+       Cure.Elab.UniverseTraversal.map_level(level, &replace_var_no_shift(&1, target, replacement, depth))}
+
+  defp replace_var_no_shift({tag, grade, dom, body}, target, replacement, depth) when tag in [:pi, :lam],
+    do:
+      {tag, grade, replace_var_no_shift(dom, target, replacement, depth),
+       replace_var_no_shift(body, target, replacement, depth + 1)}
+
+  defp replace_var_no_shift({:let, grade, ty, val, body}, target, replacement, depth),
+    do:
+      {:let, grade, replace_var_no_shift(ty, target, replacement, depth),
+       replace_var_no_shift(val, target, replacement, depth),
+       replace_var_no_shift(body, target, replacement, depth + 1)}
+
+  defp replace_var_no_shift({:case, scrut, motive, branches}, target, replacement, depth) do
+    {:case, replace_var_no_shift(scrut, target, replacement, depth),
+     replace_var_no_shift(motive, target, replacement, depth),
+     Enum.map(branches, fn {c, ar, b} ->
+       {c, ar, replace_var_no_shift(b, target, replacement, depth + ar)}
+     end)}
+  end
+
+  defp replace_var_no_shift(term, target, replacement, depth) when is_tuple(term),
+    do: rebuild(term, Enum.map(children(term), &replace_var_no_shift(&1, target, replacement, depth)))
+
+  defp replace_var_no_shift(term, target, replacement, depth) when is_list(term),
+    do: Enum.map(term, &replace_var_no_shift(&1, target, replacement, depth))
+
+  defp replace_var_no_shift(term, _target, _replacement, _depth), do: term
+
+  defp build_computed_carrier_branches(ctor_specs, idx_term, r, pi_chain) do
+    m = length(ctor_specs)
+
+    branches =
+      ctor_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, c_idx} ->
+        a = spec.arity
+        j_val = Subst.shift(idx_term, a, 0)
+        x_val = {:ctor, spec.ctor.name, for(pos <- 0..(a - 1)//1, do: {:var, a - 1 - pos})}
+
+        instantiated =
+          pi_chain
+          |> Subst.shift(a, 2)
+          |> Subst.instantiate([j_val, x_val])
+
+        {binders, _cod} = peel_pis(instantiated, r + m, [])
+
+        body =
+          spec.rem_specs
+          |> Enum.reduce({:var, m - 1 - c_idx}, fn %{orig_pos: orig_pos}, acc ->
+            {:app, acc, {:var, a - 1 - orig_pos + r + m}}
+          end)
+
+        wrapped =
+          binders
+          |> Enum.reverse()
+          |> Enum.reduce(body, fn {grade, dom}, acc -> {:lam, grade, dom, acc} end)
+
+        {spec.ctor.name, a, wrapped}
+      end)
+
+    {:ok, branches}
+  end
+
+  defp peel_pis(term, 0, acc), do: {Enum.reverse(acc), term}
+  defp peel_pis({:pi, grade, dom, cod}, n, acc), do: peel_pis(cod, n - 1, [{grade, dom} | acc])
+
+  defp elaborate_computed_carrier_continuations(ctor_specs, arm_map, idx_term, carriers, pi_chain, cfg) do
+    outer_pis = Subst.instantiate(pi_chain, [idx_term, cfg.scrut_term])
+
+    after_carriers =
+      Enum.reduce(carriers, outer_pis, fn %{term: c_term}, {:pi, _grade, _dom, cod} ->
+        Subst.instantiate(cod, [c_term])
+      end)
+
+    {cont_pis, _cod} = peel_pis(after_carriers, length(ctor_specs), [])
+
+    ctor_specs
+    |> Enum.zip(cont_pis)
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {{spec, {_grade, cont_type_shifted}}, c_idx}, {:ok, acc} ->
+      cont_type = Subst.shift(cont_type_shifted, -c_idx, 0)
+
+      case Map.fetch!(arm_map, spec.ctor.name) do
+        {:matched, pattern, body_expr} ->
+          with {:ok, {_cname, vars}} <- constructor_pattern(pattern),
+               {:ok, cont_term} <-
+                 elaborate_single_carrier_continuation(spec, vars, body_expr, cont_type, cfg) do
+            {:cont, {:ok, acc ++ [cont_term]}}
+          else
+            _ -> {:halt, :unsupported}
+          end
+
+        _ ->
+          {:halt, :unsupported}
+      end
+    end)
+  end
+
+  defp elaborate_single_carrier_continuation(spec, vars, body_expr, cont_type, cfg) do
+    q = length(spec.rem_specs)
+    {binders, cod} = peel_pis(cont_type, q, [])
+    present_count = Enum.count(binders, fn {grade, _dom} -> Grade.present?(grade) end)
+
+    if length(vars) == present_count do
+      {arm_ctx, arm_names, []} =
+        Enum.reduce(binders, {cfg.ctx, cfg.names, vars}, fn {grade, dom}, {c, ns, vs} ->
+          dom_val = Eval.eval(dom, Context.env(c))
+
+          if Grade.present?(grade) do
+            [v | rest] = vs
+            {Context.extend(c, dom_val, grade), [v | ns], rest}
+          else
+            {Context.extend(c, dom_val, grade), ["_" | ns], vs}
+          end
+        end)
+
+      with {:ok, body_term} <- elaborate_expr_checked(body_expr, cod, arm_names, arm_ctx, cfg.env) do
+        wrapped =
+          binders
+          |> Enum.reverse()
+          |> Enum.reduce(body_term, fn {grade, dom}, acc -> {:lam, grade, dom, acc} end)
+
+        {:ok, wrapped}
+      end
+    else
+      :unsupported
+    end
+  end
+
+  defp retry_goal_value_operand_match(candidate, cfg) do
+    key = {__MODULE__, :goal_value_operand_retry}
+
+    if cfg.family.indices == [] and cfg.siblings == [] and
+         match?({:var, _}, cfg.scrut_term) and match?({:data, _, _, _}, cfg.original_goal) and
+         Process.get(key, false) != true do
+      previous = Process.get(key, :absent)
+      fuel_key = Normalise.fuel_key()
+      Process.put(key, true)
+
+      try do
+        with {:ok, kind} <- Kernel.infer(cfg.ctx, cfg.original_goal),
+             {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(cfg.ctx)),
+             expected = Eval.eval(cfg.original_goal, Context.env(cfg.ctx)),
+             true <-
+               (case candidate do
+                  {:error, _} -> true
+                  {:ok, term} -> match?({:error, _}, Kernel.check(cfg.ctx, term, expected))
+                end),
+             {:ok, prepared} <-
+               prepare_goal_value_operand(cfg.original_goal, cfg.scrut_term, cfg.ctx, cfg.env),
+             motive =
+               build_motive(
+                 cfg.family.name,
+                 cfg.family.indices,
+                 cfg.param_terms,
+                 cfg.idx_terms,
+                 cfg.scrut_term,
+                 prepared,
+                 cfg.env
+               ),
+             {:ok, _} <- Kernel.infer(cfg.ctx, motive),
+             {:ok, branches, join} <-
+               elaborate_branches(
+                 cfg.arms,
+                 cfg.names,
+                 cfg.ctx,
+                 cfg.env,
+                 cfg.family.name,
+                 [],
+                 cfg.idx_terms,
+                 cfg.param_vals,
+                 cfg.scrut_term,
+                 prepared,
+                 nil,
+                 motive
+               ),
+             term = wrap_join({:case, cfg.scrut_term, motive, branches}, join),
+             :ok <- Kernel.check(cfg.ctx, term, expected) do
+          {:ok, term}
+        else
+          _ -> candidate
+        end
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      after
+        if previous == :absent, do: Process.delete(key), else: Process.put(key, previous)
+      end
+    else
+      candidate
+    end
+  end
+
+  defp prepare_goal_value_operand({:data, family, params, indices} = goal, {:var, _} = major, ctx, env) do
+    with true <- length(params) + length(indices) <= 8,
+         true <- length(Cure.Core.Validator.nodes(goal)) <= 2_048,
+         {:ok, {:vtype, _}} <- Kernel.infer(ctx, goal),
+         {:ok, position, operand, type, allowed, _graph} <-
+           select_goal_value_operand(params ++ indices, major, ctx, env),
+         normalized <- normalize_goal_value_operand(ctx, operand, allowed),
+         false <- normalized == :fuel_exhausted,
+         false <- normalized == operand,
+         true <-
+           length(Cure.Core.Validator.nodes(normalized)) <=
+             min(4_096, max(64, 32 * length(Cure.Core.Validator.nodes(operand)))),
+         :ok <- Kernel.check(ctx, normalized, type),
+         fields = List.replace_at(params ++ indices, position, normalized),
+         {new_params, new_indices} = Enum.split(fields, length(params)),
+         prepared = {:data, family, new_params, new_indices},
+         {:ok, {:vtype, _}} <- Kernel.infer(ctx, prepared) do
+      {:ok, prepared}
+    else
+      error -> {:refused, error}
+    end
+  end
+
+  defp prepare_goal_value_operand(_, _, _, _), do: {:refused, :unsupported_shape}
+
+  defp normalize_goal_value_operand(ctx, operand, allowed) do
+    fuel =
+      case Process.get(Normalise.fuel_key(), :absent) do
+        :absent -> 512
+        _active_budget -> :infinity
+      end
+
+    Normalise.nf(ctx, operand, delta: :reducible, delta_allow: allowed, stuck_cases: :expose, fuel: fuel)
+  end
+
+  defp select_goal_value_operand(operands, major, ctx, env) do
+    operands
+    |> Enum.with_index()
+    |> Enum.find_value({:error, :no_value_operand}, fn {operand, index} ->
+      nodes = Cure.Core.Validator.nodes(operand)
+
+      with true <- length(nodes) <= 512,
+           false <- Enum.any?(nodes, &(elem(&1, 0) in [:lam, :pi, :let, :case])),
+           {:ok, type} <- Kernel.infer(ctx, operand),
+           {:vdata, _, _} <- Normalise.whnf_value(type, Context.signature(ctx)),
+           {:ok, references, variables} <- goal_value_computational_refs(operand, env),
+           true <- MapSet.member?(variables, major),
+           state = %{visited: MapSet.new(), references: references, work: 0, nodes: 0, edges: 0},
+           {:ok, graph, state} <-
+             goal_value_dependency_graph(goal_value_sorted_keys(Map.values(references)), env, %{}, state),
+           {:ok, allowed} <- acyclic_goal_value_globals(graph, env),
+           false <- MapSet.size(allowed) == 0,
+           spellings <-
+             Enum.reduce(state.references, allowed, fn {spelling, canonical}, acc ->
+               if MapSet.member?(allowed, canonical), do: MapSet.put(acc, spelling), else: acc
+             end) do
+        {:ok, index, operand, type, spellings, graph}
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  defp goal_value_sorted_keys(keys), do: keys |> Enum.uniq() |> Enum.sort_by(&Atom.to_string/1)
+
+  # Work counts UNIQUE visited canonical names, including opaque/uncertified
+  # leaves. Eligible insertion count is separate; aliases and work order cannot
+  # consume additional slots or split one recursive definition into two nodes.
+  defp goal_value_dependency_graph([], _env, graph, state), do: {:ok, graph, state}
+
+  defp goal_value_dependency_graph([name | rest], env, graph, state) do
+    cond do
+      MapSet.member?(state.visited, name) ->
+        goal_value_dependency_graph(rest, env, graph, state)
+
+      state.work >= 32 ->
+        {:error, :dependency_work_bound}
+
+      true ->
+        state = %{state | visited: MapSet.put(state.visited, name), work: state.work + 1}
+
+        case Env.get_def(env, name) do
+          %{body: body, reducible: true} when not is_nil(body) ->
+            if Env.certified?(env, name) and Term.closed?(body) do
+              count = length(Cure.Core.Validator.nodes(body))
+
+              with true <- count <= 4_096,
+                   true <- map_size(graph) < 16,
+                   {:ok, references, _variables} <- goal_value_computational_refs(body, env),
+                   dependencies = MapSet.new(Map.values(references)),
+                   true <- state.nodes + count <= 16_384,
+                   true <- state.edges + MapSet.size(dependencies) <= 32 do
+                state = %{
+                  state
+                  | references: Map.merge(state.references, references),
+                    nodes: state.nodes + count,
+                    edges: state.edges + MapSet.size(dependencies)
+                }
+
+                pending = goal_value_sorted_keys(rest ++ MapSet.to_list(dependencies))
+                goal_value_dependency_graph(pending, env, Map.put(graph, name, dependencies), state)
+              else
+                _ -> {:error, :dependency_graph_bound}
+              end
+            else
+              goal_value_dependency_graph(rest, env, graph, state)
+            end
+
+          _ ->
+            goal_value_dependency_graph(rest, env, graph, state)
+        end
+    end
+  end
+
+  # Eligibility comes only from the licensed computational graph above.
+  # NF nevertheless traverses annotations/erased fields, so cycle exclusion must
+  # see EVERY body reference between already-eligible canonical definitions.
+  # These edges never enroll another definition or grant unfolding permission.
+  defp acyclic_goal_value_globals(graph, env) do
+    cycle_graph =
+      Map.new(Map.keys(graph), fn name ->
+        references =
+          Env.get_def(env, name).body
+          |> Cure.Core.Validator.nodes()
+          |> Enum.flat_map(fn
+            {:global, target} -> [Env.resolve_key(env, env.defs, target)]
+            _ -> []
+          end)
+          |> Enum.filter(&Map.has_key?(graph, &1))
+          |> MapSet.new()
+
+        {name, references}
+      end)
+
+    edges = Enum.reduce(Map.values(cycle_graph), 0, fn refs, count -> count + MapSet.size(refs) end)
+
+    if edges <= 32 do
+      allowed =
+        cycle_graph
+        |> Map.keys()
+        |> Enum.reject(fn name ->
+          Enum.any?(
+            Map.fetch!(cycle_graph, name),
+            &goal_value_reachable?(&1, name, cycle_graph, MapSet.new())
+          )
+        end)
+        |> MapSet.new()
+
+      {:ok, allowed}
+    else
+      :unsupported
+    end
+  end
+
+  defp goal_value_reachable?(name, name, _graph, _seen), do: true
+
+  defp goal_value_reachable?(current, target, graph, seen) do
+    if MapSet.member?(seen, current) do
+      false
+    else
+      seen = MapSet.put(seen, current)
+      Enum.any?(Map.get(graph, current, []), &goal_value_reachable?(&1, target, graph, seen))
+    end
+  end
+
+  # Computational references deliberately skip lambda/let annotations, case
+  # motives and data/type expressions. Constructor arguments are visited only
+  # through the existing exact fields/full-uniform-prefix quantity license.
+  defp goal_value_computational_refs({:global, name}, env),
+    do: {:ok, %{name => Env.resolve_key(env, env.defs, name)}, MapSet.new()}
+
+  defp goal_value_computational_refs({:var, _} = variable, _env),
+    do: {:ok, %{}, MapSet.new([variable])}
+
+  defp goal_value_computational_refs({:ctor, name, arguments}, env) do
+    case Inductive.ctor_application_quantities(env, name, length(arguments)) do
+      quantities when is_list(quantities) ->
+        arguments
+        |> Enum.zip(quantities)
+        |> Enum.flat_map(fn {argument, quantity} -> if Grade.present?(quantity), do: [argument], else: [] end)
+        |> goal_value_merge_refs(env)
+
+      _ ->
+        :unsupported
+    end
+  end
+
+  defp goal_value_computational_refs(term, env) do
+    children =
+      case term do
+        {:lam, _, _, body} -> [body]
+        {:let, _, _, value, body} -> [value, body]
+        {:case, scrutinee, _, branches} -> [scrutinee | Enum.map(branches, &elem(&1, 2))]
+        {:app, function, argument} -> [function, argument]
+        _ -> []
+      end
+
+    goal_value_merge_refs(children, env)
+  end
+
+  defp goal_value_merge_refs(children, env) do
+    Enum.reduce_while(children, {:ok, %{}, MapSet.new()}, fn child, {:ok, references, variables} ->
+      case goal_value_computational_refs(child, env) do
+        {:ok, next, next_variables} ->
+          {:cont, {:ok, Map.merge(references, next), MapSet.union(variables, next_variables)}}
+
+        _ ->
+          {:halt, :unsupported}
+      end
+    end)
+  end
+
+  # Readback can expose an index field's published alias while authored goals
+  # retain its name. Retry only after every existing candidate rejects: align
+  # those field spellings without unfolding the surrounding dependent consumer.
+  # This constructs an ordinary motive, not an inverse for a computed field.
+  defp retry_index_alias_match(candidate, cfg) do
+    if cfg.family.indices != [] and cfg.siblings == [] do
+      fuel_key = Normalise.fuel_key()
+
+      try do
+        with {:ok, targets} <- index_alias_targets(cfg.idx_terms, cfg.env),
+             [_ | _] <- targets,
+             {:ok, kind} <- Kernel.infer(cfg.ctx, cfg.original_goal),
+             {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(cfg.ctx)),
+             expected = Eval.eval(cfg.original_goal, Context.env(cfg.ctx)),
+             true <-
+               (case candidate do
+                  {:error, _} -> true
+                  {:ok, term} -> match?({:error, _}, Kernel.check(cfg.ctx, term, expected))
+                end),
+             prepared =
+               Enum.reduce(targets, cfg.original_goal, fn {target, quantities}, goal ->
+                 expose_index_field_aliases(goal, target, quantities, cfg)
+               end),
+             false <- prepared == cfg.original_goal,
+             motive =
+               build_motive(
+                 cfg.family.name,
+                 cfg.family.indices,
+                 cfg.param_terms,
+                 cfg.idx_terms,
+                 cfg.scrut_term,
+                 prepared,
+                 cfg.env
+               ),
+             {:ok, branches, join} <-
+               elaborate_branches(
+                 cfg.arms,
+                 cfg.names,
+                 cfg.ctx,
+                 cfg.env,
+                 cfg.family.name,
+                 Enum.map(cfg.idx_terms, &Eval.eval(&1, Context.env(cfg.ctx))),
+                 cfg.idx_terms,
+                 cfg.param_vals,
+                 cfg.scrut_term,
+                 prepared,
+                 nil,
+                 motive
+               ),
+             term = wrap_join({:case, cfg.scrut_term, motive, branches}, join),
+             :ok <- Kernel.check(cfg.ctx, term, expected) do
+          {:ok, term}
+        else
+          _ -> candidate
+        end
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      end
+    else
+      candidate
+    end
+  end
+
+  defp index_alias_targets(indices, env) do
+    Enum.reduce_while(indices, {:ok, []}, fn
+      {:var, _}, acc ->
+        {:cont, acc}
+
+      {:ctor, name, arguments} = target, {:ok, acc} ->
+        case Inductive.ctor_application_quantities(env, name, length(arguments)) do
+          quantities when is_list(quantities) -> {:cont, {:ok, acc ++ [{target, quantities}]}}
+          _ -> {:halt, :unsupported}
+        end
+
+      _, _ ->
+        {:halt, :unsupported}
+    end)
+  end
+
+  # The initial class is deliberately confined to the caller's frame. Do not
+  # normalize annotations or descend under binders, local definitions or cases.
+  defp expose_index_field_aliases({tag, _, _, _} = term, _target, _quantities, _cfg)
+       when tag in [:lam, :pi, :case],
+       do: term
+
+  defp expose_index_field_aliases({:let, _, _, _, _} = term, _target, _quantities, _cfg), do: term
+
+  defp expose_index_field_aliases(
+         {:ctor, name, arguments} = term,
+         {:ctor, name, targets},
+         quantities,
+         cfg
+       )
+       when length(arguments) == length(targets) do
+    if Inductive.ctor_application_quantities(cfg.env, name, length(arguments)) == quantities do
+      arguments =
+        Enum.zip([arguments, targets, quantities])
+        |> Enum.map(fn {argument, target, grade} ->
+          if Grade.present?(grade) and argument != target and index_alias_fragment?(argument) and
+               index_alias_fragment?(target) do
+            with {:ok, type} <- Kernel.infer(cfg.ctx, argument),
+                 exposed <- expose_reducible_dependency(argument, target, cfg.ctx, cfg.env),
+                 :ok <- Kernel.check(cfg.ctx, exposed, type) do
+              exposed
+            else
+              _ -> argument
+            end
+          else
+            argument
+          end
+        end)
+
+      {:ctor, name, arguments}
+    else
+      term
+    end
+  end
+
+  defp expose_index_field_aliases(term, target, quantities, cfg) when is_tuple(term),
+    do: rebuild(term, Enum.map(children(term), &expose_index_field_aliases(&1, target, quantities, cfg)))
+
+  defp expose_index_field_aliases(term, target, quantities, cfg) when is_list(term),
+    do: Enum.map(term, &expose_index_field_aliases(&1, target, quantities, cfg))
+
+  defp expose_index_field_aliases(term, _target, _quantities, _cfg), do: term
+
+  defp index_alias_fragment?(term) do
+    not Enum.any?(Cure.Core.Validator.nodes(term), fn
+      {tag, _, _, _} when tag in [:lam, :pi, :case] -> true
+      {:let, _, _, _, _} -> true
+      _ -> false
+    end)
+  end
+
+  # A goal can mention the major premise at one fixed constructor index. A
+  # generic motive cannot put a value at an arbitrary fresh index into that
+  # fixed-domain position. Build a type-level case on the index instead: the
+  # matching constructor returns the original dependent goal, other constructors
+  # return a harmless small type. This is ordinary, independently checked Core.
+  # Present constructor fields are supported only when they are distinct caller
+  # variables. Their occurrences in the selected branch family are abstracted
+  # into the actual constructor fields; no equality with an ambient value is
+  # assumed. Constants, nested terms and repeated variable fields stay refused.
+  defp retry_fixed_index_match(candidate, cfg) do
+    do_retry_fixed_index_match(candidate, cfg, :single)
+  end
+
+  defp retry_multi_fixed_index_match(candidate, cfg) do
+    do_retry_fixed_index_match(candidate, cfg, :multi_with_fields)
+  end
+
+  defp do_retry_fixed_index_match(candidate, cfg, mode) do
+    key = {__MODULE__, :fixed_index_motive}
+
+    rejected? =
+      case candidate do
+        {:error, _} -> true
+        {:ok, term} -> match_term_kernel_rejects?(term, cfg.original_goal, cfg.ctx)
+      end
+
+    if rejected? and cfg.family.indices != [] and Process.get(key, false) != true do
+      previous = Process.get(key, :absent)
+      normalise_fuel_key = Normalise.fuel_key()
+      Process.put(key, true)
+
+      try do
+        with {:ok, original_sort} <- Kernel.infer(cfg.ctx, cfg.original_goal),
+             {:vtype, _} <- Normalise.whnf_value(original_sort, Context.signature(cfg.ctx)),
+             {:ok, siblings} <-
+               fixed_index_siblings(cfg.siblings, cfg.idx_terms, cfg.scrut_term, cfg.names, cfg.ctx, cfg.env),
+             generalized_goal = generalize_sibling_telescope(siblings, cfg.original_goal),
+             {:ok, fixed_items} <-
+               fixed_constructor_indices(cfg.idx_terms, cfg.env, Context.length(cfg.ctx), mode),
+             {:ok, inferred} <- Kernel.infer(cfg.ctx, generalized_goal),
+             {:vtype, _} = goal_sort <- Normalise.whnf_value(inferred, Context.signature(cfg.ctx)),
+             sort_term <- Quote.reify(goal_sort, Context.length(cfg.ctx), Context.signature(cfg.ctx)),
+             motive <-
+               build_motive(
+                 cfg.family.name,
+                 cfg.family.indices,
+                 cfg.param_terms,
+                 cfg.idx_terms,
+                 cfg.scrut_term,
+                 generalized_goal,
+                 cfg.env
+               ),
+             {domains, raw_goal} <- peel_lams(motive, length(cfg.family.indices) + 1, []),
+             {motive_ctx, motive_names} <- fixed_motive_context(domains, cfg.ctx, cfg.names),
+             motive_sort <- Subst.shift(sort_term, length(domains), 0),
+             fixed_chain =
+               Enum.map(fixed_items, fn {position, constructor, fields} ->
+                 %{
+                   index_term: {:var, length(cfg.family.indices) - position},
+                   constructor: constructor,
+                   fields: Enum.map(fields, fn {index, field} -> {index + length(domains), field} end)
+                 }
+               end),
+             {:ok, wrapper} <-
+               fixed_index_type_case_chain(
+                 fixed_chain,
+                 raw_goal,
+                 motive_sort,
+                 motive_ctx,
+                 motive_names,
+                 cfg.env
+               ),
+             {:ok, helper, arguments} <- close_fixed_index_wrapper(wrapper, motive_ctx),
+             {:ok, _} <- Kernel.infer(Context.empty(cfg.env), helper),
+             body <- Enum.reduce(arguments, helper, fn argument, function -> {:app, function, argument} end),
+             repaired <-
+               Enum.reduce(Enum.reverse(domains), body, fn {grade, domain}, acc ->
+                 {:lam, grade, domain, acc}
+               end),
+             {:ok, branches} <-
+               elaborate_with_motivegen_branches(cfg.arms, %{
+                 ctx: cfg.ctx,
+                 names: cfg.names,
+                 env: cfg.env,
+                 dname: cfg.family.name,
+                 scrut_term: cfg.scrut_term,
+                 param_vals: cfg.param_vals,
+                 idx_vals: Enum.map(cfg.idx_terms, &Eval.eval(&1, Context.env(cfg.ctx))),
+                 motive: repaired,
+                 result_type_term: cfg.original_goal,
+                 siblings: siblings,
+                 indexed_motive?: true
+               }),
+             term =
+               Enum.reduce(siblings, {:case, cfg.scrut_term, repaired, branches}, fn sibling, acc ->
+                 {:app, acc, {:var, sibling.index}}
+               end),
+             :ok <- Kernel.check(cfg.ctx, term, Eval.eval(cfg.original_goal, Context.env(cfg.ctx))) do
+          {:ok, term}
+        else
+          _ -> candidate
+        end
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^normalise_fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      after
+        if previous == :absent, do: Process.delete(key), else: Process.put(key, previous)
+      end
+    else
+      candidate
+    end
+  end
+
+  # Refined contexts need not be chronological: an older hidden carrier can
+  # mention fields introduced by a later enclosing match. Carry only referenced
+  # prerequisites whose types depend on this elimination, then order the slice
+  # before constructing its dependent telescope and matching argument spine.
+  defp fixed_index_siblings(siblings, targets, scrutinee, names, ctx, env) do
+    excluded =
+      targets
+      |> Enum.flat_map(fn
+        {:var, index} -> [index]
+        _ -> []
+      end)
+      |> MapSet.new()
+
+    excluded =
+      case scrutinee do
+        {:var, index} -> MapSet.put(excluded, index)
+        _ -> excluded
+      end
+
+    visible = Map.new(visible_named_context_indices(names), fn {name, index} -> {index, name} end)
+    depth = Context.length(ctx)
+
+    with {:ok, siblings} <-
+           close_fixed_prerequisites(siblings, targets, excluded, visible, names, ctx, env, depth),
+         selected = MapSet.new(siblings, & &1.index),
+         nil <- sibling_dependency(siblings, selected, names, ctx, env, depth),
+         types = Map.new(siblings, &{&1.index, &1.type_term}),
+         {:ok, indices} <- fixed_dependency_order(Map.keys(types), types, depth) do
+      by_index = Map.new(siblings, &{&1.index, &1})
+      {:ok, Enum.map(indices, &Map.fetch!(by_index, &1))}
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp close_fixed_prerequisites(siblings, targets, excluded, visible, names, ctx, env, fuel) do
+    depth = Context.length(ctx)
+    selected = MapSet.new(siblings, & &1.index)
+
+    references =
+      Enum.reduce(siblings, MapSet.new(), fn sibling, acc ->
+        MapSet.union(acc, free_indices(sibling.type_term, 0))
+      end)
+
+    additions =
+      references
+      |> MapSet.difference(selected)
+      |> MapSet.difference(excluded)
+      |> Enum.reduce_while({:ok, []}, fn index, {:ok, acc} ->
+        if index < 0 or index >= depth do
+          {:halt, :unsupported}
+        else
+          type = resplit_data(Quote.reify(Context.lookup(ctx, index), depth, Context.signature(ctx)), env)
+          dependencies = free_indices(type, 0)
+
+          needed? =
+            Enum.any?(targets, &contains_term_scoped?(type, &1)) or
+              not MapSet.disjoint?(dependencies, selected)
+
+          grade = Context.grade(ctx, index) || Grade.unrestricted()
+
+          cond do
+            not needed? ->
+              {:cont, {:ok, acc}}
+
+            not Map.has_key?(visible, index) and Grade.restricted?(grade) and not Grade.erased?(grade) ->
+              {:halt, :unsupported}
+
+            true ->
+              sibling = %{
+                index: index,
+                name: Map.get_lazy(visible, index, fn -> "$fixed_prerequisite_#{fresh_tag()}#{index}" end),
+                type_term: type,
+                grade: grade,
+                transport_branch_subst?:
+                  Enum.any?(siblings, fn prior ->
+                    MapSet.member?(dependencies, prior.index) and Map.get(prior, :transport_branch_subst?, false)
+                  end)
+              }
+
+              {:cont, {:ok, [sibling | acc]}}
+          end
+        end
+      end)
+
+    with {:ok, additions} <- additions do
+      closed = close_sibling_dependency_set(siblings ++ additions, names, ctx, env, depth, excluded)
+
+      cond do
+        length(closed) == length(siblings) ->
+          {:ok, closed}
+
+        fuel > 0 ->
+          close_fixed_prerequisites(closed, targets, excluded, visible, names, ctx, env, fuel - 1)
+
+        true ->
+          :unsupported
+      end
+    end
+  end
+
+  defp fixed_dependency_order(indices, types, depth) do
+    scope = MapSet.new(0..(depth - 1)//1)
+    selected = MapSet.new(indices)
+
+    with true <- MapSet.subset?(selected, scope),
+         true <-
+           Enum.all?(indices, fn index ->
+             type = Map.fetch!(types, index)
+
+             MapSet.subset?(free_indices(type, 0), scope) and
+               not Enum.any?(Cure.Core.Validator.nodes(type), fn
+                 {:var, variable} -> variable < 0
+                 _ -> false
+               end)
+           end) do
+      dependencies =
+        Map.new(indices, fn index ->
+          {index, MapSet.intersection(free_indices(Map.fetch!(types, index), 0), selected)}
+        end)
+
+      order_fixed_dependencies(selected, dependencies, [], length(indices))
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp order_fixed_dependencies(remaining, dependencies, ordered, fuel) do
+    if MapSet.size(remaining) == 0 do
+      {:ok, Enum.reverse(ordered)}
+    else
+      next =
+        remaining
+        |> Enum.sort(:desc)
+        |> Enum.find(fn index ->
+          MapSet.disjoint?(Map.fetch!(dependencies, index), remaining)
+        end)
+
+      if next != nil and fuel > 0 do
+        order_fixed_dependencies(MapSet.delete(remaining, next), dependencies, [next | ordered], fuel - 1)
+      else
+        :unsupported
+      end
+    end
+  end
+
+  defp fixed_constructor_indices(indices, env, depth, mode) do
+    constructors =
+      indices
+      |> Enum.with_index()
+      |> Enum.flat_map(fn
+        {{:ctor, name, arguments}, position} -> [{position, name, arguments}]
+        _ -> []
+      end)
+
+    count_ok? =
+      case mode do
+        :single -> length(constructors) == 1
+        :multi_with_fields -> length(constructors) >= 2 and length(constructors) <= 8
+      end
+
+    with true <- count_ok?,
+         {:ok, items, variables} <-
+           Enum.reduce_while(constructors, {:ok, [], []}, fn {position, name, arguments}, {:ok, acc, vars} ->
+             with %{args: telescope, quantities: quantities} <- Inductive.get_ctor(env, name),
+                  true <- length(telescope) == length(quantities),
+                  parameter_count <- Inductive.param_count(env, Inductive.ctor_family(env, name)),
+                  {:ok, arguments} <- fixed_constructor_fields(arguments, length(telescope), parameter_count),
+                  fields <-
+                    arguments
+                    |> Enum.zip(quantities)
+                    |> Enum.with_index()
+                    |> Enum.flat_map(fn
+                      {{argument, grade}, field} ->
+                        if Grade.present?(grade), do: [{argument, field}], else: []
+                    end),
+                  true <- mode == :single or fields != [],
+                  true <-
+                    Enum.all?(fields, fn {argument, _field} ->
+                      match?({:var, index} when index >= 0 and index < depth, argument)
+                    end) do
+               item_vars = Enum.map(fields, fn {{:var, index}, _field} -> index end)
+               mapped = Enum.map(fields, fn {{:var, index}, field} -> {index, field} end)
+               {:cont, {:ok, acc ++ [{position, name, mapped}], vars ++ item_vars}}
+             else
+               _ -> {:halt, :unsupported}
+             end
+           end),
+         true <- MapSet.size(MapSet.new(variables)) == length(variables) do
+      {:ok, items}
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp fixed_constructor_fields(arguments, arity, _parameters) when length(arguments) == arity,
+    do: {:ok, arguments}
+
+  defp fixed_constructor_fields(arguments, arity, parameters) when length(arguments) == arity + parameters,
+    do: {:ok, Enum.drop(arguments, parameters)}
+
+  defp fixed_constructor_fields(_arguments, _arity, _parameters), do: :unsupported
+
+  defp fixed_motive_context(domains, ctx, names) do
+    domains
+    |> Enum.with_index()
+    |> Enum.reduce({ctx, names}, fn {{grade, domain}, position}, {context, scope} ->
+      value = Eval.eval(domain, Context.env(context))
+      {Context.extend(context, value, grade), ["$fixed_index_#{position}" | scope]}
+    end)
+  end
+
+  defp fixed_index_type_case_chain(
+         [%{index_term: scrutinee, constructor: selected, fields: field_bindings} | rest],
+         raw_goal,
+         sort_term,
+         ctx,
+         names,
+         env
+       ) do
+    with {:ok, {:vdata, dname, combined}} <- Kernel.infer(ctx, scrutinee),
+         true <- Inductive.ctor_family(env, selected) == dname do
+      fixed_index_type_case(
+        scrutinee,
+        dname,
+        combined,
+        selected,
+        field_bindings,
+        rest,
+        raw_goal,
+        sort_term,
+        ctx,
+        names,
+        env
+      )
+    else
+      _ -> :unsupported
+    end
+  end
+
+  defp fixed_index_type_case(
+         scrutinee,
+         dname,
+         combined,
+         selected,
+         field_bindings,
+         rest,
+         raw_goal,
+         sort_term,
+         ctx,
+         names,
+         env
+       ) do
+    family = Inductive.get_family(env, dname)
+    {params, indices} = Enum.split(combined, Inductive.param_count(env, dname))
+    depth = Context.length(ctx)
+    param_terms = Enum.map(params, &Quote.reify(&1, depth, Context.signature(ctx)))
+    index_terms = Enum.map(indices, &Quote.reify(&1, depth, Context.signature(ctx)))
+
+    with {:ok, value_siblings} <- collect_with_siblings(scrutinee, names, ctx, env),
+         {:ok, index_siblings} <- collect_index_motive_siblings(scrutinee, index_terms, names, ctx, env),
+         {:ok, siblings} <-
+           fixed_index_siblings(
+             merge_motive_siblings(index_siblings, value_siblings),
+             index_terms,
+             scrutinee,
+             names,
+             ctx,
+             env
+           ) do
+      result = generalize_sibling_telescope(siblings, sort_term)
+      motive = build_motive(dname, family.indices, param_terms, index_terms, scrutinee, result, env)
+
+      branch_cfg = %{
+        ctx: ctx,
+        names: names,
+        env: env,
+        dname: dname,
+        scrut_term: scrutinee,
+        param_vals: params,
+        idx_vals: indices,
+        motive: motive,
+        result_type_term: sort_term,
+        siblings: siblings,
+        indexed_motive?: true
+      }
+
+      branches =
+        env
+        |> Inductive.ctors_of(dname)
+        |> Enum.reduce_while({:ok, []}, fn ctor, {:ok, acc} ->
+          if motivegen_branch_verdict(branch_cfg, ctor.name) == :impossible do
+            {:cont, {:ok, acc}}
+          else
+            fields =
+              Inductive.plicities_of(ctor)
+              |> Enum.with_index()
+              |> Enum.flat_map(fn
+                {:explicit, position} -> [{:variable, [], "$fixed_field_#{position}"}]
+                _ -> []
+              end)
+
+            pattern = {:function_call, [name: Atom.to_string(ctor.name)], fields}
+            frame = prepare_motivegen_branch(ctor.name, pattern, branch_cfg)
+
+            body_result =
+              if ctor.name == selected do
+                field_subst =
+                  Map.new(field_bindings, fn {index, position} ->
+                    {index + frame.arity, {:var, frame.arity - 1 - position}}
+                  end)
+
+                combined_subst = Map.merge(frame.motive_subst, field_subst)
+
+                next_goal =
+                  indexed_branch_codomain(
+                    raw_goal,
+                    scrutinee,
+                    ctor.name,
+                    frame.arity,
+                    combined_subst,
+                    siblings,
+                    frame.branch_ctx
+                  )
+
+                if rest == [] do
+                  {:ok, next_goal}
+                else
+                  next_sort = Subst.shift(sort_term, frame.arity + length(siblings), 0)
+
+                  next_rest =
+                    Enum.map(rest, fn %{index_term: r_term, constructor: r_ctor, fields: r_fields} ->
+                      transported_term =
+                        r_term
+                        |> refine_branch_goal_term(scrutinee, ctor.name, frame.arity, combined_subst)
+                        |> rebind_carried_sibling_term(siblings, length(siblings), frame.arity)
+
+                      transported_fields =
+                        Enum.map(r_fields, fn {v_idx, f_pos} ->
+                          {:var, new_idx} =
+                            {:var, v_idx}
+                            |> refine_branch_goal_term(scrutinee, ctor.name, frame.arity, combined_subst)
+                            |> rebind_carried_sibling_term(siblings, length(siblings), frame.arity)
+
+                          {new_idx, f_pos}
+                        end)
+
+                      %{index_term: transported_term, constructor: r_ctor, fields: transported_fields}
+                    end)
+
+                  fixed_index_type_case_chain(
+                    next_rest,
+                    next_goal,
+                    next_sort,
+                    frame.branch_ctx,
+                    frame.branch_names,
+                    env
+                  )
+                end
+              else
+                {:ok, {:atom_type}}
+              end
+
+            with {:ok, body} <- body_result,
+                 :ok <-
+                   Kernel.check(frame.branch_ctx, body, Eval.eval(frame.cod_expected, Context.env(frame.branch_ctx))) do
+              wrapped =
+                Enum.reduce(frame.doms_rev, body, fn {grade, domain}, acc ->
+                  {:lam, grade, domain, acc}
+                end)
+
+              {:cont, {:ok, acc ++ [{ctor.name, frame.arity, wrapped}]}}
+            else
+              error ->
+                {:halt, error}
+            end
+          end
+        end)
+
+      with {:ok, branches} <- branches do
+        type_case = {:case, scrutinee, motive, branches}
+
+        {:ok,
+         Enum.reduce(siblings, type_case, fn sibling, function ->
+           {:app, function, {:var, sibling.index}}
+         end)}
+      end
+    end
+  end
+
+  # Close over the free context slice and all dependencies of its domain types.
+  # Refined contexts need not be chronological, so order the selected slice
+  # before lambda lifting. Cycles and out-of-scope references remain unsupported.
+  defp close_fixed_index_wrapper(body, ctx) do
+    depth = Context.length(ctx)
+    signature = Context.signature(ctx)
+
+    types =
+      Map.new(0..(depth - 1)//1, fn index ->
+        {index, Quote.reify(Context.lookup(ctx, index), depth, signature)}
+      end)
+
+    selected = close_fixed_index_dependencies(free_indices(body, 0), types, depth)
+
+    with {:ok, indices} <- fixed_dependency_order(MapSet.to_list(selected), types, depth) do
+      close_ordered_fixed_index_wrapper(body, ctx, types, indices)
+    end
+  end
+
+  defp close_ordered_fixed_index_wrapper(body, ctx, types, indices) do
+    count = length(indices)
+    rebind = indices |> Enum.with_index() |> Map.new(fn {index, position} -> {index, count - 1 - position} end)
+    closed_body = generalize(body, rebind, 0, 0)
+
+    telescope =
+      indices
+      |> Enum.with_index()
+      |> Enum.reduce_while({:ok, []}, fn {index, position}, {:ok, acc} ->
+        preceding = Enum.take(indices, position)
+        type = Map.fetch!(types, index)
+
+        if MapSet.subset?(free_indices(type, 0), MapSet.new(preceding)) do
+          previous =
+            preceding
+            |> Enum.with_index()
+            |> Map.new(fn {old, ordinal} ->
+              {old, position - 1 - ordinal}
+            end)
+
+          {:cont, {:ok, acc ++ [{Context.grade(ctx, index) || Grade.unrestricted(), generalize(type, previous, 0, 0)}]}}
+        else
+          {:halt, :unsupported}
+        end
+      end)
+
+    with {:ok, telescope} <- telescope do
+      helper =
+        Enum.reduce(Enum.reverse(telescope), closed_body, fn {grade, domain}, acc ->
+          {:lam, grade, domain, acc}
+        end)
+
+      if Term.closed?(helper),
+        do: {:ok, helper, Enum.map(indices, &{:var, &1})},
+        else: :unsupported
+    end
+  end
+
+  defp close_fixed_index_dependencies(selected, _types, 0), do: selected
+
+  defp close_fixed_index_dependencies(selected, types, fuel) do
+    expanded =
+      Enum.reduce(selected, selected, fn index, acc ->
+        MapSet.union(acc, free_indices(Map.fetch!(types, index), 0))
+      end)
+
+    if MapSet.equal?(selected, expanded),
+      do: selected,
+      else: close_fixed_index_dependencies(expanded, types, fuel - 1)
   end
 
   # ── Anonymous-union elimination ────────────────────────────────────────────
@@ -5768,23 +7733,403 @@ defmodule Cure.Elab.Elaborator do
   @spec elaborate_with(term(), [tuple()], String.t() | nil, term(), [String.t()], Context.t(), Env.t(), [tuple()]) ::
           {:ok, term()} | {:error, term()}
   def elaborate_with(scrut_expr, arms, proof_name, result_type_term, names, ctx, env, original_params \\ []) do
-    cond do
-      Enum.any?(arms, &with_rematch_arm?/1) ->
-        if Enum.all?(arms, &with_rematch_arm?/1) do
-          elaborate_with_rematch(scrut_expr, arms, original_params, result_type_term, names, ctx, env)
-        else
-          {:error,
-           {:source_context, :with_mixed_rematch_arms,
-            %{
-              span: mixed_with_primary_span(arms),
-              with_arms: Enum.map(arms, &with_arm_context/1)
-            }}}
-        end
+    original =
+      elaborate_with_original(scrut_expr, arms, proof_name, result_type_term, names, ctx, env, original_params)
 
-      true ->
-        elaborate_with_value(scrut_expr, arms, proof_name, result_type_term, names, ctx, env)
+    retry_computed_with_goal(original, %{
+      scrut_expr: scrut_expr,
+      arms: arms,
+      proof_name: proof_name,
+      goal: result_type_term,
+      names: names,
+      ctx: ctx,
+      env: env,
+      original_params: original_params
+    })
+  end
+
+  defp elaborate_with_original(scrut_expr, arms, proof_name, result_type_term, names, ctx, env, original_params) do
+    result =
+      cond do
+        Enum.any?(arms, &with_rematch_arm?/1) ->
+          if Enum.all?(arms, &with_rematch_arm?/1) do
+            elaborate_with_rematch(scrut_expr, arms, original_params, result_type_term, names, ctx, env)
+          else
+            {:error,
+             {:source_context, :with_mixed_rematch_arms,
+              %{
+                span: mixed_with_primary_span(arms),
+                with_arms: Enum.map(arms, &with_arm_context/1)
+              }}}
+          end
+
+        true ->
+          elaborate_with_value(scrut_expr, arms, proof_name, result_type_term, names, ctx, env)
+      end
+
+    # Dependency exposure only helps synthesize a motive. Admission still uses
+    # the original syntax and original goal, including its type annotations.
+    with {:ok, term} <- result,
+         {:ok, goal_kind} <- Kernel.infer(ctx, result_type_term),
+         {:vtype, _} <- Normalise.whnf_value(goal_kind, Context.signature(ctx)),
+         :ok <- Kernel.check(ctx, term, Eval.eval(result_type_term, Context.env(ctx))) do
+      {:ok, term}
+    else
+      {:error, _} = error -> error
+      :fuel_exhausted -> {:error, :fuel_exhausted}
+      _ -> {:error, :not_a_type}
     end
   end
+
+  # A computed enum dependency can remain hidden behind certified wrappers in
+  # one goal index. Exposure only supplies a goal to the original producer:
+  # its complete result must still check at the untouched original raw goal.
+  defp retry_computed_with_goal(original, cfg) do
+    key = {__MODULE__, :computed_with_goal_retry}
+
+    if computed_with_branch_error?(original) and cfg.proof_name == nil and
+         computed_with_goal_shape?(cfg.goal) and Process.get(key, false) != true and
+         cfg.arms != [] and Enum.all?(cfg.arms, &computed_with_constructor_arm?/1) do
+      previous = Process.get(key, :absent)
+      Process.put(key, true)
+
+      try do
+        with {:ok, _} <- computed_with_bounded(cfg.goal),
+             :ok <- whole_index_raw_sort(cfg.ctx, cfg.goal),
+             {:ok, target, _} <- elaborate_expr_typed(cfg.scrut_expr, cfg.names, cfg.ctx, cfg.env),
+             {:ok, _} <- computed_with_bounded(target),
+             false <- match?({:var, _}, target),
+             {:ok, target_type} <- Kernel.infer(cfg.ctx, target),
+             signature = Context.signature(cfg.ctx),
+             {:vdata, family, []} <- Normalise.whnf_value(target_type, signature),
+             %{indices: [], params: []} = declaration <- Inductive.get_family(signature, family),
+             false <- Inductive.opaque_family?(declaration),
+             [_ | _] = constructors <- Inductive.ctors_of(signature, family),
+             true <- Enum.all?(constructors, &(&1.args == [])),
+             :ok <- Kernel.check(cfg.ctx, target, target_type),
+             {:ok, prepared} <- computed_with_prepare_goal(cfg.goal, target, cfg.ctx),
+             {:ok, term} <-
+               elaborate_with(
+                 cfg.scrut_expr,
+                 cfg.arms,
+                 cfg.proof_name,
+                 prepared,
+                 cfg.names,
+                 cfg.ctx,
+                 cfg.env,
+                 cfg.original_params
+               ),
+             :ok <- Kernel.check(cfg.ctx, term, Eval.eval(cfg.goal, Context.env(cfg.ctx))) do
+          {:ok, term}
+        else
+          _ -> original
+        end
+      after
+        if previous == :absent, do: Process.delete(key), else: Process.put(key, previous)
+      end
+    else
+      original
+    end
+  end
+
+  defp computed_with_branch_error?({:error, :branch_type}), do: true
+  defp computed_with_branch_error?({:error, {:branch_type, _, {:conversion_failure, _, _}}}), do: true
+  defp computed_with_branch_error?(_), do: false
+
+  defp computed_with_goal_shape?({:data, _, params, indices}) when is_list(params) and is_list(indices),
+    do: length(indices) <= 8
+
+  defp computed_with_goal_shape?(_), do: false
+
+  defp computed_with_constructor_arm?({:match_arm, meta, _}) do
+    match?({:ok, {_, []}}, constructor_pattern(Keyword.get(meta, :pattern)))
+  end
+
+  defp computed_with_constructor_arm?(_), do: false
+
+  defp computed_with_prepare_goal({:data, _, _, indices} = goal, target, ctx) do
+    with true <- length(indices) <= 8,
+         {:ok, goal_nodes} <- computed_with_bounded(goal),
+         {:ok, target_nodes} <- computed_with_bounded(target) do
+      run = fn ->
+        computed_with_select_index(indices, 0, goal, target, ctx, goal_nodes + target_nodes)
+      end
+
+      case Process.get(Normalise.fuel_key(), :absent) do
+        :absent -> Normalise.with_fuel(128, run)
+        _present -> run.()
+      end
+    else
+      _ -> :refused
+    end
+  end
+
+  defp computed_with_select_index([], _position, _goal, _target, _ctx, _work), do: :refused
+
+  defp computed_with_select_index(
+         [operand | rest],
+         position,
+         {:data, family, params, indices} = goal,
+         target,
+         ctx,
+         work
+       ) do
+    signature = Context.signature(ctx)
+
+    case Kernel.infer(ctx, operand) do
+      {:ok, type} ->
+        if match?({:vdata, _, _}, Normalise.whnf_value(type, signature)) and
+             not computed_with_visible?(ctx, operand, target) do
+          with {:ok, nodes} <- computed_with_bounded(operand),
+               true <- work + nodes <= 32_768 do
+            state = %{
+              current: operand,
+              original: operand,
+              type: type,
+              target: target,
+              protected: computed_with_globals(target, signature, MapSet.new()),
+              allowed: MapSet.new(),
+              seen: MapSet.new(),
+              pass: 0,
+              work: work + nodes,
+              focus: nil,
+              focus_depth: 0,
+              focus_ops: 0
+            }
+
+            case computed_with_frontier(ctx, state) do
+              {:found, exposed, work} ->
+                prepared = {:data, family, params, List.replace_at(indices, position, exposed)}
+
+                with {:ok, nodes} <- computed_with_bounded(prepared),
+                     true <- work + nodes <= 32_768,
+                     :ok <- whole_index_raw_sort(ctx, prepared),
+                     true <- Conv.conv?(goal, prepared, Context.env(ctx), ctx.length, signature) do
+                  {:ok, prepared}
+                else
+                  _ -> :refused
+                end
+
+              {:miss, work} ->
+                computed_with_select_index(rest, position + 1, goal, target, ctx, work)
+
+              _ ->
+                :refused
+            end
+          else
+            _ -> :refused
+          end
+        else
+          computed_with_select_index(rest, position + 1, goal, target, ctx, work)
+        end
+
+      _ ->
+        computed_with_select_index(rest, position + 1, goal, target, ctx, work)
+    end
+  end
+
+  defp computed_with_frontier(ctx, state) do
+    cond do
+      computed_with_visible?(ctx, state.current, state.target) ->
+        with :ok <- Kernel.check(ctx, state.current, state.type),
+             true <- Conv.conv?(state.original, state.current, Context.env(ctx), ctx.length, Context.signature(ctx)) do
+          {:found, state.current, state.work}
+        else
+          _ -> :refused
+        end
+
+      state.pass >= 8 ->
+        :refused
+
+      true ->
+        computed_with_advance(ctx, state)
+    end
+  end
+
+  defp computed_with_advance(ctx, state) do
+    signature = Context.signature(ctx)
+
+    with {:ok, raw} <- computed_with_blocker(state.focus || state.current, 0, 0),
+         canonical = Env.resolve_key(signature, signature.defs, raw),
+         false <- MapSet.member?(state.protected, raw) or MapSet.member?(state.protected, canonical),
+         false <- MapSet.member?(state.seen, canonical),
+         %{body: body, type: declared_type} = definition <- Map.get(signature.defs, canonical),
+         true <- is_nil(Map.get(definition, :builtin_op)),
+         true <- Term.term?(body) and Term.closed?(body),
+         true <- Env.certified?(signature, canonical),
+         {:ok, body_nodes} <- computed_with_bounded(body),
+         {:ok, type_nodes} <- computed_with_bounded(declared_type),
+         true <- state.work + body_nodes + type_nodes <= 32_768,
+         :ok <- whole_index_raw_sort(Context.empty(signature), declared_type),
+         {:ok, _} <- Kernel.infer(ctx, {:global, raw}),
+         allowed = state.allowed |> MapSet.put(raw) |> MapSet.put(canonical),
+         next = computed_with_whnf(ctx, state.current, allowed),
+         false <- next == :fuel_exhausted,
+         {:ok, nodes} <- computed_with_bounded(next),
+         true <- state.work + body_nodes + type_nodes + nodes <= 32_768,
+         :ok <- Kernel.check(ctx, next, state.type),
+         work = state.work + body_nodes + type_nodes + nodes,
+         {:ok, progress} <- computed_with_progress(ctx, state, next, allowed, work) do
+      computed_with_frontier(ctx, %{
+        state
+        | current: progress.current,
+          allowed: allowed,
+          seen: MapSet.put(state.seen, canonical),
+          pass: state.pass + 1,
+          work: progress.work,
+          focus: progress.focus,
+          focus_depth: progress.focus_depth,
+          focus_ops: progress.focus_ops
+      })
+    else
+      :no_blocker -> {:miss, state.work}
+      _ -> :refused
+    end
+  end
+
+  defp computed_with_whnf(ctx, term, allowed),
+    do: Normalise.whnf(ctx, term, delta: :certified, delta_allow: allowed, stuck_cases: :expose)
+
+  defp computed_with_progress(_ctx, state, next, _allowed, work) when next != state.current do
+    {:ok, %{current: next, focus: nil, focus_depth: 0, focus_ops: state.focus_ops, work: work}}
+  end
+
+  defp computed_with_progress(ctx, state, _next, allowed, work) do
+    selected =
+      if state.focus == nil,
+        do: computed_with_case_focus(state.current, 1),
+        else: {:ok, state.focus, state.focus_depth}
+
+    with {:ok, focus, depth} <- selected,
+         {:ok, focused, depth, operations, work} <-
+           computed_with_focus(ctx, focus, depth, state.focus_ops, work, allowed),
+         false <- focused == state.target do
+      # A focus is discovery-only. Do not splice it into the whole operand.
+      {:ok, %{current: state.current, focus: focused, focus_depth: depth, focus_ops: operations, work: work}}
+    else
+      _ -> :refused
+    end
+  end
+
+  defp computed_with_focus(_ctx, _focus, depth, operations, _work, _allowed)
+       when depth > 4 or operations >= 8,
+       do: :refused
+
+  defp computed_with_focus(ctx, focus, depth, operations, work, allowed) do
+    with {:ok, input_nodes} <- computed_with_bounded(focus),
+         true <- work + input_nodes <= 32_768,
+         {:ok, type} <- Kernel.infer(ctx, focus),
+         focused = computed_with_whnf(ctx, focus, allowed),
+         false <- focused == :fuel_exhausted,
+         {:ok, output_nodes} <- computed_with_bounded(focused),
+         true <- work + input_nodes + output_nodes <= 32_768,
+         :ok <- Kernel.check(ctx, focused, type),
+         true <- Conv.conv?(focus, focused, Context.env(ctx), ctx.length, Context.signature(ctx)) do
+      work = work + input_nodes + output_nodes
+
+      if focused != focus do
+        {:ok, focused, depth, operations + 1, work}
+      else
+        with {:ok, deeper, depth} <- computed_with_case_focus(focus, depth + 1),
+             do: computed_with_focus(ctx, deeper, depth, operations + 1, work, allowed)
+      end
+    else
+      _ -> :refused
+    end
+  end
+
+  defp computed_with_case_focus(_term, depth) when depth > 4, do: :refused
+  defp computed_with_case_focus({:app, function, _}, depth), do: computed_with_case_focus(function, depth)
+  defp computed_with_case_focus({:case, scrutinee, _, _}, depth), do: {:ok, scrutinee, depth}
+  defp computed_with_case_focus(_term, _depth), do: :refused
+
+  defp computed_with_blocker(_term, depth, apps) when depth > 4 or apps > 64, do: :refused
+  defp computed_with_blocker({:app, function, _}, depth, apps), do: computed_with_blocker(function, depth, apps + 1)
+
+  defp computed_with_blocker({:case, scrutinee, _, _}, depth, apps),
+    do: computed_with_blocker(scrutinee, depth + 1, apps)
+
+  defp computed_with_blocker({:global, raw}, _depth, _apps), do: {:ok, raw}
+  defp computed_with_blocker(_, _, _), do: :no_blocker
+
+  defp computed_with_visible?(_ctx, term, target) when term == target, do: true
+
+  defp computed_with_visible?(ctx, {:case, scrutinee, _, _}, target),
+    do: computed_with_visible?(ctx, scrutinee, target)
+
+  defp computed_with_visible?(ctx, {:app, _, _} = term, target) do
+    {head, arguments} = whole_index_spine(term, [])
+
+    (match?({:case, _, _, _}, head) and computed_with_visible?(ctx, head, target)) or
+      case Kernel.infer(ctx, head) do
+        {:ok, type} -> computed_with_visible_args?(ctx, type, arguments, target)
+        _ -> false
+      end
+  end
+
+  defp computed_with_visible?(_ctx, _term, _target), do: false
+
+  defp computed_with_visible_args?(_ctx, _type, [], _target), do: false
+
+  defp computed_with_visible_args?(ctx, type, [argument | rest], target) do
+    signature = Context.signature(ctx)
+
+    with {:vpi, grade, domain, codomain} <- Normalise.whnf_value(type, signature),
+         true <- Grade.grade?(grade),
+         :ok <- Kernel.check(ctx, argument, domain) do
+      present_data = Grade.present?(grade) and match?({:vdata, _, _}, Normalise.whnf_value(domain, signature))
+
+      if present_data and computed_with_visible?(ctx, argument, target) do
+        true
+      else
+        next = Eval.apply_closure(codomain, Eval.eval(argument, Context.env(ctx)))
+        computed_with_visible_args?(ctx, next, rest, target)
+      end
+    else
+      _ -> false
+    end
+  end
+
+  # Structural accounting and target protection may inspect all syntax, but
+  # neither grants a discovery path into branches, binders or annotations.
+  # These post-allocation limits are not hard CPU or preallocation bounds.
+  defp computed_with_bounded(term) do
+    if :erlang.external_size(term) <= 1_000_000 do
+      case computed_with_count(term, 4_096) do
+        {:ok, remaining} -> {:ok, 4_096 - remaining}
+        _ -> :refused
+      end
+    else
+      :refused
+    end
+  end
+
+  defp computed_with_count(_term, 0), do: :refused
+  defp computed_with_count(term, left) when is_tuple(term), do: computed_with_count_many(Tuple.to_list(term), left - 1)
+  defp computed_with_count(term, left) when is_list(term), do: computed_with_count_many(term, left - 1)
+  defp computed_with_count(term, left) when is_map(term), do: computed_with_count_many(Map.to_list(term), left - 1)
+  defp computed_with_count(_term, left), do: {:ok, left - 1}
+
+  defp computed_with_count_many([], left), do: {:ok, left}
+
+  defp computed_with_count_many([term | rest], left) do
+    with {:ok, remaining} <- computed_with_count(term, left),
+         do: computed_with_count_many(rest, remaining)
+  end
+
+  defp computed_with_globals({:global, raw}, signature, set),
+    do: set |> MapSet.put(raw) |> MapSet.put(Env.resolve_key(signature, signature.defs, raw))
+
+  defp computed_with_globals(term, signature, set) when is_tuple(term),
+    do: term |> Tuple.to_list() |> Enum.reduce(set, &computed_with_globals(&1, signature, &2))
+
+  defp computed_with_globals(term, signature, set) when is_list(term),
+    do: Enum.reduce(term, set, &computed_with_globals(&1, signature, &2))
+
+  defp computed_with_globals(term, signature, set) when is_map(term),
+    do: term |> Map.to_list() |> Enum.reduce(set, &computed_with_globals(&1, signature, &2))
+
+  defp computed_with_globals(_term, _signature, set), do: set
 
   defp with_rematch_arm?({:with_rematch_arm, _, _}), do: true
   defp with_rematch_arm?(_), do: false
@@ -5824,6 +8169,8 @@ defmodule Cure.Elab.Elaborator do
   # `elaborate_with` body, unchanged.
   defp elaborate_with_value(scrut_expr, arms, proof_name, result_type_term, names, ctx, env) do
     with {:ok, scrut_term, scrut_type} <- elaborate_expr_typed(scrut_expr, names, ctx, env) do
+      result_type_term = prepare_computed_match_goal(result_type_term, scrut_term, ctx, env)
+
       case scrut_type do
         {:vdata, dname, combined_vals} ->
           family = Inductive.get_family(env, dname)
@@ -5928,17 +8275,19 @@ defmodule Cure.Elab.Elaborator do
   # arithmetic patterns — the deferred #5 case) before the arm is admitted.
   defp elaborate_with_rematch(scrut_expr, arms, original_params, result_type_term, names, ctx, env) do
     with {:ok, scrut_term, scrut_type} <- elaborate_expr_typed(scrut_expr, names, ctx, env) do
+      result_type_term = prepare_computed_match_goal(result_type_term, scrut_term, ctx, env)
+
       case scrut_type do
         {:vdata, dname, combined_vals} ->
           family = Inductive.get_family(env, dname)
           pc = Inductive.param_count(env, dname)
           {param_vals, idx_vals} = Enum.split(combined_vals, pc)
           depth = Context.length(ctx)
-          param_terms = Enum.map(param_vals, &Quote.reify(&1, depth))
-          idx_terms = Enum.map(idx_vals, &Quote.reify(&1, depth))
+          param_terms = Enum.map(param_vals, &Quote.reify(&1, depth, Context.signature(ctx)))
+          idx_terms = Enum.map(idx_vals, &Quote.reify(&1, depth, Context.signature(ctx)))
 
           motive =
-            build_motive(dname, family.indices, param_terms, idx_terms, scrut_term, result_type_term)
+            build_motive(dname, family.indices, param_terms, idx_terms, scrut_term, result_type_term, env)
 
           with {:ok, arm_map} <- partition_rematch_arms(arms, original_params, ctx, env, dname),
                {:ok, branches} <-
@@ -6213,7 +8562,7 @@ defmodule Cure.Elab.Elaborator do
         result_indices,
         arity,
         param_vals,
-        Context.length(ctx)
+        ctx
       )
 
     branch_names = branch_scope(telescope, quantities, plicities, pattern_vars) ++ names
@@ -6414,6 +8763,7 @@ defmodule Cure.Elab.Elaborator do
                 name: name,
                 index: i,
                 type_term: type_term,
+                grade: Context.grade(ctx, i) || Grade.unrestricted(),
                 transport_branch_subst?: not direct_dependency?
               }
             ]
@@ -6455,18 +8805,28 @@ defmodule Cure.Elab.Elaborator do
   # The carried-sibling lowerer below constructs a genuinely dependent Sigma
   # telescope, so selection must be closed under dependencies. If `path` depends
   # on a selected `source`, carrying only `source` leaves the old `path` in the
-  # branch context and loses the constructor refinement. Add every visible named
-  # dependent transitively; `sibling_dependency/6` then only has to reject an
-  # uncarryable kept binder (for example an anonymous compiler binder).
+  # branch context and loses the constructor refinement. Root selection remains
+  # lexical, but dependency closure uses binder identity: a shadowed proof still
+  # depends on the same selected carrier. Hidden followers receive fresh names
+  # so they cannot shadow the source-visible binder. Restricted hidden followers
+  # remain unsupported: carrying both an alias and its source could duplicate a
+  # linear/affine resource. The existing dependency guard rejects that case.
+  # Every recursive step adds at least one previously unselected context slot.
   defp close_sibling_dependency_set(gen, names, ctx, env, depth, excluded) do
     selected = gen |> Enum.map(& &1.index) |> MapSet.new()
+    visible = Map.new(visible_named_context_indices(names), fn {name, index} -> {index, name} end)
 
     additions =
-      names
-      |> visible_named_context_indices()
-      |> Enum.flat_map(fn {name, index} ->
+      0..(depth - 1)//1
+      |> Enum.flat_map(fn index ->
+        grade = Context.grade(ctx, index) || Grade.unrestricted()
+        hidden? = not Map.has_key?(visible, index)
+
         cond do
-          not is_binary(name) or MapSet.member?(selected, index) or MapSet.member?(excluded, index) ->
+          MapSet.member?(selected, index) or MapSet.member?(excluded, index) ->
+            []
+
+          hidden? and Grade.restricted?(grade) and not Grade.erased?(grade) ->
             []
 
           true ->
@@ -6482,9 +8842,10 @@ defmodule Cure.Elab.Elaborator do
 
               [
                 %{
-                  name: name,
+                  name: Map.get_lazy(visible, index, fn -> "$carried_hidden_#{fresh_tag()}#{index}" end),
                   index: index,
                   type_term: type_term,
+                  grade: grade,
                   transport_branch_subst?: transport_branch_subst?
                 }
               ]
@@ -6524,6 +8885,9 @@ defmodule Cure.Elab.Elaborator do
   end
 
   defp structured_index_var_targets(_term, _env), do: []
+
+  defp free_context_var_indices({tag, _} = term, depth, acc) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), acc, &free_context_var_indices(&1, depth, &2))
 
   defp free_context_var_indices({:var, index}, depth, acc) when index >= depth,
     do: MapSet.put(acc, index - depth)
@@ -6641,6 +9005,12 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
+  defp reducible_globals_in({tag, _} = term, env) when tag in [:type, :level_value],
+    do:
+      Enum.reduce(Cure.Core.Term.level_atoms(term), MapSet.new(), fn atom, acc ->
+        MapSet.union(acc, reducible_globals_in(atom, env))
+      end)
+
   defp reducible_globals_in({:global, name}, env) do
     key = Env.resolve_key(env, env.defs, name)
 
@@ -6750,6 +9120,14 @@ defmodule Cure.Elab.Elaborator do
   end
 
   defp expand_published_reducibles(term, _env, seen), do: {term, seen}
+
+  defp prepare_computed_match_goal(goal, {:var, _}, _ctx, _env), do: goal
+
+  defp prepare_computed_match_goal(goal, computed, ctx, env) do
+    goal
+    |> expose_reducible_dependency(computed, ctx, env)
+    |> expose_sibling_result_indices(computed, ctx, env)
+  end
 
   defp expose_sibling_result_indices({:data, name, params, indices} = result, target, ctx, env) do
     if Enum.any?(indices, &contains_term_scoped?(&1, target)) do
@@ -6900,7 +9278,8 @@ defmodule Cure.Elab.Elaborator do
     cod_expected = Kernel.normalize(branch_ctx_full, Subst.shift(cod_b1, m, 0))
 
     with {:ok, inner} <-
-           elaborate_branch_body(body_expr, cod_expected, body_names, branch_ctx_full, env) do
+           elaborate_branch_body(body_expr, cod_expected, body_names, branch_ctx_full, env),
+         {:ok, inner} <- complete_checked_constructor_prefix(inner, cod_expected, branch_ctx_full, env) do
       wrapped =
         sib_data
         |> Enum.with_index()
@@ -6912,6 +9291,33 @@ defmodule Cure.Elab.Elaborator do
       {:ok, {cname, arity, {:lam, Cure.Core.Grade.unrestricted(), eq_dom_term, wrapped}}}
     end
   end
+
+  # The transported-sibling lambda is inferred at its application site. A root
+  # constructor checked at a known family can omit its uniform parameters, but
+  # that fields-only spine is not inferable. Carry exactly the expected family's
+  # parameters through the existing K6 prefix grammar; full spines stay intact.
+  defp complete_checked_constructor_prefix({:ctor, name, arguments} = term, expected, ctx, env) do
+    with %{args: telescope} <- Inductive.get_ctor(env, name),
+         family <- Inductive.ctor_family(env, name),
+         %{params: parameters, indices: indices} <- Inductive.get_family(env, family),
+         true <- parameters != [] and length(arguments) == length(telescope),
+         expected_value <- Normalise.whnf_value(Eval.eval(expected, Context.env(ctx)), Context.signature(ctx)),
+         {:vdata, ^family, combined} <- expected_value,
+         true <- length(combined) == length(parameters) + length(indices),
+         prefix <-
+           combined
+           |> Enum.take(length(parameters))
+           |> Enum.map(&Quote.reify(&1, Context.length(ctx), Context.signature(ctx))),
+         completed = {:ctor, name, prefix ++ arguments},
+         :ok <- Kernel.check(ctx, completed, expected_value) do
+      {:ok, completed}
+    else
+      {:error, _} = error -> error
+      _ -> {:ok, term}
+    end
+  end
+
+  defp complete_checked_constructor_prefix(term, _expected, _ctx, _env), do: {:ok, term}
 
   # Does the assembled `match` term fail the kernel against its expected type? Used
   # by the item-C fallback: a plain `match` whose body reads a scrutinee-dependent
@@ -7002,7 +9408,7 @@ defmodule Cure.Elab.Elaborator do
        ) do
     generalized_result = generalize_sibling_telescope(siblings, result_type_term)
 
-    motive = build_motive(dname, index_tele, param_terms, idx_terms, scrut_term, generalized_result)
+    motive = build_motive(dname, index_tele, param_terms, idx_terms, scrut_term, generalized_result, env)
 
     cfg = %{
       names: names,
@@ -7019,6 +9425,11 @@ defmodule Cure.Elab.Elaborator do
       indexed_motive?: true
     }
 
+    candidate = build_index_motivegen_case(arms, cfg)
+    retry_index_motivegen_prerequisites(candidate, arms, cfg, index_tele, param_terms, idx_terms)
+  end
+
+  defp build_index_motivegen_case(arms, %{scrut_term: scrut_term, motive: motive, siblings: siblings} = cfg) do
     with {:ok, branches} <- elaborate_with_motivegen_branches(arms, cfg) do
       case_term = {:case, scrut_term, motive, branches}
       applied = Enum.reduce(siblings, case_term, fn %{index: idx}, acc -> {:app, acc, {:var, idx}} end)
@@ -7026,15 +9437,83 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
+  # A later visible convoy copy can shadow a carrier still mentioned by hidden
+  # older assumptions. Only repair a rejected variable-index convoy: retain the
+  # distinct original carrier as an ordered prerequisite, never identify it
+  # with the matched copy. Successful original terms remain exactly unchanged.
+  defp retry_index_motivegen_prerequisites(candidate, arms, cfg, index_tele, param_terms, idx_terms) do
+    if match?({:var, _}, cfg.scrut_term) and cfg.siblings != [] and idx_terms != [] and
+         Enum.all?(idx_terms, &match?({:var, _}, &1)) do
+      fuel_key = Normalise.fuel_key()
+
+      try do
+        with {:ok, kind} <- Kernel.infer(cfg.ctx, cfg.result_type_term),
+             {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(cfg.ctx)),
+             expected = Eval.eval(cfg.result_type_term, Context.env(cfg.ctx)),
+             true <-
+               (case candidate do
+                  {:error, _} -> true
+                  {:ok, term} -> match?({:error, _}, Kernel.check(cfg.ctx, term, expected))
+                end),
+             {:ok, siblings} <-
+               fixed_index_siblings(cfg.siblings, idx_terms, cfg.scrut_term, cfg.names, cfg.ctx, cfg.env),
+             false <- siblings == cfg.siblings,
+             generalized = generalize_sibling_telescope(siblings, cfg.result_type_term),
+             {:ok, kind} <- Kernel.infer(cfg.ctx, generalized),
+             {:vtype, _} <- Normalise.whnf_value(kind, Context.signature(cfg.ctx)),
+             motive =
+               build_motive(
+                 cfg.dname,
+                 index_tele,
+                 param_terms,
+                 idx_terms,
+                 cfg.scrut_term,
+                 generalized,
+                 cfg.env
+               ),
+             prepared = %{cfg | motive: motive, siblings: siblings, sibling_names: Enum.map(siblings, & &1.name)},
+             {:ok, term} <- build_index_motivegen_case(arms, prepared),
+             :ok <- Kernel.check(cfg.ctx, term, expected) do
+          {:ok, term}
+        else
+          _ -> candidate
+        end
+      rescue
+        _ -> candidate
+      catch
+        :throw, {^fuel_key, :exhausted} = reason -> throw(reason)
+        _, _ -> candidate
+      end
+    else
+      candidate
+    end
+  end
+
   # Move a selected slice of the ambient context into a dependent Π telescope.
-  # `siblings` is outermost-first (descending ambient de Bruijn index). A later
-  # sibling may therefore mention an earlier one; each domain is generalized
+  # `siblings` is dependency-first (normally descending ambient de Bruijn
+  # index). A later sibling may mention an earlier one; each domain is generalized
   # only over the binders already introduced, while the result is generalized
   # over the whole slice. The former implementation merely shifted the codomain
   # once per sibling and copied every domain unchanged, which was valid only for
   # an independent set and left computed convoy occurrences in sibling domains
   # in the outer frame. Once motive abstraction crossed those Πs, evaluation
   # could reify the stale references as negative indices.
+  defp merge_motive_siblings(index_siblings, value_siblings) do
+    (index_siblings ++ value_siblings)
+    |> Enum.reduce(%{}, fn sibling, selected ->
+      Map.update(selected, sibling.index, sibling, fn previous ->
+        previous
+        |> Map.merge(sibling)
+        |> Map.put(
+          :transport_branch_subst?,
+          Map.get(previous, :transport_branch_subst?, false) or Map.get(sibling, :transport_branch_subst?, false)
+        )
+      end)
+    end)
+    |> Map.values()
+    |> Enum.sort_by(& &1.index, :desc)
+  end
+
   defp generalize_sibling_telescope(siblings, result_type_term) do
     m = length(siblings)
 
@@ -7129,7 +9608,7 @@ defmodule Cure.Elab.Elaborator do
 
   defp motivegen_branch_verdict(_cfg, _cname), do: :trivial
 
-  defp elaborate_with_motivegen_branch(cname, pattern, body_expr, cfg) do
+  defp prepare_motivegen_branch(cname, pattern, cfg) do
     %{
       names: names,
       ctx: ctx,
@@ -7197,7 +9676,7 @@ defmodule Cure.Elab.Elaborator do
           result_indices,
           arity,
           param_vals,
-          Context.length(ctx)
+          ctx
         ) ++ [ctor_term]
       else
         [ctor_term]
@@ -7229,7 +9708,13 @@ defmodule Cure.Elab.Elaborator do
         # so these Πs are already exposed. Evaluating the whole Π just to inspect
         # its head reifies its codomain before this binder has been added to `c`,
         # changing neutral levels into negative indices. Peel it syntactically.
-        {:pi, g, raw_dom_term, cod_ty} = ty
+        exposed =
+          case ty do
+            {:pi, _, _, _} -> ty
+            _ -> Normalise.whnf(c, ty)
+          end
+
+        {:pi, g, raw_dom_term, cod_ty} = exposed
 
         transported_domain? =
           Map.get(cfg, :indexed_motive?, false) and
@@ -7278,8 +9763,45 @@ defmodule Cure.Elab.Elaborator do
           branch_ctx
         )
       else
-        Kernel.normalize(branch_ctx, cod)
+        # A nested indexed match must abstract the authored index throughout
+        # the goal. Full NF can expose a constructor whose declared result
+        # index stays fixed while its surrounding application is generalized.
+        Normalise.whnf(branch_ctx, cod)
       end
+
+    %{
+      pattern: pattern,
+      pattern_vars: pattern_vars,
+      telescope: telescope,
+      quantities: quantities,
+      plicities: plicities,
+      arity: arity,
+      named_checks: named_checks,
+      branch_subst: branch_subst,
+      motive_subst: motive_subst,
+      branch_ctx: branch_ctx,
+      branch_names: branch_names,
+      cod_expected: cod_expected,
+      doms_rev: doms_rev
+    }
+  end
+
+  defp elaborate_with_motivegen_branch(cname, pattern, body_expr, cfg) do
+    %{names: names, env: env} = cfg
+
+    %{
+      pattern: pattern,
+      pattern_vars: pattern_vars,
+      telescope: telescope,
+      plicities: plicities,
+      arity: arity,
+      named_checks: named_checks,
+      branch_subst: branch_subst,
+      branch_ctx: branch_ctx,
+      branch_names: branch_names,
+      cod_expected: cod_expected,
+      doms_rev: doms_rev
+    } = prepare_motivegen_branch(cname, pattern, cfg)
 
     contextual_impossible? = body_expr == @contextual_impossible_body
 
@@ -7365,10 +9887,10 @@ defmodule Cure.Elab.Elaborator do
               end)
 
             if impossible? do
-              param_terms = Enum.map(params, &Quote.reify(&1, depth))
-              index_terms = Enum.map(indices, &Quote.reify(&1, depth))
+              param_terms = Enum.map(params, &Quote.reify(&1, depth, Context.signature(ctx)))
+              index_terms = Enum.map(indices, &Quote.reify(&1, depth, Context.signature(ctx)))
               scrutinee = {:var, index}
-              motive = build_motive(dname, family.indices, param_terms, index_terms, scrutinee, expected)
+              motive = build_motive(dname, family.indices, param_terms, index_terms, scrutinee, expected, env)
               {:ok, {:case, scrutinee, motive, []}}
             end
           end
@@ -7394,7 +9916,7 @@ defmodule Cure.Elab.Elaborator do
     result_type
     |> refine_branch_goal_term(scrutinee, cname, arity, subst)
     |> rebind_carried_sibling_term(siblings, length(siblings), arity)
-    |> then(&Kernel.normalize(branch_ctx, &1))
+    |> then(&Normalise.whnf(branch_ctx, &1))
   end
 
   defp emission_branch_subst(subst, quantities) do
@@ -7431,15 +9953,12 @@ defmodule Cure.Elab.Elaborator do
   # like `Vec a (plus m n)` typechecks per branch. When ResultType doesn't
   # mention an index variable the generalization is a no-op, degrading to the
   # constant motive.
-  defp build_motive(dname, index_tele, param_terms, idx_terms, scrut_term, result_type_term) do
+  defp build_motive(dname, index_tele, param_terms, idx_terms, scrut_term, result_type_term, env) do
     k = length(index_tele)
-    index_types = Enum.map(index_tele, &elem(&1, 1))
     # The scrutinee-binder type `D params̄ j̄` sits under the k index binders j̄;
     # the parameters were reified in the outer frame, so shift them past the k
     # binders. Parameters are uniform, so they are constant across branches (no
     # generalization) — only the indices become the fresh binders `(k-1)..0`.
-    param_terms_shifted = Enum.map(param_terms, &Subst.shift(&1, k, 0))
-    scrut_type = {:data, dname, param_terms_shifted, Enum.map((k - 1)..0//-1, &{:var, &1})}
 
     # Map each scrutinee index to the de Bruijn index of its motive binder jₖ
     # (which sits at depth k-pos above the body). A *variable* index position
@@ -7466,8 +9985,12 @@ defmodule Cure.Elab.Elaborator do
           {rt, Map.put(acc, orig, k - pos)}
 
         {computed, pos}, {rt, acc} ->
-          sentinel = sentinel_base + pos
-          {replace_term_scoped(rt, computed, {:var, sentinel}), Map.put(acc, sentinel, k - pos)}
+          if ambiguous_nullary_index?(computed, env) do
+            {rt, acc}
+          else
+            sentinel = sentinel_base + pos
+            {replace_term_scoped(rt, computed, {:var, sentinel}), Map.put(acc, sentinel, k - pos)}
+          end
       end)
 
     # The scrutinee VALUE rebinds to the motive's last binder `x`. A variable
@@ -7490,10 +10013,55 @@ defmodule Cure.Elab.Elaborator do
 
     body = generalize(result_type_term, rebind, k + 1, 0)
 
-    (index_types ++ [scrut_type])
+    motive_domains(dname, index_tele, param_terms)
     |> Enum.reverse()
-    |> Enum.reduce(body, fn type, acc -> {:lam, Cure.Core.Grade.unrestricted(), type, acc} end)
+    |> Enum.reduce(body, fn type, acc -> {:lam, motive_domain_grade(type), type, acc} end)
   end
+
+  defp ambiguous_nullary_index?({:ctor, name, []}, env) do
+    # Without a parameter prefix, the same nullary syntax can inhabit distinct
+    # carriers (Nil at List(Char), List(Evidence), and so on). Replacing every
+    # occurrence by one index binder would cross those types. Keep the authored
+    # occurrences fixed; ordinary motive and final-goal checking remain required.
+    case Inductive.get_ctor(env, name) do
+      %{args: []} -> Inductive.param_count(env, Inductive.ctor_family(env, name)) > 0
+      _ -> false
+    end
+  end
+
+  defp ambiguous_nullary_index?(_term, _env), do: false
+
+  defp build_constant_motive(dname, index_tele, param_terms, result_type_term) do
+    domains = motive_domains(dname, index_tele, param_terms)
+
+    domains
+    |> Enum.reverse()
+    |> Enum.reduce(Subst.shift(result_type_term, length(domains), 0), fn type, body ->
+      {:lam, motive_domain_grade(type), type, body}
+    end)
+  end
+
+  # Declaration index types refer to parameters plus earlier indices, not to
+  # the ambient caller frame. Instantiate that entire prefix before wrapping
+  # the motive's binders; preserve the earlier fresh indices as variables.
+  defp motive_domains(dname, index_tele, param_terms) do
+    index_types =
+      index_tele
+      |> Enum.with_index()
+      |> Enum.map(fn {{_name, type}, preceding} ->
+        params = Enum.map(param_terms, &Subst.shift(&1, preceding, 0))
+        indices = for index <- 0..(preceding - 1)//1, do: {:var, preceding - 1 - index}
+        Subst.instantiate(type, params ++ indices)
+      end)
+
+    count = length(index_tele)
+    params = Enum.map(param_terms, &Subst.shift(&1, count, 0))
+    indices = for index <- 0..(count - 1)//1, do: {:var, count - 1 - index}
+    index_types ++ [{:data, dname, params, indices}]
+  end
+
+  defp motive_domain_grade({:level_type}), do: :erased
+  defp motive_domain_grade(_domain), do: Grade.unrestricted()
 
   # Step 3b detection. Return `nil` unless the scrutinee has exactly one MAXIMAL
   # computed index position whose term is mentioned by a sibling. A sibling can
@@ -7611,6 +10179,9 @@ defmodule Cure.Elab.Elaborator do
   defp canonicalize_convoy_occurrence({:case, _s, _m, _branches} = term, _target, _target_type, _ctx),
     do: {term, false}
 
+  defp canonicalize_convoy_occurrence({:let, _grade, _type, _value, _body} = term, _target, _target_type, _ctx),
+    do: {term, false}
+
   defp canonicalize_convoy_occurrence(term, target, target_type, ctx) when is_tuple(term) do
     if convertible_convoy_occurrence?(term, target, target_type, ctx) do
       {target, true}
@@ -7698,18 +10269,24 @@ defmodule Cure.Elab.Elaborator do
 
     binder_types
     |> Enum.reverse()
-    |> Enum.reduce(new_body, fn type, acc -> {:lam, Cure.Core.Grade.unrestricted(), type, acc} end)
+    |> Enum.reduce(new_body, fn {grade, type}, acc -> {:lam, grade, type, acc} end)
   end
 
   # Peel `n` leading `{:lam, Cure.Core.Grade.unrestricted(), dom, body}` binders, returning `{doms_outermost_first,
   # inner_body}`.
   defp peel_lams(body, 0, acc), do: {Enum.reverse(acc), body}
-  defp peel_lams({:lam, _g, dom, body}, n, acc), do: peel_lams(body, n - 1, [dom | acc])
+  defp peel_lams({:lam, grade, dom, body}, n, acc), do: peel_lams(body, n - 1, [{grade, dom} | acc])
 
   # Rewrite the free variables of `term` for placement under the motive's k+1
   # binders (`depth` counts binders entered *within* term): a free variable that
   # names a scrutinee index becomes its motive binder (`rebind`); every other
   # free variable is shifted past the new binders (`shift`).
+  defp generalize({:type, sort}, rebind, shift, depth),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &generalize(&1, rebind, shift, depth))}
+
+  defp generalize({:level_value, level}, rebind, shift, depth),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &generalize(&1, rebind, shift, depth))}
+
   defp generalize({:var, i}, _rebind, _shift, depth) when i < depth, do: {:var, i}
 
   defp generalize({:var, i}, rebind, shift, depth) do
@@ -7721,11 +10298,11 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  defp generalize({:pi, _g, d, c}, rb, s, depth),
-    do: {:pi, Cure.Core.Grade.unrestricted(), generalize(d, rb, s, depth), generalize(c, rb, s, depth + 1)}
+  defp generalize({:pi, grade, d, c}, rb, s, depth),
+    do: {:pi, grade, generalize(d, rb, s, depth), generalize(c, rb, s, depth + 1)}
 
-  defp generalize({:lam, _g, d, b}, rb, s, depth),
-    do: {:lam, Cure.Core.Grade.unrestricted(), generalize(d, rb, s, depth), generalize(b, rb, s, depth + 1)}
+  defp generalize({:lam, grade, d, b}, rb, s, depth),
+    do: {:lam, grade, generalize(d, rb, s, depth), generalize(b, rb, s, depth + 1)}
 
   defp generalize({:app, f, a}, rb, s, depth),
     do: {:app, generalize(f, rb, s, depth), generalize(a, rb, s, depth)}
@@ -7740,6 +10317,17 @@ defmodule Cure.Elab.Elaborator do
     do:
       {:case, generalize(scr, rb, s, depth), generalize(m, rb, s, depth),
        Enum.map(brs, fn {c, ar, b} -> {c, ar, generalize(b, rb, s, depth + ar)} end)}
+
+  defp generalize({:let, grade, type, value, body}, rb, shift, depth),
+    do:
+      {:let, grade, generalize(type, rb, shift, depth), generalize(value, rb, shift, depth),
+       generalize(body, rb, shift, depth + 1)}
+
+  defp generalize({tag, inner}, rb, shift, depth) when tag in [:effect_type, :effect_pure],
+    do: {tag, generalize(inner, rb, shift, depth)}
+
+  defp generalize({:effect_bind, effect, continuation}, rb, shift, depth),
+    do: {:effect_bind, generalize(effect, rb, shift, depth), generalize(continuation, rb, shift, depth)}
 
   defp generalize(leaf, _rb, _s, _depth), do: leaf
 
@@ -7787,7 +10375,7 @@ defmodule Cure.Elab.Elaborator do
           verdict =
             case known_value do
               {:vctor, known_ctor, _args} when cname != known_ctor -> :impossible
-              {:vctor, ^cname, args} -> merge_known_ctor_args(verdict, args, Context.length(ctx))
+              {:vctor, ^cname, args} -> merge_known_ctor_args(verdict, args, ctx)
               _ -> verdict
             end
 
@@ -7882,9 +10470,10 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  defp merge_known_ctor_args(:impossible, _args, _depth), do: :impossible
+  defp merge_known_ctor_args(:impossible, _args, _ctx), do: :impossible
 
-  defp merge_known_ctor_args(verdict, args, depth) do
+  defp merge_known_ctor_args(verdict, args, ctx) do
+    depth = Context.length(ctx)
     arity = length(args)
 
     value_subst =
@@ -7892,7 +10481,7 @@ defmodule Cure.Elab.Elaborator do
       |> Enum.with_index()
       |> Map.new(fn {value, p} ->
         ctor_key = arity - 1 - p
-        shifted = value |> Quote.reify(depth) |> Cure.Core.Term.shift(arity, 0)
+        shifted = value |> Quote.reify(depth, Context.signature(ctx)) |> Cure.Core.Term.shift(arity, 0)
 
         case shifted do
           {:var, outer_key} -> {outer_key, {:var, ctor_key}}
@@ -8991,6 +11580,7 @@ defmodule Cure.Elab.Elaborator do
 
   defp bare_pair_arity(type_term, ctx, sigma_fam) do
     case Kernel.normalize(ctx, type_term) do
+      {:data, ^sigma_fam, [_la, _lb, _domain, _codomain], []} -> {:ok, 2}
       {:data, ^sigma_fam, [_domain, _codomain], []} -> {:ok, 2}
       _ -> :not_applicable
     end
@@ -10528,7 +13118,7 @@ defmodule Cure.Elab.Elaborator do
         result_indices,
         arity,
         scrut_param_vals,
-        Context.length(ctx)
+        ctx
       )
 
     branch_names = branch_scope(telescope, quantities, plicities, pattern_vars) ++ names
@@ -11068,7 +13658,8 @@ defmodule Cure.Elab.Elaborator do
     sigma = Inductive.builtin(env, :sigma)
     tail = dependent_pack_type(rest, env)
     family = {:lam, Cure.Core.Grade.unrestricted(), domain, tail}
-    {:data, sigma, [domain, family], []}
+    zero = {:level_value, Cure.Core.UniverseLevel.zero()}
+    {:data, sigma, [zero, zero, domain, family], []}
   end
 
   defp dependent_pack_value([value], _env), do: value
@@ -11088,9 +13679,16 @@ defmodule Cure.Elab.Elaborator do
     sigma = Inductive.builtin(env, :sigma)
 
     case Kernel.normalize(ctx, type) do
+      {:data, ^sigma, [la, lb, domain, family], []} ->
+        first = core_sigma_projection(:sigma_first, la, lb, domain, family, value, env)
+        second = core_sigma_projection(:sigma_second, la, lb, domain, family, value, env)
+        tail_type = Kernel.normalize(ctx, {:app, family, first})
+        [first | dependent_pack_projections(tail_type, second, count - 1, ctx, env)]
+
       {:data, ^sigma, [domain, family], []} ->
-        first = core_sigma_projection(:sigma_first, domain, family, value, env)
-        second = core_sigma_projection(:sigma_second, domain, family, value, env)
+        zero = {:level_value, Cure.Core.UniverseLevel.zero()}
+        first = core_sigma_projection(:sigma_first, zero, zero, domain, family, value, env)
+        second = core_sigma_projection(:sigma_second, zero, zero, domain, family, value, env)
         tail_type = Kernel.normalize(ctx, {:app, family, first})
         [first | dependent_pack_projections(tail_type, second, count - 1, ctx, env)]
 
@@ -11099,10 +13697,10 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  defp core_sigma_projection(name, domain, family, value, env) do
+  defp core_sigma_projection(name, la, lb, domain, family, value, env) do
     key = Env.resolve_key(env, env.defs, name)
 
-    {:app, {:app, {:app, {:global, key}, domain}, family}, value}
+    {:app, {:app, {:app, {:app, {:app, {:global, key}, la}, lb}, domain}, family}, value}
   end
 
   defp rebind_carried_sibling_term(term, siblings, prior_count, scope_shift) do
@@ -12726,12 +15324,19 @@ defmodule Cure.Elab.Elaborator do
         if is_nil(family) do
           :fallback
         else
-          expected = {:data, family, [element_type], []}
+          level_term =
+            case infer_finite_level(ctx, element_type) do
+              {:ok, level} -> {:level_value, level}
+              :error -> {:level_value, Cure.Core.UniverseLevel.zero()}
+            end
+
+          level_value = Eval.eval(level_term, Context.env(ctx))
+          expected = {:data, family, [level_term, element_type], []}
           cons = resolve_ctor_key(env, :Cons)
 
           with {:ok, tail_core} <- infer_list_tail(meta, rest, expected, element_type, names, ctx, env, cons),
                term = {:ctor, cons, [head_core, tail_core]} do
-            {:ok, term, {:vdata, family, [element_value]}}
+            {:ok, term, {:vdata, family, [level_value, element_value]}}
           end
         end
 
@@ -13942,7 +16547,7 @@ defmodule Cure.Elab.Elaborator do
       end)
     end)
     |> replace_branch_vars(subst)
-    |> then(&Kernel.normalize(branch_ctx, &1))
+    |> then(&Normalise.whnf(branch_ctx, &1))
   end
 
   defp refine_branch_goal_term(result_type_term, scrut_term, cname, arity, subst) do
@@ -14000,17 +16605,19 @@ defmodule Cure.Elab.Elaborator do
     ctx_final
   end
 
+  defp replace_branch_vars({:type, sort}, subst),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &replace_branch_vars(&1, subst))}
+
+  defp replace_branch_vars({:level_value, level}, subst),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &replace_branch_vars(&1, subst))}
+
   defp replace_branch_vars({:var, i}, subst), do: replace_branch_var(i, subst, 0)
 
-  defp replace_branch_vars({:pi, _g, d, c}, subst),
-    do:
-      {:pi, Cure.Core.Grade.unrestricted(), replace_branch_vars(d, subst),
-       replace_branch_vars(c, shift_subst(subst, 1))}
+  defp replace_branch_vars({:pi, grade, d, c}, subst),
+    do: {:pi, grade, replace_branch_vars(d, subst), replace_branch_vars(c, shift_subst(subst, 1))}
 
-  defp replace_branch_vars({:lam, _g, d, b}, subst),
-    do:
-      {:lam, Cure.Core.Grade.unrestricted(), replace_branch_vars(d, subst),
-       replace_branch_vars(b, shift_subst(subst, 1))}
+  defp replace_branch_vars({:lam, grade, d, b}, subst),
+    do: {:lam, grade, replace_branch_vars(d, subst), replace_branch_vars(b, shift_subst(subst, 1))}
 
   defp replace_branch_vars({:app, f, a}, subst),
     do: {:app, replace_branch_vars(f, subst), replace_branch_vars(a, subst)}
@@ -14025,6 +16632,17 @@ defmodule Cure.Elab.Elaborator do
     do:
       {:case, replace_branch_vars(scr, subst), replace_branch_vars(m, subst),
        Enum.map(brs, fn {c, ar, b} -> {c, ar, replace_branch_vars(b, shift_subst(subst, ar))} end)}
+
+  defp replace_branch_vars({:let, grade, type, value, body}, subst),
+    do:
+      {:let, grade, replace_branch_vars(type, subst), replace_branch_vars(value, subst),
+       replace_branch_vars(body, shift_subst(subst, 1))}
+
+  defp replace_branch_vars({tag, inner}, subst) when tag in [:effect_type, :effect_pure],
+    do: {tag, replace_branch_vars(inner, subst)}
+
+  defp replace_branch_vars({:effect_bind, effect, continuation}, subst),
+    do: {:effect_bind, replace_branch_vars(effect, subst), replace_branch_vars(continuation, subst)}
 
   defp replace_branch_vars(other, _subst), do: other
 
@@ -14250,6 +16868,12 @@ defmodule Cure.Elab.Elaborator do
     end)
   end
 
+  defp map_contextual_metas({:type, sort}, mapper),
+    do: {:type, Cure.Elab.UniverseTraversal.map_sort(sort, &map_contextual_metas(&1, mapper))}
+
+  defp map_contextual_metas({:level_value, level}, mapper),
+    do: {:level_value, Cure.Elab.UniverseTraversal.map_level(level, &map_contextual_metas(&1, mapper))}
+
   defp map_contextual_metas({:meta, id}, mapper), do: mapper.(id)
 
   defp map_contextual_metas({:global, name}, mapper) do
@@ -14286,6 +16910,7 @@ defmodule Cure.Elab.Elaborator do
     do: {:error, :too_many_arguments}
 
   defp finish_ctor_app({:ok, mctx, chosen, []}, cname, family, ctor, pc, ctx) do
+    mctx = solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx, ctor)
     all = Enum.map(chosen, &Unify.zonk(&1, mctx))
 
     if Enum.any?(all, &has_meta?/1) do
@@ -14916,7 +17541,7 @@ defmodule Cure.Elab.Elaborator do
       true ->
         case elaborate_expr_typed(arg, names, ctx, env) do
           {:ok, term, ty} ->
-            ty_term = Quote.reify(ty, Context.length(ctx))
+            ty_term = Quote.reify(ty, Context.length(ctx), Context.signature(ctx))
 
             case Unify.unify(ftype_inst, ty_term, mctx, env) do
               {:ok, mctx} -> {mctx, term}
@@ -15241,20 +17866,39 @@ defmodule Cure.Elab.Elaborator do
             resolve_ctor_fields_state(state)
 
           true ->
-            {:error,
-             {:unsolved_field_type,
-              %{
-                constructor: state.cname,
-                fields: Map.keys(state.pending) |> Enum.sort(),
-                revision: MetaCtx.revision(state.mctx),
-                field_diagnostics:
-                  state.pending
-                  |> Map.keys()
-                  |> Enum.sort()
-                  |> Enum.map(&constructor_field_diagnostic(state, &1))
-              }}}
+            family = Inductive.ctor_family(state.env, state.cname)
+
+            level_mctx =
+              if family != nil,
+                do: solve_ctor_universe_level_metas(family, state.params, state.pc, state.mctx, state.ctx),
+                else: state.mctx
+
+            if level_mctx != state.mctx do
+              state
+              |> Map.put(:mctx, level_mctx)
+              |> wake_constructor_fields(changed_meta_ids(state.mctx, level_mctx))
+              |> enqueue_all_pending()
+              |> resolve_ctor_fields_state()
+            else
+              resolve_ctor_fields_fallback(state)
+            end
         end
     end
+  end
+
+  defp resolve_ctor_fields_fallback(state) do
+    {:error,
+     {:unsolved_field_type,
+      %{
+        constructor: state.cname,
+        fields: Map.keys(state.pending) |> Enum.sort(),
+        revision: MetaCtx.revision(state.mctx),
+        field_diagnostics:
+          state.pending
+          |> Map.keys()
+          |> Enum.sort()
+          |> Enum.map(&constructor_field_diagnostic(state, &1))
+      }}}
   end
 
   defp resolve_ctor_field_queue(%{queue: []} = state), do: {state, false}
@@ -15642,7 +18286,7 @@ defmodule Cure.Elab.Elaborator do
 
   defp try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env) do
     with {:ok, term, ty} <- elaborate_expr_typed(arg, names, ctx, env),
-         ty_term = Quote.reify(ty, Context.length(ctx)),
+         ty_term = Quote.reify(ty, Context.length(ctx), Context.signature(ctx)),
          {:ok, mctx2} <- Unify.unify(ftype_inst, ty_term, mctx, env) do
       {:ok, term, ty_term, mctx2}
     else
@@ -15684,6 +18328,9 @@ defmodule Cure.Elab.Elaborator do
   end
 
   defp meta_ids(term), do: meta_ids(term, MapSet.new()) |> MapSet.to_list()
+
+  defp meta_ids({tag, _} = term, ids) when tag in [:type, :level_value],
+    do: Enum.reduce(Cure.Core.Term.level_atoms(term), ids, &meta_ids(&1, &2))
 
   defp meta_ids({:meta, id}, ids), do: MapSet.put(ids, id)
 
@@ -15779,6 +18426,7 @@ defmodule Cure.Elab.Elaborator do
 
         case resolve_ctor_argument_values(slots, arg_asts, seed, pc, params, mctx, names, ctx, env, cname, []) do
           {:ok, vals, mctx} ->
+            mctx = solve_ctor_universe_level_metas(family, params, pc, mctx, ctx)
             param_vals = params |> Enum.map(&Unify.zonk(&1, mctx))
 
             if Enum.any?(param_vals, &has_meta?/1) do
@@ -15984,6 +18632,8 @@ defmodule Cure.Elab.Elaborator do
         mctx
       end
 
+    mctx = solve_universe_level_metas(name, chosen, mctx, ctx, env)
+
     args = Enum.map(chosen, &Unify.zonk(&1, mctx))
 
     if Enum.any?(args, &has_meta?/1) do
@@ -15997,6 +18647,121 @@ defmodule Cure.Elab.Elaborator do
       {:ok, term, result_type}
     end
   end
+
+  # Spec §10.3–§10.5: infer omitted use-site `UniverseLevel` metas from the
+  # sorts of solved type arguments (least upper bound via `UniverseLevel.max`),
+  # defaulting unconstrained use-site level metas to `universe_zero`. The
+  # kernel independently checks the assembled explicit application afterward.
+  defp solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx, ctor \\ nil) do
+    if ctx != nil do
+      env = Context.signature(ctx)
+      param_tele = Inductive.param_telescope(env, family) || []
+      ctor_tele = if ctor, do: ctor.args, else: []
+      domains = Enum.map(param_tele ++ ctor_tele, fn {_name, dom} -> dom end)
+      slice = if ctor, do: chosen, else: Enum.take(chosen, pc)
+      solve_level_metas_from_domains(domains, slice, mctx, ctx, env)
+    else
+      mctx
+    end
+  end
+
+  defp solve_universe_level_metas(name, chosen, mctx, ctx, env) do
+    case Env.get_def(env, name) do
+      %{type: def_type} ->
+        {domains, _cod} = peel_pi(def_type, length(chosen))
+        solve_level_metas_from_domains(domains, chosen, mctx, ctx, env)
+
+      _ ->
+        mctx
+    end
+  end
+
+  defp solve_level_metas_from_domains(domains, chosen, mctx, ctx, env) do
+    level_metas =
+      domains
+      |> Enum.zip(chosen)
+      |> Enum.flat_map(fn
+        {{:level_type}, {:meta, id}} ->
+          if Unify.zonk({:meta, id}, mctx) == {:meta, id}, do: [id], else: []
+
+        _ ->
+          []
+      end)
+
+    if level_metas == [] do
+      mctx
+    else
+      level_meta_set = MapSet.new(level_metas)
+
+      bounds =
+        domains
+        |> Enum.with_index()
+        |> Enum.reduce(%{}, fn {dom, pos}, acc ->
+          arg = Unify.zonk(Enum.at(chosen, pos), mctx)
+
+          if not has_meta?(arg) do
+            inst_dom =
+              dom
+              |> Subst.instantiate(Enum.take(chosen, pos))
+              |> Unify.zonk(mctx)
+
+            case inst_dom do
+              {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:meta, id}, 0}]}}} ->
+                if MapSet.member?(level_meta_set, id) do
+                  case infer_finite_level(ctx, arg) do
+                    {:ok, level} ->
+                      Map.update(acc, id, level, &Cure.Core.UniverseLevel.max(&1, level))
+
+                    :error ->
+                      acc
+                  end
+                else
+                  acc
+                end
+
+              _ ->
+                acc
+            end
+          else
+            acc
+          end
+        end)
+
+      Enum.reduce(level_metas, mctx, fn id, current_mctx ->
+        level = Map.get(bounds, id, Cure.Core.UniverseLevel.zero())
+
+        case Unify.unify({:meta, id}, {:level_value, level}, current_mctx, env) do
+          {:ok, next_mctx} -> next_mctx
+          {:error, _} -> current_mctx
+        end
+      end)
+    end
+  end
+
+  defp infer_carrier_level_value(ctx, arg_type) do
+    arg_type_term = Quote.reify(arg_type, Context.length(ctx), Context.signature(ctx))
+
+    case infer_finite_level(ctx, arg_type_term) do
+      {:ok, level} -> Eval.eval({:level_value, level}, Context.env(ctx))
+      :error -> Eval.eval({:level_value, Cure.Core.UniverseLevel.zero()}, [])
+    end
+  end
+
+  defp infer_finite_level(ctx, term) do
+    case Kernel.infer(ctx, term) do
+      {:ok, {:vtype, _} = sort_val} ->
+        case Normalise.nf(ctx, Quote.reify(sort_val, Context.length(ctx), Context.signature(ctx))) do
+          {:type, {:finite, %Cure.Core.UniverseLevel{} = level}} -> {:ok, level}
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp has_meta?({tag, _} = term) when tag in [:type, :level_value],
+    do: Enum.any?(Cure.Core.Term.level_atoms(term), &has_meta?/1)
 
   defp has_meta?({:meta, _}), do: true
   defp has_meta?({:data, _n, ps, is}), do: Enum.any?(ps ++ is, &has_meta?/1)
@@ -16039,14 +18804,24 @@ defmodule Cure.Elab.Elaborator do
   # -- expressions ------------------------------------------------------------
 
   @doc false
-  def elaborate_expr({:variable, _meta, "Type"}, _scope, _env), do: {:ok, {:type, 0}}
+  def elaborate_expr({:variable, _meta, "Type"}, _scope, _env),
+    do: {:ok, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
   def elaborate_expr({:variable, meta, name}, scope, env) do
     case Enum.find_index(scope, &(&1 == name)) do
       nil ->
-        case resolve_free(name, env) do
-          {:error, reason} -> {:error, attach_variable_context(reason, meta, name)}
-          result -> result
+        case Cure.Elab.UniverseSurface.lower_variable(name) do
+          {:ok, term} ->
+            {:ok, term}
+
+          {:error, _} = err ->
+            err
+
+          :not_universe ->
+            case resolve_free(name, env) do
+              {:error, reason} -> {:error, attach_variable_context(reason, meta, name)}
+              result -> result
+            end
         end
 
       index ->
@@ -16061,7 +18836,15 @@ defmodule Cure.Elab.Elaborator do
         elaborate_expr(positional, scope, env)
       end
     else
-      elaborate_named_call_scoped(meta, args, scope, env)
+      case Cure.Elab.UniverseSurface.lower_call(
+             Keyword.get(meta, :name, ""),
+             args,
+             &elaborate_expr(&1, scope, env)
+           ) do
+        {:ok, term} -> {:ok, term}
+        {:error, _} = err -> err
+        :not_universe -> elaborate_named_call_scoped(meta, args, scope, env)
+      end
     end
   end
 
@@ -16238,7 +19021,19 @@ defmodule Cure.Elab.Elaborator do
         # where the family needs parameters → a false `:arg_arity`.
         name not in scope and Inductive.family?(env, atom) ->
           family_key = Env.resolve_key(env, env.families, atom)
-          {params, indices} = Enum.split(core_args, Inductive.param_count(env, family_key))
+          ptele = Inductive.param_telescope(env, family_key) || []
+          itele = Inductive.index_telescope(env, family_key) || []
+          level_prefix = Enum.take_while(ptele, fn {_n, d} -> d == {:level_type} end) |> length()
+
+          full_args =
+            if level_prefix > 0 and length(core_args) + level_prefix == length(ptele) + length(itele) do
+              levels = List.duplicate({:level_value, Cure.Core.UniverseLevel.zero()}, level_prefix)
+              levels ++ core_args
+            else
+              core_args
+            end
+
+          {params, indices} = Enum.split(full_args, Inductive.param_count(env, family_key))
           {:ok, {:data, family_key, params, indices}}
 
         true ->

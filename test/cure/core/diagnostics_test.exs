@@ -5,7 +5,7 @@ defmodule Cure.Core.DiagnosticsTest do
   or an independent checker — can display or re-check them.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Builtins, Context, Env, Kernel, Serialize}
+  alias Cure.Core.{Builtins, Context, Env, Kernel, Serialize, UniverseCodec}
 
   test "checking Int against Bool reports both normal forms" do
     ctx = Context.empty(Builtins.seed(Env.empty()))
@@ -18,7 +18,7 @@ defmodule Cure.Core.DiagnosticsTest do
 
     # The reported normal forms are serializable (C2), so they can be rendered
     # or re-validated by an independent checker.
-    assert Serialize.encode(got) == "(data Std.Int#Int () ())"
-    assert Serialize.encode(want) == "(data Bool () ())"
+    assert Serialize.encode(got) == "(cure-core #{UniverseCodec.version()} (data Std.Int#Int () ()))"
+    assert Serialize.encode(want) == "(cure-core #{UniverseCodec.version()} (data Bool () ()))"
   end
 end

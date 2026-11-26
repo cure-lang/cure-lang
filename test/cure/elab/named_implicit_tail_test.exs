@@ -98,7 +98,9 @@ defmodule Cure.Elab.NamedImplicitTailTest do
       # erased binder from the PATTERN, not the signature, and `Relevance.check/4`
       # walks every body regardless of its own quantities, so this is policed
       # without needing a dummy erased top-level parameter to prime the walk.
-      body = {:case, {:var, 0}, {:type, 0}, [{ctor_atom(env, :bmk), 1, {:var, 0}}]}
+      body =
+        {:case, {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+         [{ctor_atom(env, :bmk), 1, {:var, 0}}]}
 
       assert {:error, {:erased_used_relevantly, %{site: :returned}}} =
                Cure.Elab.Relevance.check(env, :probe_fn, [:unrestricted], body)

@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofClosureFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Eval, Grade, ProofWire, Quote}
@@ -12,7 +13,7 @@ defmodule Cure.Test.ProofClosureFixture do
     payload = {:atom_lit, :payload}
     identity = {:lam, g, atom, {:var, 0}}
     function_type = {:pi, g, atom, atom}
-    domain = {:let, g, {:type, 0}, atom, {:var, 0}}
+    domain = {:let, g, {:type, @u0}, atom, {:var, 0}}
 
     [
       {:beta, {:app, identity, payload}, [], 0, atom},
@@ -24,7 +25,7 @@ defmodule Cure.Test.ProofClosureFixture do
       {:annotation, {:let, g, {:hole, "payload"}, payload, {:var, 0}}, [], 0, atom},
       {:neutral, {:app, {:var, 0}, payload}, [{:vneutral, {:nvar, 0}}], 1, atom},
       {:global, {:global, :"Boundary#answer"}, [], 0, atom},
-      {:pi, {:pi, g, domain, atom}, [], 0, {:type, 0}}
+      {:pi, {:pi, g, domain, atom}, [], 0, {:type, @u0}}
     ]
   end
 
@@ -99,5 +100,7 @@ defmodule Cure.Test.ProofClosureFixture do
   defp value({:vneutral, head}), do: "(E.v-neutral #{neutral(head)})"
   defp neutral({:nvar, level}), do: "(E.n-var #{level})"
   defp neutral({:nglobal, name}), do: "(E.n-global #{inspect(Atom.to_string(name))})"
-  defp neutral({:napp, function, argument}), do: "(E.n-app #{neutral(function)} #{value(argument)})"
+
+  defp neutral({:napp, function, argument}),
+    do: "(E.n-app #{neutral(function)} #{value(argument)})"
 end

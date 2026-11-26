@@ -1,4 +1,6 @@
 defmodule Cure.Test.ProofResidualCallerFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
+  @u1 {:finite, Cure.Core.UniverseLevel.closed(1)}
   @moduledoc false
 
   alias Cure.Core.{Conv, Eval, Grade, Inductive, ProofRecipe, ProofWire, Quote, Term}
@@ -10,9 +12,9 @@ defmodule Cure.Test.ProofResidualCallerFixture do
     g = Grade.unrestricted()
     atom = {:atom_type}
     payload = {:atom_lit, :payload}
-    beta = fn ty -> {:app, {:lam, g, {:type, 0}, {:var, 0}}, ty} end
+    beta = fn ty -> {:app, {:lam, g, {:type, @u0}, {:var, 0}}, ty} end
     beta_kind = {:r_app, {:r_lam, :r_leaf, :r_leaf}, :r_leaf}
-    bindings = [{"A", {:type, 0}}, {"x", {:var, 0}}]
+    bindings = [{"A", {:type, @u0}}, {"x", {:var, 0}}]
 
     dependent =
       {:caller, bindings, [:r_leaf, :r_leaf], [atom, payload], [:r_leaf, :r_leaf], {:var, 0}, beta.({:var, 1}), :r_leaf,
@@ -28,7 +30,7 @@ defmodule Cure.Test.ProofResidualCallerFixture do
     empty = {:caller, [], [], [], [], subject, goal, recipe, goal_kind}
 
     collision =
-      {:caller, [{"A", {:type, 0}}, {"x", {:type, 0}}, {"x", {:var, 1}}], [:r_leaf, :r_leaf, :r_leaf],
+      {:caller, [{"A", {:type, @u0}}, {"x", {:type, @u0}}, {"x", {:var, 1}}], [:r_leaf, :r_leaf, :r_leaf],
        [atom, atom, payload], [:r_leaf, :r_leaf, :r_leaf], {:var, 0}, {:var, 1}, :r_leaf, :r_leaf}
 
     [
@@ -106,7 +108,7 @@ defmodule Cure.Test.ProofResidualCallerFixture do
     {goal_domain, goal_domain_kind} = case_type({:var, 0}, {:var, 1}, false, nested?)
     {goal_codomain, goal_codomain_kind} = case_type({:var, 1}, {:var, 2}, false, nested?)
     true = codomain == Term.shift(domain, 1, 0)
-    bindings = [{"A", {:type, 0}}, {"x", {:data, :"Boundary#Packed", [], [{:var, 0}]}}]
+    bindings = [{"A", {:type, @u0}}, {"x", {:data, :"Boundary#Packed", [], [{:var, 0}]}}]
 
     {value, value_recipe} =
       if constructor?,
@@ -124,17 +126,27 @@ defmodule Cure.Test.ProofResidualCallerFixture do
   defp case_type(scrutinee, index, redex?, nested?) do
     g = Grade.unrestricted()
     atom = {:atom_type}
-    motive = {:lam, g, {:type, 0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, 0}}}
+
+    motive =
+      {:lam, g, {:type, @u0}, {:lam, g, {:data, :"Boundary#Packed", [], [{:var, 0}]}, {:type, @u0}}}
 
     {body, body_recipe} =
       cond do
-        nested? -> case_type(Term.shift(scrutinee, 2, 0), Term.shift(index, 2, 0), redex?, false)
-        redex? -> {{:app, {:lam, g, {:type, 0}, {:var, 0}}, atom}, {:r_app, {:r_lam, :r_leaf, :r_leaf}, :r_leaf}}
-        true -> {atom, :r_leaf}
+        nested? ->
+          case_type(Term.shift(scrutinee, 2, 0), Term.shift(index, 2, 0), redex?, false)
+
+        redex? ->
+          {{:app, {:lam, g, {:type, @u0}, {:var, 0}}, atom}, {:r_app, {:r_lam, :r_leaf, :r_leaf}, :r_leaf}}
+
+        true ->
+          {atom, :r_leaf}
       end
 
     ctors =
-      Enum.map([:"Boundary#Pack", :"Boundary#Alternate"], &Inductive.get_ctor(ProofSnapshotFixture.environment(), &1))
+      Enum.map(
+        [:"Boundary#Pack", :"Boundary#Alternate"],
+        &Inductive.get_ctor(ProofSnapshotFixture.environment(), &1)
+      )
 
     branches = Enum.map(ctors, fn ctor -> {ctor.name, 2, body} end)
 
@@ -149,23 +161,28 @@ defmodule Cure.Test.ProofResidualCallerFixture do
 
     kind = {:r_pi, :r_leaf, {:r_pi, {:r_data, [], [:r_leaf]}, :r_leaf}}
     motive_recipe = {:r_lam, :r_leaf, {:r_lam, {:r_data, [], [:r_leaf]}, :r_leaf}}
-    recipe = {:r_case, :r_leaf, [], [:r_leaf], 1, kind, motive_recipe, recipes}
+    recipe = {:r_case, :r_leaf, [], [:r_leaf], @u1, kind, motive_recipe, recipes}
 
     {{:case, scrutinee, motive, branches},
-     {:r_convert, {:type, 0}, two_beta({:app, {:app, motive, index}, scrutinee}), recipe}}
+     {:r_convert, {:type, @u0}, two_beta({:app, {:app, motive, index}, scrutinee}), recipe}}
   end
 
   defp two_beta({:app, {:app, {:lam, _g, _domain, body}, index}, value}),
     do: {:c_trans, {:app, top_sub(body, index), value}, {:c_app, :c_beta, :c_refl}, :c_beta}
 
-  defp top_sub(body, value), do: body |> Term.subst(0, Term.shift(value, 1, 0)) |> Term.shift(-1, 0)
+  defp top_sub(body, value),
+    do: body |> Term.subst(0, Term.shift(value, 1, 0)) |> Term.shift(-1, 0)
+
   defp close(body, arguments), do: Enum.reduce(Enum.reverse(arguments), body, &top_sub(&2, &1))
   defp fresh(0), do: []
   defp fresh(size), do: Enum.map((size - 1)..0//-1, &{:vneutral, {:nvar, &1}})
   defp environment([]), do: "[]"
 
   defp environment(env),
-    do: "(" <> Enum.map_join(env, " ∷ ", fn {:vneutral, {:nvar, n}} -> "(E.v-neutral (E.n-var #{n}))" end) <> " ∷ [])"
+    do:
+      "(" <>
+        Enum.map_join(env, " ∷ ", fn {:vneutral, {:nvar, n}} -> "(E.v-neutral (E.n-var #{n}))" end) <>
+        " ∷ [])"
 
   defp term(term) do
     {:ok, chars} = ProofWire.encode_term(term, ProofBundleFixture.table())

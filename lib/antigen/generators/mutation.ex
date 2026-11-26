@@ -137,12 +137,20 @@ defmodule Antigen.Generators.Mutation do
   end
 
   def build(_ctx, :universe) do
-    t0 = {:type, 0}
+    t0 = {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
     # Equivalent's param telescope demands a : Type₀; feeding Type₀ itself
     # (whose sort is Type₁ ⋠ Type₀) is the universe fault, carried by the
     # inductive identity former (the retired primitive {:eq} carried it before).
     g = Gen.return({:data, :Equivalent, [t0], [t0, t0]})
-    {g, %{kind: :universe, witness: :level, expected_head: {:type, 0}, injected_head: {:type, 1}, scope: nil}}
+
+    {g,
+     %{
+       kind: :universe,
+       witness: :level,
+       expected_head: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       injected_head: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}},
+       scope: nil
+     }}
   end
 
   # ── Tier-B new-type-former operators (self-wrapped, spec §5) ──────────────────
@@ -282,7 +290,7 @@ defmodule Antigen.Generators.Mutation do
 
   # The challenge-level `type` field is documentation-only (spec §4/§6.1): a
   # nominal goal describing the fault site, never a proven property of the mutant.
-  defp goal_of(%{kind: :universe}), do: {:type, 0}
+  defp goal_of(%{kind: :universe}), do: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
   defp goal_of(%{kind: :index_mismatch}), do: vec(z())
   defp goal_of(%{expected_head: :Sigma}), do: sig()
   defp goal_of(%{expected_head: :Nat}), do: nat_t()

@@ -23,13 +23,17 @@ defmodule Cure.Core.HoleNeutralTest do
     end
 
     test "an applied hole accumulates its arguments on the neutral spine" do
-      assert Eval.eval({:app, {:hole, "h"}, {:type, 0}}, []) ==
-               {:vneutral, {:napp, {:nhole, "h"}, {:vtype, 0}}}
+      assert Eval.eval({:app, {:hole, "h"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, []) ==
+               {:vneutral, {:napp, {:nhole, "h"}, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}}}
     end
 
     test "a hole under a beta-redex argument does not crash" do
       # (λ.#0) ?h  β⤳  ?h — the argument-position hole reaches apply/eval.
-      redex = {:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 0}}, {:hole, "h"}}
+      redex =
+        {:app,
+         {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+          {:var, 0}}, {:hole, "h"}}
+
       assert Eval.eval(redex, []) == {:vneutral, {:nhole, "h"}}
     end
   end
@@ -40,7 +44,7 @@ defmodule Cure.Core.HoleNeutralTest do
     end
 
     test "reify inverts an applied hole to the original application" do
-      applied = {:app, {:hole, "h"}, {:type, 0}}
+      applied = {:app, {:hole, "h"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
       assert Quote.reify(Eval.eval(applied, [])) == applied
     end
   end
@@ -51,7 +55,7 @@ defmodule Cure.Core.HoleNeutralTest do
     end
 
     test "nf of an applied hole preserves the spine" do
-      applied = {:app, {:hole, "h"}, {:type, 0}}
+      applied = {:app, {:hole, "h"}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
       assert Normalise.nf(ctx(), applied) == applied
     end
 

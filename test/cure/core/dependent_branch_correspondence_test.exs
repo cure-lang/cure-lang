@@ -17,8 +17,19 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
   @declaration_frame [{:vfloat, 0.5}, {:vfloat_type}, {:vatom, :payload}, {:vatom_type}]
 
   setup do
-    tele = [{:x, {:var, 0}}, {:B, {:type, 0}}, {:y, {:var, 0}}]
-    family = Inductive.family(:BranchStaged, [{:A, {:type, 0}}], tele, 1)
+    tele = [
+      {:x, {:var, 0}},
+      {:B, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}},
+      {:y, {:var, 0}}
+    ]
+
+    family =
+      Inductive.family(
+        :BranchStaged,
+        [{:A, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}],
+        tele,
+        Cure.Core.Sort.finite_closed(1)
+      )
 
     ctor =
       Inductive.ctor(
@@ -33,7 +44,7 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
     assert :ok = Kernel.check_family(env, family)
     assert :ok = Kernel.check_ctor(env, family, ctor)
     ctx = Context.empty(env)
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, @goal)
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, @goal)
     assert :ok = Kernel.check(ctx, @ctor, Eval.eval(@goal, []))
 
     {:ok, ctx: ctx}
@@ -47,7 +58,9 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
     scrutinee =
       {:data, :BranchStaged, [Term.shift(parameter, 3, 0)], [{:var, 2}, {:var, 1}, {:var, 0}]}
 
-    {:lam, @g, parameter, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
+    {:lam, @g, parameter,
+     {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+      {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
   end
 
   # Ascribe the ctor so its implicit parameter is checked. Adding that let
@@ -58,9 +71,15 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
   end
 
   test "a specialised parameter body agrees with the full declaration frame", %{ctx: ctx} do
-    term = program(@goal, @ctor, motive(@carrier, {:type, 0}), @carrier)
+    term =
+      program(
+        @goal,
+        @ctor,
+        motive(@carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
+        @carrier
+      )
 
-    assert :ok = Kernel.check(ctx, term, {:vtype, 0})
+    assert :ok = Kernel.check(ctx, term, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     assert {:vatom_type} = Eval.eval({:var, 3}, @declaration_frame)
     assert {:vatom_type} = Eval.eval(term, [])
   end
@@ -95,20 +114,27 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
   end
 
   test "an open caller parameter is shifted past fields then restored", %{ctx: ctx} do
-    ctx = Context.extend(ctx, {:vtype, 0})
+    ctx = Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     ctx = Context.extend(ctx, Eval.eval({:var, 0}, Context.env(ctx)))
     fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
     goal = {:data, :BranchStaged, [{:var, 1}], fields}
     ctor = {:ctor, :BranchStage, fields}
-    term = program(goal, ctor, motive({:var, 1}, {:type, 0}), {:var, 4})
 
-    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
-    assert :ok = Kernel.check(ctx, term, {:vtype, 0})
+    term =
+      program(
+        goal,
+        ctor,
+        motive({:var, 1}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
+        {:var, 4}
+      )
+
+    assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
+    assert :ok = Kernel.check(ctx, term, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     assert {:vneutral, {:nvar, 0}} = Eval.eval(term, Context.env(ctx))
   end
 
   test "an open parameter in a lambda domain and a captured field keep distinct slots", %{ctx: ctx} do
-    ctx = Context.extend(ctx, {:vtype, 0})
+    ctx = Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     ctx = Context.extend(ctx, Eval.eval({:var, 0}, Context.env(ctx)))
     fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
     goal = {:data, :BranchStaged, [{:var, 1}], fields}
@@ -124,12 +150,27 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
   end
 
   test "an unspecialised declaration parameter cannot masquerade as an ambient slot", %{ctx: ctx} do
-    term = program(@goal, @ctor, motive(@carrier, {:type, 0}), {:var, 3})
+    term =
+      program(
+        @goal,
+        @ctor,
+        motive(@carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
+        {:var, 3}
+      )
+
     assert {:error, _reason} = Kernel.infer(ctx, term)
   end
 
   test "parameters do not contribute to the runtime branch arity", %{ctx: ctx} do
-    term = program(@goal, @ctor, motive(@carrier, {:type, 0}), @carrier, 4)
+    term =
+      program(
+        @goal,
+        @ctor,
+        motive(@carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}),
+        @carrier,
+        4
+      )
+
     assert {:error, :branch_arity} = Kernel.infer(ctx, term)
   end
 
@@ -165,7 +206,7 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
       term = program(goal, {:ctor, :BranchStage, fields}, motive, {:var, 0})
       expected_type = Eval.eval(type, [])
 
-      assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+      assert {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 1, atoms: []}}}} = Kernel.infer(ctx, goal)
       assert :ok = Kernel.check(ctx, term, expected_type)
       assert {:ok, ^expected_type} = Kernel.infer(ctx, term)
       assert ^expected = Eval.eval(term, [])
@@ -173,7 +214,7 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
   end
 
   test "an index-dependent motive retains an open caller parameter", %{ctx: ctx} do
-    ctx = Context.extend(ctx, {:vtype, 0})
+    ctx = Context.extend(ctx, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
     ctx = Context.extend(ctx, Eval.eval({:var, 0}, Context.env(ctx)))
     fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
     goal = {:data, :BranchStaged, [{:var, 1}], fields}
@@ -203,28 +244,32 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
 
   test "a registry scrutinee still requires coverage when a correct motive returns a sort", %{ctx: ctx} do
     ctx = Context.extend(ctx, Eval.eval(@goal, []))
-    term = {:case, {:var, 0}, motive(@carrier, {:type, 0}), []}
+
+    term =
+      {:case, {:var, 0}, motive(@carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}), []}
 
     assert {:error, :coverage} = Kernel.infer(ctx, term)
   end
 
   test "ordinary unary motive inference is not indexed motive validation", %{ctx: ctx} do
-    unary = {:lam, @g, @carrier, {:type, 0}}
+    unary = {:lam, @g, @carrier, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
     assert {:ok, {:vpi, _, _, _}} = Kernel.infer(ctx, unary)
     ctx = Context.extend(ctx, Eval.eval(@goal, []))
 
     assert {:error, :bad_motive} = Kernel.infer(ctx, {:case, {:var, 0}, unary, []})
   end
 
-  test "motive validation checks fresh results rather than ordinary scrutinee-domain application", %{ctx: ctx} do
+  test "motive validation rejects a wrong scrutinee-domain annotation", %{ctx: ctx} do
     # The last lambda's annotation is Atom rather than the scrutinee family.
-    # Case motive validation applies the closure to the actual fresh values;
-    # ordinary term application checks the annotated Pi domain instead.
+    # Original-syntax motive validation checks the annotated Pi domain just
+    # like ordinary application, before evaluation can discard it.
     extensional =
-      {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, @carrier, {:var, 2}}}}}
+      {:lam, @g, @carrier,
+       {:lam, @g, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+        {:lam, @g, {:var, 0}, {:lam, @g, @carrier, {:var, 2}}}}}
 
     term = program(@goal, @ctor, extensional, {:var, 0})
-    assert :ok = Kernel.check(ctx, term, {:vfloat_type})
+    assert {:error, :bad_motive} = Kernel.check(ctx, term, {:vfloat_type})
     assert {:vfloat, 0.5} = Eval.eval(term, [])
 
     ctx = Context.extend(ctx, Eval.eval(@goal, []))

@@ -40,7 +40,7 @@ defmodule Antigen.BisectTest do
   end
 
   test "family candidates drop each ctor" do
-    fam = Cure.Core.Inductive.family(:F, [], [], 0)
+    fam = Cure.Core.Inductive.family(:F, [], [], Cure.Core.Sort.finite_closed(0))
     c0 = Cure.Core.Inductive.ctor(:A, [], [], [], [])
     c1 = Cure.Core.Inductive.ctor(:B, [], [], [], [])
 

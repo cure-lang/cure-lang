@@ -16,8 +16,8 @@ defmodule Antigen.BuiltinEquivalentDriftTest do
   @group(:core)
   mod Std.Equivalent
     @builtin(:eq)
-    type Equivalent(a: Type) indices (x: a, y: a)
-      reflexive : Equivalent(a, w, w)
+    type Equivalent(l: UniverseLevel, a: Type(l)) indices (x: a, y: a)
+      reflexive : Equivalent(l, a, w, w)
   """
 
   test "the seeded :eq family exists with ctor reflexive/1" do
@@ -60,10 +60,20 @@ defmodule Antigen.BuiltinEquivalentDriftTest do
 
   # Equivalent itself — byte-mirror of core/builtins.ex's eq_family/eq_ctors
   # (the challenge env is rebuilt from Env.empty, which has no builtins).
-  defp antigen_eq_family,
-    do:
-      {Inductive.family(:Equivalent, [a: {:type, 0}], [x: {:var, 0}, y: {:var, 1}], 0),
-       [Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 1}])]}
+  defp antigen_eq_family do
+    level_var_0 = Cure.Core.UniverseLevel.atom({:var, 0})
+    level_var_3 = Cure.Core.UniverseLevel.atom({:var, 3})
+
+    {Inductive.family(
+       :Equivalent,
+       [l: {:level_type}, a: {:type, Cure.Core.Sort.finite(level_var_0)}],
+       [x: {:var, 0}, y: {:var, 1}],
+       Cure.Core.Sort.finite(level_var_3)
+     ),
+     [
+       Inductive.ctor(:reflexive, [w: {:var, 0}], [{:var, 0}, {:var, 0}], [:erased], [{:var, 2}, {:var, 1}])
+     ]}
+  end
 
   defp strip_owner(name) when is_atom(name), do: String.to_atom(Cure.Elab.Name.base(name))
 

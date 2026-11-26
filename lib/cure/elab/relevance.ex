@@ -87,7 +87,7 @@ defmodule Cure.Elab.Relevance do
   parameters, so never flagged.
   """
 
-  alias Cure.Core.{Env, Grade, Inductive}
+  alias Cure.Core.{Env, Grade, Inductive, Validator}
   alias Cure.Elab.Collapsible
 
   @type site :: :returned | :present_arg | :scrutinee | :applied
@@ -102,6 +102,7 @@ defmodule Cure.Elab.Relevance do
 
   @type error ::
           {:erased_used_relevantly, %{def: atom(), binder: non_neg_integer(), site: site()}}
+          | {:final_core_violation, atom(), [map()]}
           | {:usage_violation,
              %{def: atom(), binder: non_neg_integer(), kind: kind(), declared: Grade.t(), used: Grade.t()}}
 
@@ -135,10 +136,21 @@ defmodule Cure.Elab.Relevance do
 
     # The parameters are the body's outermost free variables, so parameter `p` is
     # de Bruijn LEVEL `p` and its usage is read straight off the walk's result.
-    with {:ok, usage} <- walk(body, length(quantities), :returned, st) do
+    with :ok <- check_erased_effects(env, name, body),
+         {:ok, usage} <- walk(body, length(quantities), :returned, st) do
       quantities
       |> Enum.with_index()
       |> each(fn {q, p} -> check_binder(st, p, q, usage, :param) end)
+    end
+  end
+
+  defp check_erased_effects(env, name, body) do
+    # Reuse the release position policy without imposing release-hole admission
+    # during development. This must see the original body, before q0 arguments
+    # are omitted from the usage walk.
+    case Validator.validate(body, %{no_effect_in_erased_position: :reject}, env) do
+      {:ok, _warnings} -> :ok
+      {:error, diagnostics} -> {:error, {:final_core_violation, name, diagnostics}}
     end
   end
 
@@ -333,7 +345,8 @@ defmodule Cure.Elab.Relevance do
   # Constructor: same present/erased split, via the family's ctor quantities.
   defp walk({:ctor, cname, args}, depth, _site, st) do
     quantities =
-      (Inductive.ctor_quantities(st.env, cname) || List.duplicate(Grade.unrestricted(), length(args)))
+      (Inductive.ctor_application_quantities(st.env, cname, length(args)) ||
+         Inductive.ctor_quantities(st.env, cname) || List.duplicate(Grade.unrestricted(), length(args)))
       |> pad(length(args))
 
     walk_args(args, quantities, depth, st)
@@ -374,6 +387,12 @@ defmodule Cure.Elab.Relevance do
   end
 
   # --- exempt positions: type formers and proof terms carry no runtime value ---
+  defp walk({:type, _}, _depth, _site, _st), do: {:ok, %{}}
+  defp walk({:level_type}, _depth, _site, _st), do: {:ok, %{}}
+
+  defp walk({:level_value, _}, _depth, site, _st),
+    do: {:error, {:runtime_relevant_level, :level_value, site}}
+
   defp walk({:pi, _g, _d, _c}, _depth, _site, _st), do: {:ok, %{}}
   defp walk({:data, _n, _ps, _is}, _depth, _site, _st), do: {:ok, %{}}
 
@@ -411,7 +430,25 @@ defmodule Cure.Elab.Relevance do
 
   defp walk(_leaf, _depth, _site, _st), do: {:ok, %{}}
 
-  defp walk_app_spine(head, args, depth, st) do
+  defp walk_app_spine({:ctor, cname, head_args} = head, args, depth, st) do
+    # Classify the complete constructor spine once. Walking a partially filled
+    # head separately can treat a uniform parameter as a present field before
+    # the remaining arguments reveal the exact licensed K6 shape.
+    all = head_args ++ args
+    quantities = Inductive.ctor_application_quantities(st.env, cname, length(all))
+
+    case {quantities, Inductive.field_count(st.env, cname)} do
+      {quantities, fields} when is_list(quantities) and is_integer(fields) and length(quantities) > fields ->
+        walk_args(all, quantities, depth, st)
+
+      _fields_only_or_defensive ->
+        walk_application_usage(head, args, depth, st)
+    end
+  end
+
+  defp walk_app_spine(head, args, depth, st), do: walk_application_usage(head, args, depth, st)
+
+  defp walk_application_usage(head, args, depth, st) do
     quantities = callee_quantities(head, length(args), st.env)
 
     with {:ok, uh} <- walk(head, depth, :applied, st),
@@ -587,6 +624,9 @@ defmodule Cure.Elab.Relevance do
   end
 
   # Count free occurrences of de Bruijn LEVEL `target` in `term` (walked at `depth`).
+  defp count_level({tag, _} = term, depth, target) when tag in [:type, :level_value],
+    do: Enum.sum(Enum.map(Cure.Core.Term.level_atoms(term), &count_level(&1, depth, target)))
+
   defp count_level({:var, i}, depth, target), do: if(depth - 1 - i == target, do: 1, else: 0)
   defp count_level({:lam, _g, d, b}, depth, t), do: count_level(d, depth, t) + count_level(b, depth + 1, t)
   defp count_level({:pi, _g, d, c}, depth, t), do: count_level(d, depth, t) + count_level(c, depth + 1, t)
@@ -768,6 +808,9 @@ defmodule Cure.Elab.Relevance do
   end
 
   defp callee_quantities({:ctor, cname, _args}, arity, env) do
+    # This fallback sees only the application tail. Exact complete K6 spines
+    # were handled by walk_app_spine; treating this partial count as a complete
+    # application could invent an erased prefix on an over-applied term.
     (Inductive.ctor_quantities(env, cname) || List.duplicate(Grade.unrestricted(), arity)) |> pad(arity)
   end
 

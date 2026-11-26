@@ -1,4 +1,5 @@
 defmodule Cure.Core.ProofQuotationTest do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc """
   Reviewed terminating Quote observations, not an arbitrary normalization
   service or universal implementation theorem. Agda validates model replay.
@@ -19,7 +20,7 @@ defmodule Cure.Core.ProofQuotationTest do
     {:dependent, program, env, depth, _goal} =
       Enum.find(ProofQuotationFixture.cases(), &(elem(&1, 0) == :dependent))
 
-    assert {:lam, _, {:type, 0}, {:lam, _, {:var, 0}, {:var, 0}}} =
+    assert {:lam, _, {:type, @u0}, {:lam, _, {:var, 0}, {:var, 0}}} =
              Quote.reify(Eval.eval(program, env), depth)
   end
 

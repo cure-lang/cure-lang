@@ -45,7 +45,7 @@ defmodule Antigen.Assays.Term do
   # --- term/infer_check ------------------------------------------------------
   defp dispatch("term/infer_check", ctx, p, inferred, k) do
     depth = Context.length(ctx)
-    inferred_term = Normalise.quote(inferred, depth)
+    inferred_term = Normalise.quote(inferred, depth, Context.signature(ctx))
 
     cond do
       k.check.(ctx, p.term, inferred) != :ok ->

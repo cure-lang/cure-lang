@@ -181,8 +181,14 @@ defmodule Cure.Core.Normalise do
   defp nf_struct({:vdata, name, args}, sig, depth, opts),
     do: {:vdata, name, Enum.map(args, &nf_value(&1, sig, depth, opts))}
 
+  defp nf_struct({:vlevel, level}, sig, depth, opts),
+    do: {:vlevel, Cure.Core.LevelValue.map(level, &nf_value(&1, sig, depth, opts))}
+
+  defp nf_struct({:vtype, {:finite, level}}, sig, depth, opts),
+    do: {:vtype, {:finite, Cure.Core.LevelValue.map(level, &nf_value(&1, sig, depth, opts))}}
+
   defp nf_struct({:vctor, name, args}, sig, depth, opts),
-    do: {:vctor, name, Enum.map(args, &nf_value(&1, sig, depth, opts))}
+    do: Eval.constructor_value(name, Enum.map(args, &nf_value(&1, sig, depth, opts)))
 
   defp nf_struct({:vneutral, neutral}, sig, depth, opts),
     do: {:vneutral, nf_neutral(neutral, sig, depth, opts)}
@@ -343,7 +349,7 @@ defmodule Cure.Core.Normalise do
   defp eval_certified_application(body, args) do
     {:ok, reapply(args, spend_fuel(Eval.eval(body, [])))}
   rescue
-    RuntimeError -> :stuck
+    _error in [RuntimeError, ArgumentError] -> :stuck
   end
 
   # Decide, in ONE whnf of the eliminated target, whether a certified global's

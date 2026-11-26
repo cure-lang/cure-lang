@@ -170,14 +170,18 @@ defmodule Cure.Elab.ProofChain do
 
   defp equivalent_type(signature, carrier, left, right) do
     family = Inductive.builtin(signature, :eq) || :"Std.Equivalent#Equivalent"
-    {:data, family, [carrier], [left, right]}
+    {:data, family, [eq_level(carrier), carrier], [left, right]}
   end
 
   defp trans_application(env, carrier, first, middle, last, prior, proof) do
     trans = Env.resolve_key(env, env.defs, :"Std.Equivalent#trans")
 
-    Enum.reduce([carrier, first, middle, last, prior, proof], {:global, trans}, fn argument, function ->
+    Enum.reduce([eq_level(carrier), carrier, first, middle, last, prior, proof], {:global, trans}, fn argument,
+                                                                                                      function ->
       {:app, function, argument}
     end)
   end
+
+  defp eq_level({:type, {:finite, level}}), do: {:level_value, Cure.Core.UniverseLevel.succ(level)}
+  defp eq_level(_carrier), do: {:level_value, Cure.Core.UniverseLevel.zero()}
 end

@@ -41,7 +41,7 @@ defmodule Antigen.Generators.TermTest do
     # coverage.
     env = SigMenu.env_of(:v1)
     ctx = Context.empty(env)
-    goal = {:type, 0}
+    goal = {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}
     ts = sample(Term.gen_term(ctx, goal), 40)
     assert Enum.all?(ts, &(&1 in [SigMenu.nat(), SigMenu.bd(), SigMenu.vec({:ctor, :Z, []})]))
     for t <- ts, do: assert({:ok, _} = Kernel.infer(ctx, t))

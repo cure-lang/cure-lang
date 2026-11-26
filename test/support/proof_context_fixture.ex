@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofContextFixture do
+  @v0 {:finite, Cure.Core.LevelValue.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Context, Grade, ProofContext, ProofSnapshot}
@@ -6,7 +7,7 @@ defmodule Cure.Test.ProofContextFixture do
 
   def profile do
     signature = ProofSnapshotFixture.environment()
-    a = Context.extend(Context.empty(signature), {:vtype, 0}, Grade.unrestricted())
+    a = Context.extend(Context.empty(signature), {:vtype, @v0}, Grade.unrestricted())
     [a_value] = Context.env(a)
     x = Context.extend(a, a_value, Grade.one())
     [x_value, _a_value] = Context.env(x)
@@ -16,7 +17,7 @@ defmodule Cure.Test.ProofContextFixture do
     last = Context.extend(literal, {:vatom_type}, Grade.zero())
 
     operations = [
-      {:opaque, {:vtype, 0}, Grade.unrestricted()},
+      {:opaque, {:vtype, @v0}, Grade.unrestricted()},
       {:opaque, a_value, Grade.one()},
       {:defined, a_value, x_value},
       {:opaque, a_value, Grade.affine()},
@@ -33,7 +34,9 @@ defmodule Cure.Test.ProofContextFixture do
 
     with {:ok, captured} <- ProofContext.capture(ctx, table),
          {:ok, signature} <- ProofSnapshot.capture(ProofSnapshotFixture.environment()) do
-      if captured.signature != signature, do: raise("context signature drifted from the audited source")
+      if captured.signature != signature,
+        do: raise("context signature drifted from the audited source")
+
       6 = captured.size
       ops = vector(operations, &operation/1)
       types = vector(captured.types, &flat/1)

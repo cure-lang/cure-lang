@@ -46,7 +46,7 @@ defmodule Cure.Stdlib.OtpRawTest do
   # the TYPE, and nothing at all at runtime.
   test "raw_self binds its erased message index before returning Effect(RawPid(m, m, Plain))",
        %{env: env} do
-    assert {:pi, :erased, {:type, 0},
+    assert {:pi, :erased, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
             {:effect_type,
              {:data, :"Std.Otp.Raw#RawPid", [{:var, 0}, {:var, 0}, {:data, :"Std.Otp.Raw#Plain", [], []}], []}}} =
              Env.get_def(env, :raw_self).type
@@ -91,6 +91,7 @@ defmodule Cure.Stdlib.OtpRawTest do
   } do
     # {m : Type(erased)} -> Pid -> m -> Effect(Unit): the outer binder is the
     # erased message-type param, and the message argument is that bound variable.
-    assert {:pi, :erased, {:type, 0}, _} = Env.get_def(env, :raw_send).type
+    assert {:pi, :erased, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, _} =
+             Env.get_def(env, :raw_send).type
   end
 end

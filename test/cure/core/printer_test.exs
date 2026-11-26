@@ -3,8 +3,8 @@ defmodule Cure.Core.PrinterTest do
   alias Cure.Core.Printer
 
   test "renders base types and literals" do
-    assert Printer.print({:type, 0}) == "Type"
-    assert Printer.print({:type, 2}) == "Type2"
+    assert Printer.print({:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}) == "Type"
+    assert Printer.print({:type, {:finite, %Cure.Core.UniverseLevel{constant: 2, atoms: []}}}) == "Type2"
     assert Printer.print({:int_type}) == "Int"
     assert Printer.print({:int_lit, -3}) == "-3"
     assert Printer.print({:atom_lit, :ok}) == ":ok"
@@ -21,7 +21,8 @@ defmodule Cure.Core.PrinterTest do
   test "renders a type parameter as an implicit forall" do
     # (a : Type) -> List(a) -> Int   ==>  ∀ {a}. List(a) -> Int
     ty =
-      {:pi, :unrestricted, {:type, 0}, {:pi, :unrestricted, {:data, :List, [{:var, 0}], []}, {:int_type}}}
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, :unrestricted, {:data, :List, [{:var, 0}], []}, {:int_type}}}
 
     assert Printer.print(ty) == "∀ {a}. List(a) -> Int"
   end
@@ -36,7 +37,10 @@ defmodule Cure.Core.PrinterTest do
     # and every other test in this file passes either way, because none of
     # them nest a non-dependent arrow inside a binder whose variable survives
     # past it.
-    ty = {:pi, :unrestricted, {:type, 0}, {:pi, :unrestricted, {:int_type}, {:var, 1}}}
+    ty =
+      {:pi, :unrestricted, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:pi, :unrestricted, {:int_type}, {:var, 1}}}
+
     assert Printer.print(ty) == "∀ {a}. Int -> a"
   end
 
@@ -64,14 +68,41 @@ defmodule Cure.Core.PrinterTest do
     # binders with the SAME labels as the outer — visually merging four distinct
     # de Bruijn indices into two. Here the outer Cons binds two vars, and its
     # body is another case that also binds two; the four labels must be distinct.
-    inner = {:case, {:var, 0}, {:type, 0}, [{:Cons, 2, {:var, 1}}]}
-    outer = {:case, {:global, :s}, {:type, 0}, [{:Cons, 2, inner}]}
+    inner =
+      {:case, {:var, 0}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [{:Cons, 2, {:var, 1}}]}
+
+    outer =
+      {:case, {:global, :s}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}, [{:Cons, 2, inner}]}
 
     text = Printer.print(outer)
     labels = Regex.scan(~r/\b(x\d+|[a-z]\d*)\b/, text) |> Enum.map(&List.first/1)
     # The two Cons branches must not both introduce `x0`/`x1`.
     binder_labels = Enum.filter(labels, &String.starts_with?(&1, "x"))
     assert binder_labels == Enum.uniq(binder_labels), "case binders collide: #{text}"
+  end
+
+  test "omits leading default universe_zero level params on data families" do
+    zero = {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}
+    one = {:level_value, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}
+    var_l = {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:var, 0}, 0}]}}
+
+    eq_zero = {:data, :"Std.Equivalent#Equivalent", [zero, {:data, :"Std.Int#Int", [], []}], [{:var, 1}, {:var, 0}]}
+    assert Printer.print(eq_zero, ["y", "x"]) == "Equivalent(Int, x, y)"
+
+    eq_one =
+      {:data, :"Std.Equivalent#Equivalent", [one, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+       [{:var, 0}, {:var, 0}]}
+
+    assert Printer.print(eq_one, ["a"]) == "Equivalent(1, Type, a, a)"
+
+    eq_var = {:data, :"Std.Equivalent#Equivalent", [var_l, {:var, 1}], [{:var, 2}, {:var, 2}]}
+    assert Printer.print(eq_var, ["l", "a", "x"]) == "Equivalent(l, a, x, x)"
+
+    sigma_mixed = {:data, :Sigma, [zero, one, {:int_type}], []}
+    assert Printer.print(sigma_mixed) == "Sigma(universe_zero, 1, Int)"
+
+    level_only = {:data, :LevelBox, [zero], []}
+    assert Printer.print(level_only) == "LevelBox(universe_zero)"
   end
 
   test "raises on an unknown node rather than printing garbage" do

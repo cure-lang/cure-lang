@@ -9,7 +9,8 @@ defmodule Cure.Elab.RewriteCommandTest do
 
     goal =
       {:pi, Grade.unrestricted(), {:int_type},
-       {:data, :"Std.Equivalent#Equivalent", [{:int_type}], [{:var, 1}, {:var, 1}]}}
+       {:data, :"Std.Equivalent#Equivalent", [{:level_value, Cure.Core.UniverseLevel.zero()}, {:int_type}],
+        [{:var, 1}, {:var, 1}]}}
 
     occurrences = Rewrite.occurrences(goal, target)
     assert Enum.map(occurrences, & &1.number) == [1, 2]

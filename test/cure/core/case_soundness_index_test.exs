@@ -8,11 +8,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
   defp base_env do
     Env.empty()
     |> Inductive.declare(
-      Inductive.family(:Dec, [], [], 0),
+      Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
     )
     |> Inductive.declare(
-      Inductive.family(:Ix, [], [{:n, @dec}], 0),
+      Inductive.family(:Ix, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)),
       [Inductive.ctor(:wrap, [{:p, @dec}], [{:ctor, :Causal, []}])]
     )
   end
@@ -89,11 +89,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     env =
       Env.empty()
       |> Inductive.declare(
-        Inductive.family(:Dec, [], [], 0),
+        Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
       )
       |> Inductive.declare(
-        Inductive.family(:Two, [], [{:i, @dec}], 0),
+        Inductive.family(:Two, [], [{:i, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:pack, [{:y, @dec}], [{:var, 0}])]
       )
 
@@ -131,7 +131,7 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     env =
       base_env()
       |> Inductive.declare(
-        Inductive.family(:Stray, [], [{:n, @dec}], 0),
+        Inductive.family(:Stray, [], [{:n, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mkStray, [{:p, @dec}], [{:global, :h}])]
       )
       |> Env.add_def(:g, @dec, {:ctor, :Causal, []})
@@ -144,7 +144,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
 
     # Π(s: Stray(global g)). Dec
     def_type = {:pi, Cure.Core.Grade.unrestricted(), stray_g, @dec}
-    body = {:lam, Cure.Core.Grade.unrestricted(), stray_g, {:case, {:var, 0}, motive, [{:mkStray, 1, {:type, 0}}]}}
+
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), stray_g,
+       {:case, {:var, 0}, motive, [{:mkStray, 1, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]}}
+
     env = Env.add_def(env, :probe, def_type, body)
     assert {:error, :branch_type} = Kernel.check_def(env, :probe)
   end
@@ -155,11 +159,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     env =
       Env.empty()
       |> Inductive.declare(
-        Inductive.family(:Dec, [], [], 0),
+        Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:Dcoupled, [], []), Inductive.ctor(:Causal, [], [])]
       )
       |> Inductive.declare(
-        Inductive.family(:Box, [], [{:d, @dec}], 0),
+        Inductive.family(:Box, [], [{:d, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mk, [{:x, @dec}], [{:var, 0}])]
       )
 
@@ -187,7 +191,10 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     # Π(s:Ix Dcoupled). Dec
     def_type = {:pi, Cure.Core.Grade.unrestricted(), ix_dcoupled, @dec}
     # body is {:type,0} where Dec is expected — only accepted because the branch is dead.
-    body = {:lam, Cure.Core.Grade.unrestricted(), ix_dcoupled, {:case, {:var, 0}, motive, [{:wrap, 1, {:type, 0}}]}}
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), ix_dcoupled,
+       {:case, {:var, 0}, motive, [{:wrap, 1, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]}}
+
     env = Env.add_def(base_env(), :probe, def_type, body)
     assert :ok == Kernel.check_def(env, :probe)
   end
@@ -197,7 +204,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     motive = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:lam, Cure.Core.Grade.unrestricted(), @ix0, @dec}}
     # Π(s:Ix Causal). Dec — wrap IS reachable
     def_type = {:pi, Cure.Core.Grade.unrestricted(), ix_causal, @dec}
-    body = {:lam, Cure.Core.Grade.unrestricted(), ix_causal, {:case, {:var, 0}, motive, [{:wrap, 1, {:type, 0}}]}}
+
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), ix_causal,
+       {:case, {:var, 0}, motive, [{:wrap, 1, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]}}
+
     env = Env.add_def(base_env(), :probe, def_type, body)
     assert {:error, :branch_type} = Kernel.check_def(env, :probe)
   end
@@ -218,7 +229,7 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     env =
       base_env()
       |> Inductive.declare(
-        Inductive.family(:Foo, [], [{:a, @dec}, {:b, @dec}], 0),
+        Inductive.family(:Foo, [], [{:a, @dec}, {:b, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mk2, [{:y, @dec}], [{:ctor, :Causal, []}, {:var, 0}])]
       )
 
@@ -230,7 +241,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
         {:lam, Cure.Core.Grade.unrestricted(), {:data, :Foo, [], [{:var, 1}, {:var, 0}]}, @dec}}}
 
     def_type = {:pi, Cure.Core.Grade.unrestricted(), foo_dd, @dec}
-    body = {:lam, Cure.Core.Grade.unrestricted(), foo_dd, {:case, {:var, 0}, motive, [{:mk2, 1, {:type, 0}}]}}
+
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), foo_dd,
+       {:case, {:var, 0}, motive, [{:mk2, 1, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]}}
+
     env = Env.add_def(env, :probe, def_type, body)
     # mk2 can only build Foo(Causal,_) ⇒ discharged
     assert :ok == Kernel.check_def(env, :probe)
@@ -275,7 +290,7 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
     env =
       base_env()
       |> Inductive.declare(
-        Inductive.family(:Foo, [], [{:a, @dec}, {:b, @dec}], 0),
+        Inductive.family(:Foo, [], [{:a, @dec}, {:b, @dec}], Cure.Core.Sort.finite_closed(0)),
         [Inductive.ctor(:mk, [{:p, @dec}], [{:var, 0}, {:var, 0}])]
       )
 
@@ -287,7 +302,11 @@ defmodule Cure.Core.CaseSoundnessIndexTest do
         {:lam, Cure.Core.Grade.unrestricted(), {:data, :Foo, [], [{:var, 1}, {:var, 0}]}, @dec}}}
 
     def_type = {:pi, Cure.Core.Grade.unrestricted(), foo_cd, @dec}
-    body = {:lam, Cure.Core.Grade.unrestricted(), foo_cd, {:case, {:var, 0}, motive, [{:mk, 1, {:type, 0}}]}}
+
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), foo_cd,
+       {:case, {:var, 0}, motive, [{:mk, 1, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}]}}
+
     env = Env.add_def(env, :probe, def_type, body)
     assert :ok == Kernel.check_def(env, :probe)
   end

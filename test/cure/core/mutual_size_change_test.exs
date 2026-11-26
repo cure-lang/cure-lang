@@ -36,7 +36,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
 
   defp base_env do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Nat, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Z, [], []),
       Inductive.ctor(:S, [{:n, @nat}], [])
     ])

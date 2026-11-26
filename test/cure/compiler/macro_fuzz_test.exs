@@ -36,7 +36,9 @@ defmodule Cure.Compiler.MacroFuzzTest do
 
     assert Enum.all?(expressions, &match?({:raw_text, _}, &1))
 
-    assert {:ok, %{goal: {:type, 0}}, kinds} = MacroFuzz.sample_holes("Kind", 12, 19)
+    assert {:ok, %{goal: {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}, kinds} =
+             MacroFuzz.sample_holes("Kind", 12, 19)
+
     assert Enum.all?(kinds, &match?({:data, _, _, _}, &1))
   end
 

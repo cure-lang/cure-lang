@@ -1,0 +1,22 @@
+{
+  "arity_mutation_detected": true,
+  "baseline_limitations": [
+    "local function name sigma_first shadows canonical projection helper: too_many_arguments or emitted self-recursion; fixture uses project_first/project_second",
+    "explicit argument for implicit proof slot rejects index_mismatch; erased binder invoked through emitted arity",
+    "match equivalent(18) / reflexive() -> 19 raises cannot certify open body; not frozen as a supported operation"
+  ],
+  "capture_runs": 2,
+  "elixir": "1.20.4",
+  "erts": "17.1.1",
+  "head": "722ee355665fdac39b3d954fd95e9ae7f7c4b9bd",
+  "literal_mutation_detected": true,
+  "normalization": "identity; no forms, annotations, IR nodes, or module names removed",
+  "otp": "29",
+  "payload_sha256": "f063ae4ec511366a474150f23e734e9e029faa14b85e032bb0fff709e07f456c",
+  "same_bytes": true,
+  "sources": {
+    "phase5_baseline.cure": "88d981ae70bfab9c29e7e79cbe5e0d0180fb87b32fb09db28c78aa2d22dfbd13",
+    "phase5_baseline_imported.cure": "22eef8172239a898495a7b631638455ba1256216091dc71240d7d8a7ceaffd40"
+  },
+  "compiler_lib_git_tree": "61a609ee14e34cd6940b2b56cf59d233d290d9fe"
+}

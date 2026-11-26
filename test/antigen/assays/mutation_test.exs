@@ -12,7 +12,7 @@ defmodule Antigen.Assays.MutationTest do
 
   test "run/2 flags a violation when the (stubbed) kernel ACCEPTS an ill-typed term" do
     [c | _] = sample(Mutation.mutant(), 1)
-    accept = fn _ctx, _term -> {:ok, {:vtype, 0}} end
+    accept = fn _ctx, _term -> {:ok, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}}} end
     assert {:violation, {:accepted_ill_typed, term, fault}} = MA.run(c, accept)
     assert term == c.payload.term
     assert fault == c.payload.fault

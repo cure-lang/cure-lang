@@ -141,7 +141,7 @@ defmodule Cure.Elab.Solver do
     do: Elaborator.elaborate_expr_checked(expression, decision_type, names, ctx, env)
 
   defp decision_term([], expected, _decision_type, _names, ctx, env) do
-    with {:data, equality, [carrier], [left, right]} <- Normalise.whnf(ctx, expected),
+    with {:data, equality, [_level, carrier], [left, right]} <- Normalise.whnf(ctx, expected),
          true <- equality == Inductive.builtin(env, :eq),
          true <- carrier == {:data, Inductive.builtin(env, :bool), [], []},
          true <- Map.has_key?(env.defs, @bool_decider) and Env.certified?(env, @bool_decider) do

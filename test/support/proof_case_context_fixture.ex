@@ -1,4 +1,5 @@
 defmodule Cure.Test.ProofCaseContextFixture do
+  @u0 {:finite, Cure.Core.UniverseLevel.closed(0)}
   @moduledoc false
 
   alias Cure.Core.{Env, Eval, Grade, ProofRecipe, ProofWire, Quote, Term}
@@ -9,8 +10,13 @@ defmodule Cure.Test.ProofCaseContextFixture do
     g = Grade.unrestricted()
     atom = {:atom_type}
     payload = {:atom_lit, :payload}
-    %{body: {:case, packed, motive, branches}} = Env.get_def(ProofSnapshotFixture.environment(), :"Boundary#unpack")
-    {:certificate, _families, [_, _, _, {:packet, _, {:r_convert, _, _, base}}]} = ProofRecipeFixture.certificate()
+
+    %{body: {:case, packed, motive, branches}} =
+      Env.get_def(ProofSnapshotFixture.environment(), :"Boundary#unpack")
+
+    {:certificate, _families, [_, _, _, {:packet, _, {:r_convert, _, _, base}}]} =
+      ProofRecipeFixture.certificate()
+
     {:r_case, ctor, ps, indices, level, kind, mot, branch_recipes} = base
     open_scrutinee = {:ctor, :"Boundary#Pack", [{:var, 1}, {:var, 0}]}
     open_case = {:case, open_scrutinee, motive, branches}
@@ -30,7 +36,7 @@ defmodule Cure.Test.ProofCaseContextFixture do
 
     [
       {:dependent,
-       {:caller, [{"A", {:type, 0}}, {"x", {:var, 0}}], [:r_leaf, :r_leaf], [atom, payload], [:r_leaf, :r_leaf],
+       {:caller, [{"A", {:type, @u0}}, {"x", {:var, 0}}], [:r_leaf, :r_leaf], [atom, payload], [:r_leaf, :r_leaf],
         open_case, {:var, 1}, open_recipe, :r_leaf}, [{:vatom, :payload}, {:vatom_type}]},
       {:lambda,
        {:caller, [], [], [], [], {:lam, g, atom, lambda_case}, {:pi, g, atom, atom}, {:r_lam, :r_leaf, lambda_recipe},

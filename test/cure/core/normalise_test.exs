@@ -10,18 +10,29 @@ defmodule Cure.Core.NormaliseTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Dec, [], [], 0), [
+    |> Inductive.declare(Inductive.family(:Dec, [], [], Cure.Core.Sort.finite_closed(0)), [
       Inductive.ctor(:Dcoupled, [], []),
       Inductive.ctor(:Causal, [], [])
     ])
   end
 
-  defp id_type, do: {:pi, Cure.Core.Grade.unrestricted(), {:type, 1}, {:type, 1}}
-  defp id_body, do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 1}, {:var, 0}}
+  defp id_type,
+    do:
+      {:pi, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}},
+       {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}}}
+
+  defp id_body,
+    do:
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}},
+       {:var, 0}}
 
   test "beta normalizes applications" do
-    term = {:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 1}, {:var, 0}}, {:type, 0}}
-    assert {:type, 0} == Normalise.nf(Context.empty(), term)
+    term =
+      {:app,
+       {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}},
+        {:var, 0}}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
+    assert {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}} == Normalise.nf(Context.empty(), term)
   end
 
   test "constructor case reduces by iota" do
@@ -37,8 +48,10 @@ defmodule Cure.Core.NormaliseTest do
       |> Env.add_def(:id, id_type(), id_body())
       |> Env.certify(:id)
 
-    term = {:app, {:global, :id}, {:type, 0}}
-    assert {:type, 0} == Normalise.nf(Context.empty(env), term)
+    term = {:app, {:global, :id}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
+    assert {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}} ==
+             Normalise.nf(Context.empty(env), term)
   end
 
   test "certified identity globals terminate on open arguments" do
@@ -73,9 +86,10 @@ defmodule Cure.Core.NormaliseTest do
 
   test "uncertified globals stay opaque" do
     env = Env.add_def(base(), :id, id_type(), id_body())
-    term = {:app, {:global, :id}, {:type, 0}}
+    term = {:app, {:global, :id}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
 
-    assert {:app, {:global, :id}, {:type, 0}} == Normalise.whnf(Context.empty(env), term)
+    assert {:app, {:global, :id}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}} ==
+             Normalise.whnf(Context.empty(env), term)
   end
 
   test "delta can be disabled for certified globals" do
@@ -159,7 +173,11 @@ defmodule Cure.Core.NormaliseTest do
   end
 
   test "Kernel.normalize delegates to the shared normalizer" do
-    term = {:app, {:lam, Cure.Core.Grade.unrestricted(), {:type, 1}, {:var, 0}}, {:type, 0}}
+    term =
+      {:app,
+       {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}},
+        {:var, 0}}, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}}
+
     assert Normalise.nf(Context.empty(), term) == Kernel.normalize(Context.empty(), term)
   end
 
@@ -172,10 +190,13 @@ defmodule Cure.Core.NormaliseTest do
     # fixpoint of nf.
     ctx =
       Enum.reduce(1..3, Context.empty(base()), fn _, c ->
-        Context.extend(c, {:vtype, 0})
+        Context.extend(c, {:vtype, {:finite, %Cure.Core.LevelValue{constant: 0, atoms: []}}})
       end)
 
-    t = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:var, 1}}
+    t =
+      {:lam, Cure.Core.Grade.unrestricted(), {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
+       {:var, 1}}
+
     nf1 = Normalise.nf(ctx, t)
     assert nf1 == t, "nf reflected the free var: #{inspect(nf1)}"
     assert Normalise.nf(ctx, nf1) == nf1, "nf is not idempotent (oscillation)"

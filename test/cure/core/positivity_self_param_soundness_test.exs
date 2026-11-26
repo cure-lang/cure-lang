@@ -16,14 +16,16 @@ defmodule Cure.Core.PositivitySelfParamSoundnessTest do
 
   defp base do
     Env.empty()
-    |> Inductive.declare(Inductive.family(:Unit, [], [], 0), [Inductive.ctor(:unit, [], [])])
-    |> Inductive.declare(Inductive.family(:Empty, [], [], 0), [])
-    |> Inductive.declare(Inductive.family(:Other, [], [], 0), [])
+    |> Inductive.declare(Inductive.family(:Unit, [], [], Cure.Core.Sort.finite_closed(0)), [
+      Inductive.ctor(:unit, [], [])
+    ])
+    |> Inductive.declare(Inductive.family(:Empty, [], [], Cure.Core.Sort.finite_closed(0)), [])
+    |> Inductive.declare(Inductive.family(:Other, [], [], Cure.Core.Sort.finite_closed(0)), [])
   end
 
   test "negative occurrence under ANOTHER family's head is rejected (control)" do
     env =
-      Inductive.declare(base(), Inductive.family(:Bad, [], [], 0), [
+      Inductive.declare(base(), Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk, [{:f, {:data, :Other, [@neg], []}}], [])
       ])
 
@@ -33,7 +35,7 @@ defmodule Cure.Core.PositivitySelfParamSoundnessTest do
 
   test "the SAME negative occurrence under the family's OWN head is also rejected" do
     env =
-      Inductive.declare(base(), Inductive.family(:Bad, [], [], 0), [
+      Inductive.declare(base(), Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk, [{:f, {:data, :Bad, [@neg], []}}], [])
       ])
 
@@ -45,7 +47,7 @@ defmodule Cure.Core.PositivitySelfParamSoundnessTest do
   test "a genuinely strictly-positive recursive field is still accepted" do
     # Bad (Unit) -- self-head, argument is inert, no negative occurrence.
     env =
-      Inductive.declare(base(), Inductive.family(:Bad, [], [], 0), [
+      Inductive.declare(base(), Inductive.family(:Bad, [], [], Cure.Core.Sort.finite_closed(0)), [
         Inductive.ctor(:mk, [{:f, {:data, :Bad, [@unit], []}}], [])
       ])
 
