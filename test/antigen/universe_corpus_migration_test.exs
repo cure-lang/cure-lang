@@ -406,5 +406,48 @@ defmodule Antigen.UniverseCorpusMigrationTest do
     end
   end
 
+  test "publication succeeds under a symlinked parent directory (macOS /var -> /private/var) but rejects a symlinked target",
+       %{tmp: tmp} do
+    real_dir = Path.join(tmp, "private_root")
+    link_dir = Path.join(tmp, "var_root")
+    File.mkdir_p!(real_dir)
+    File.ln_s!(real_dir, link_dir)
+
+    path = Path.join(link_dir, "source.sexp")
+    File.write!(path, legacy() <> "\n")
+
+    opts =
+      @era ++
+        [
+          archive_dir: Path.join(link_dir, "archive"),
+          out_dir: Path.join(link_dir, "stage"),
+          inventory: Path.join(link_dir, "inventory.json")
+        ]
+
+    assert {:ok, report, state} = Migration.stage([path], opts)
+    assert :ok = Migration.publish!(state, report, opts)
+
+    symlink_root = Path.join(tmp, "symlink_target")
+    File.mkdir_p!(symlink_root)
+    real_file = Path.join(symlink_root, "real.sexp")
+    link_file = Path.join(symlink_root, "link.sexp")
+    File.write!(real_file, legacy() <> "\n")
+    File.ln_s!(real_file, link_file)
+
+    link_opts =
+      @era ++
+        [
+          archive_dir: Path.join(symlink_root, "archive"),
+          out_dir: Path.join(symlink_root, "stage"),
+          inventory: Path.join(symlink_root, "inventory.json")
+        ]
+
+    assert {:ok, link_report, link_state} = Migration.stage([link_file], link_opts)
+
+    assert_raise RuntimeError, ~r/publication through a symlink/, fn ->
+      Migration.publish!(link_state, link_report, link_opts)
+    end
+  end
+
   defp digest(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 end

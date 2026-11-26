@@ -250,7 +250,7 @@ defmodule Cure.Core.Env do
     %{
       env
       | defs:
-          Map.put(env.defs, name, %{
+          put_table_entry(env.defs, name, %{
             name: name,
             type: type_term,
             body: body_term,
@@ -358,7 +358,7 @@ defmodule Cure.Core.Env do
     key = resolve_key(env, env.defs, name)
 
     case Map.fetch(env.defs, key) do
-      {:ok, definition} -> %{env | defs: Map.put(env.defs, key, Map.put(definition, :unsafe, required))}
+      {:ok, definition} -> %{env | defs: put_table_entry(env.defs, key, Map.put(definition, :unsafe, required))}
       :error -> env
     end
   end
@@ -379,7 +379,7 @@ defmodule Cure.Core.Env do
     key = resolve_key(env, env.defs, name)
 
     case Map.fetch(env.defs, key) do
-      {:ok, definition} -> %{env | defs: Map.put(env.defs, key, Map.put(definition, :reducible, reducible))}
+      {:ok, definition} -> %{env | defs: put_table_entry(env.defs, key, Map.put(definition, :reducible, reducible))}
       :error -> env
     end
   end
@@ -390,8 +390,11 @@ defmodule Cure.Core.Env do
     key = resolve_key(env, env.defs, name)
 
     case Map.fetch(env.defs, key) do
-      {:ok, definition} -> %{env | defs: Map.put(env.defs, key, Map.put(definition, :source_holes, source_holes))}
-      :error -> env
+      {:ok, definition} ->
+        %{env | defs: put_table_entry(env.defs, key, Map.put(definition, :source_holes, source_holes))}
+
+      :error ->
+        env
     end
   end
 
@@ -405,7 +408,7 @@ defmodule Cure.Core.Env do
     key = resolve_key(env, env.defs, name)
 
     case Map.fetch(env.defs, key) do
-      {:ok, definition} -> %{env | defs: Map.put(env.defs, key, Map.put(definition, :typealias, true))}
+      {:ok, definition} -> %{env | defs: put_table_entry(env.defs, key, Map.put(definition, :typealias, true))}
       :error -> env
     end
   end
@@ -550,30 +553,69 @@ defmodule Cure.Core.Env do
   defp cached_index([{cached, index} | rest], table),
     do: if(:erts_debug.same(cached, table), do: index, else: cached_index(rest, table))
 
+  @doc false
+  @spec put_table_entry(map(), term(), term()) :: map()
+  def put_table_entry(table, key, value) when is_map(table) do
+    new_key? = not Map.has_key?(table, key)
+    updated = Map.put(table, key, value)
+    carry_name_index(table, updated, key, new_key?)
+    updated
+  end
+
+  defp carry_name_index(old_table, new_table, key, new_key?) do
+    cache = Process.get(@alias_index_key, [])
+
+    case take_cached_index(cache, old_table, []) do
+      nil ->
+        :ok
+
+      {index, rest} ->
+        updated = if new_key?, do: index_key(index, key), else: index
+        Process.put(@alias_index_key, Enum.take([{new_table, updated} | rest], @alias_index_slots))
+    end
+  end
+
+  defp take_cached_index([], _table, _acc), do: nil
+
+  defp take_cached_index([{cached, index} | rest], table, acc) do
+    if :erts_debug.same(cached, table) do
+      {index, Enum.reverse(acc, rest)}
+    else
+      take_cached_index(rest, table, [{cached, index} | acc])
+    end
+  end
+
   defp build_name_indexes(table) do
     table |> Map.keys() |> build_name_indexes_from_keys()
   end
 
   defp build_name_indexes_from_keys(keys) do
-    Enum.reduce(keys, %{aliases: %{}, providers: %{}}, fn key, indexes ->
-      case owned_base(key) do
-        nil ->
-          put_provider(indexes, key)
+    Enum.reduce(keys, %{aliases: %{}, providers: %{}}, &index_key(&2, &1))
+  end
 
-        base ->
-          indexes
-          |> Map.update!(:aliases, &Map.update(&1, base, [key], fn keys -> [key | keys] end))
-          |> put_provider(key)
+  defp index_key(indexes, key) when is_atom(key) do
+    case Cure.Elab.Name.split(key) do
+      {nil, base} ->
+        put_provider_base(indexes, key, base)
+
+      {_owner, base} ->
+        indexes
+        |> Map.update!(:aliases, &Map.update(&1, base, [key], fn keys -> [key | keys] end))
+        |> put_provider_base(key, base)
+    end
+  end
+
+  defp index_key(indexes, _key), do: indexes
+
+  defp put_provider_base(indexes, key, base) do
+    provider_base =
+      case :binary.split(base, "~") do
+        [head, _ord] -> head
+        [head] -> head
       end
-    end)
-  end
 
-  defp put_provider(indexes, key) when is_atom(key) do
-    base = Cure.Elab.Name.overload_base(key)
-    Map.update!(indexes, :providers, &Map.update(&1, base, [key], fn keys -> [key | keys] end))
+    Map.update!(indexes, :providers, &Map.update(&1, provider_base, [key], fn keys -> [key | keys] end))
   end
-
-  defp put_provider(indexes, _key), do: indexes
 
   @doc "Return canonical and overload keys supplied by a bare spelling."
   @spec provider_keys(map(), atom() | String.t()) :: [atom()]
@@ -582,17 +624,6 @@ defmodule Cure.Core.Env do
   def provider_keys(table, bare) when is_map(table) and is_binary(bare) do
     Map.get(name_indexes(table).providers, bare, [])
   end
-
-  # The base of an owner-qualified key, or nil for anything else. Non-atom keys
-  # are not owner-qualified names and are skipped.
-  defp owned_base(key) when is_atom(key) do
-    case Cure.Elab.Name.split(key) do
-      {nil, _base} -> nil
-      {_owner, base} -> base
-    end
-  end
-
-  defp owned_base(_key), do: nil
 
   @doc "Register a primitive base type: surface name → its Core type node."
   @spec put_primitive(t(), String.t(), tuple()) :: t()
@@ -694,7 +725,7 @@ defmodule Cure.Core.Env do
 
     case Map.get(env.defs, key) do
       nil -> env
-      record -> %{env | defs: Map.put(env.defs, key, Map.put(record, :labels, labels))}
+      record -> %{env | defs: put_table_entry(env.defs, key, Map.put(record, :labels, labels))}
     end
   end
 
@@ -785,8 +816,10 @@ defmodule Cure.Core.Env do
   Only `Builtins.seed_ops` produces this marker.
   """
   @spec register_builtin_op(t(), atom(), atom()) :: t()
-  def register_builtin_op(%__MODULE__{defs: defs} = env, name, op_key),
-    do: %{env | defs: Map.update!(defs, resolve_key(env, defs, name), &Map.put(&1, :builtin_op, op_key))}
+  def register_builtin_op(%__MODULE__{defs: defs} = env, name, op_key) do
+    key = resolve_key(env, defs, name)
+    %{env | defs: put_table_entry(defs, key, Map.put(Map.fetch!(defs, key), :builtin_op, op_key))}
+  end
 
   @doc """
   The builtin-op key for `name` (`:add`, `:lt`, …), or nil. Tolerates a nil
@@ -812,8 +845,10 @@ defmodule Cure.Core.Env do
   `Std.Bool`/`Std.Sigma` import path produces this marker.
   """
   @spec register_inline_hint(t(), atom(), atom()) :: t()
-  def register_inline_hint(%__MODULE__{defs: defs} = env, name, key),
-    do: %{env | defs: Map.update!(defs, resolve_key(env, defs, name), &Map.put(&1, :inline_hint, key))}
+  def register_inline_hint(%__MODULE__{defs: defs} = env, name, key) do
+    resolved = resolve_key(env, defs, name)
+    %{env | defs: put_table_entry(defs, resolved, Map.put(Map.fetch!(defs, resolved), :inline_hint, key))}
+  end
 
   @doc """
   The emit-inline key for `name` (`:and`, `:sigma_first`, …), or nil.
@@ -1022,7 +1057,7 @@ defmodule Cure.Core.Inductive do
       %{family | name: fname}
       |> Map.put(:ctor_order, Enum.map(ctors, fn %{name: cname} -> Env.owned_name(env, cname) end))
 
-    env = %{env | families: Map.put(env.families, fname, family)}
+    env = %{env | families: Env.put_table_entry(env.families, fname, family)}
 
     Enum.reduce(ctors, env, fn %{name: cname} = c, acc ->
       cname = Env.owned_name(acc, cname)
@@ -1030,8 +1065,8 @@ defmodule Cure.Core.Inductive do
 
       %{
         acc
-        | ctors: Map.put(acc.ctors, cname, c),
-          ctor_to_family: Map.put(acc.ctor_to_family, cname, fname)
+        | ctors: Env.put_table_entry(acc.ctors, cname, c),
+          ctor_to_family: Env.put_table_entry(acc.ctor_to_family, cname, fname)
       }
     end)
   end

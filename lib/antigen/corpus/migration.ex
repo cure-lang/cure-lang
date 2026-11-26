@@ -148,7 +148,17 @@ defmodule Antigen.Corpus.Migration do
                  sha(File.read!(output)) == expected["output_sha256"],
                do: raise("publication compare-and-swap preflight failed")
 
-        unless canonical(file.path) == file.path, do: raise("publication through a symlink is not supported")
+        # Check the target file itself with lstat rather than requiring every
+        # ancestor directory to equal `canonical(file.path)`. On macOS,
+        # `System.tmp_dir!()` lives under `/var/folders/...` where `/var` is an
+        # OS symlink to `/private/var`, so comparing full canonical paths rejects
+        # every regular file in a temporary directory.
+        case File.lstat(file.path) do
+          {:ok, %{type: :regular}} -> :ok
+          {:ok, %{type: :symlink}} -> raise("publication through a symlink is not supported")
+          {:ok, _} -> raise("publication target is not a regular file")
+          {:error, reason} -> raise(File.Error, reason: reason, action: "lstat", path: file.path)
+        end
 
         %{
           "source" => file.path,

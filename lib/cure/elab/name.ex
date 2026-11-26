@@ -10,7 +10,7 @@ defmodule Cure.Elab.Name do
   @separator "#"
   @overload_separator "~"
   @split_cache_key {__MODULE__, :split_cache}
-  @split_cache_limit 4_096
+  @split_cache_limit 65_536
 
   @type owner :: String.t() | atom()
   @type base :: String.t() | atom()

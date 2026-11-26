@@ -122,7 +122,13 @@ defmodule Cure.Compiler.BufferParse do
       roots = Process.get(:cure_source_roots, [])
       paths = Enum.flat_map(roots, &Path.wildcard(Path.join(&1, "**/*.cure")))
       sources = context.sources
-      paths = Enum.uniq(Map.keys(sources) ++ paths)
+      # Only real files on disk belong in `:cure_module_index`. Virtual buffers
+      # such as `"nofile"` are already passed to `ModuleManifest.build` via
+      # `sources`, whereas indexing a non-existent path would make downstream
+      # `Program.module_slice_env/1` call `File.read/1` on it and fail with
+      # `:enoent`.
+      source_paths = sources |> Map.keys() |> Enum.filter(&File.regular?/1)
+      paths = Enum.uniq(source_paths ++ paths)
       supplied_names = context.supplied |> Enum.flat_map(& &1.provided_modules) |> MapSet.new()
       missing = MapSet.difference(requested, supplied_names)
 
