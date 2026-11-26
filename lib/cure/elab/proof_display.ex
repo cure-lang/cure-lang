@@ -16,7 +16,7 @@ defmodule Cure.Elab.ProofDisplay do
   def format({:atom_lit, value}, _names), do: inspect(value)
 
   def format({:data, name, params, indices}, names),
-    do: call(Name.base(name), Enum.map(params ++ indices, &format(&1, names)))
+    do: call(Name.base(name), Enum.map(display_data_params(params, indices) ++ indices, &format(&1, names)))
 
   def format({:ctor, name, args}, names), do: call(Name.base(name), Enum.map(args, &format(&1, names)))
 
@@ -31,4 +31,15 @@ defmodule Cure.Elab.ProofDisplay do
   defp flatten_app(head, args), do: {head, args}
   defp call(name, []), do: name
   defp call(name, args), do: name <> "(" <> Enum.join(args, ", ") <> ")"
+
+  defp display_data_params(params, indices) do
+    {levels, rest} = Enum.split_while(params, &match?({:level_value, _}, &1))
+
+    if levels != [] and (rest != [] or indices != []) and
+         Enum.all?(levels, &match?({:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}, &1)) do
+      rest
+    else
+      params
+    end
+  end
 end

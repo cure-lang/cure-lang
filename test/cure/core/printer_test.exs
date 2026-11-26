@@ -81,6 +81,30 @@ defmodule Cure.Core.PrinterTest do
     assert binder_labels == Enum.uniq(binder_labels), "case binders collide: #{text}"
   end
 
+  test "omits leading default universe_zero level params on data families" do
+    zero = {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}
+    one = {:level_value, %Cure.Core.UniverseLevel{constant: 1, atoms: []}}
+    var_l = {:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: [{{:var, 0}, 0}]}}
+
+    eq_zero = {:data, :"Std.Equivalent#Equivalent", [zero, {:data, :"Std.Int#Int", [], []}], [{:var, 1}, {:var, 0}]}
+    assert Printer.print(eq_zero, ["y", "x"]) == "Equivalent(Int, x, y)"
+
+    eq_one =
+      {:data, :"Std.Equivalent#Equivalent", [one, {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}}],
+       [{:var, 0}, {:var, 0}]}
+
+    assert Printer.print(eq_one, ["a"]) == "Equivalent(1, Type, a, a)"
+
+    eq_var = {:data, :"Std.Equivalent#Equivalent", [var_l, {:var, 1}], [{:var, 2}, {:var, 2}]}
+    assert Printer.print(eq_var, ["l", "a", "x"]) == "Equivalent(l, a, x, x)"
+
+    sigma_mixed = {:data, :Sigma, [zero, one, {:int_type}], []}
+    assert Printer.print(sigma_mixed) == "Sigma(universe_zero, 1, Int)"
+
+    level_only = {:data, :LevelBox, [zero], []}
+    assert Printer.print(level_only) == "LevelBox(universe_zero)"
+  end
+
   test "raises on an unknown node rather than printing garbage" do
     assert_raise ArgumentError, ~r/unknown Core term/, fn ->
       Printer.print({:bogus, 1})

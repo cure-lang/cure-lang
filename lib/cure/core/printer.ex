@@ -91,7 +91,7 @@ defmodule Cure.Core.Printer do
   end
 
   def print({:data, name, params, indices}, names),
-    do: applied(Name.base(name), params ++ indices, names)
+    do: applied(Name.base(name), display_data_params(params, indices) ++ indices, names)
 
   def print({:ctor, name, args}, names),
     do: applied(Name.base(name), args, names)
@@ -124,6 +124,21 @@ defmodule Cure.Core.Printer do
 
   defp applied(head, [], _names), do: head
   defp applied(head, args, names), do: "#{head}(#{Enum.map_join(args, ", ", &print(&1, names))})"
+
+  # Omit leading default `universe_zero` level parameters when printing a
+  # universe-polymorphic family (e.g. `Equivalent(Int, x, y)`, `List(Int)`) so
+  # user-facing displays match surface syntax. Non-zero, mixed, or variable
+  # level arguments stay explicit, as do level-only families with no other args.
+  defp display_data_params(params, indices) do
+    {levels, rest} = Enum.split_while(params, &match?({:level_value, _}, &1))
+
+    if levels != [] and (rest != [] or indices != []) and
+         Enum.all?(levels, &match?({:level_value, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}, &1)) do
+      rest
+    else
+      params
+    end
+  end
 
   defp unspine({:app, f, a}, acc), do: unspine(f, [a | acc])
   defp unspine(head, acc), do: {head, acc}
