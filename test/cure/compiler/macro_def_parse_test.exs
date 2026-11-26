@@ -50,11 +50,12 @@ defmodule Cure.Compiler.MacroDefParseTest do
              String.trim_trailing("""
              -- MACRO DECLARATION ENTRY IS INVALID [E094] ------------------ macro_entry.cure
 
-             'oops' cannot start an entry in a macro declaration. Use a syntax rule, family
-             contract, expander, literal rule, explanation, failure, or opened category.
+             'oops' cannot start an entry in a macro declaration. Use a syntax rule, tactic
+             rule, family contract, expander, literal rule, explanation, failure, or opened
+             category.
 
-             A valid continuation here starts with 'syntax' or 'accepts' or 'expands' or
-             'literal' or 'explain' or 'fail' or 'open'.
+             A valid continuation here starts with 'syntax' or 'tactic' or 'accepts' or
+             'expands' or 'literal' or 'explain' or 'fail' or 'open'.
 
              at macro_entry.cure:2:3
              1 | macro Bad

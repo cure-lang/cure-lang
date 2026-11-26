@@ -550,8 +550,67 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     )
   end
 
+  def from_error({:invalid_tactic_expansion, keyword, cause}, opts) do
+    tactic_expansion_failure(keyword, cause, opts)
+  end
+
+  def from_error({:source_context, {:invalid_tactic_expansion, keyword, cause}, context}, opts)
+      when is_map(context) do
+    tactic_expansion_failure(keyword, cause, Keyword.put(opts, :span, Map.get(context, :span)))
+  end
+
   def from_error(error, _opts),
     do: raise(Cure.Diagnostic.UnhandledError, error: error)
+
+  # A `tactic` rule whose expansion is not a member of the closed tactic
+  # vocabulary (docs/MACROS.md §2, `Cure.Elab.Tactic.Step`). E092 because it is
+  # a self-proving-macro obligation: the rule itself is wrong, not the use site.
+  defp tactic_expansion_failure(keyword, cause, opts) do
+    {detail, hint} = tactic_cause_prose(cause)
+
+    Diagnostic.new(
+      code: "E092",
+      key: :invalid_tactic_expansion,
+      severity: :error,
+      title: "Tactic expansion is not a proof command",
+      body: Doc.paragraph("The `#{keyword}` tactic rule expands to #{detail}."),
+      primary: label(Keyword.get(opts, :span), :primary, "this tactic rule expands to something that is not a step"),
+      notes: [hint],
+      provenance: Keyword.get(opts, :provenance, []),
+      payload: %{keyword: keyword, cause: cause}
+    )
+  end
+
+  defp tactic_cause_prose(:recursive_tactic_expansion) do
+    {"a recursive or over-deep tactic alias chain", "Break the alias cycle or keep the expansion depth below 64."}
+  end
+
+  defp tactic_cause_prose(:unsupported_induction_tactic) do
+    {"an induction command whose recursive lowering is not supported inside tactic templates",
+     "Use ordinary `induction` and invoke the tactic in its case bodies instead."}
+  end
+
+  defp tactic_cause_prose(:reserved_tactic_keyword) do
+    {"a rule with a keyword owned by the language or an existing proof command",
+     "Choose a distinct tactic keyword so dispatch cannot silently bypass the rule."}
+  end
+
+  defp tactic_cause_prose(:core_term_is_not_a_tactic) do
+    {"a Core term",
+     "A tactic may only produce goals and apply existing proof commands. Write `simplify`, `rewrite using h`, " <>
+       "`exact e`, `apply e`, or `by decide` instead of a bare term."}
+  end
+
+  defp tactic_cause_prose(:empty_tactic_body) do
+    {"an empty block",
+     "An empty tactic body would succeed without changing the goal. Give it at least one proof command."}
+  end
+
+  defp tactic_cause_prose(_cause) do
+    {"something that is not a proof command",
+     "A tactic body must compose simplify, rewrite, exact, apply, by decide/search/positivity, " <>
+       "have, or another finite tactic — optionally as an indented sequence."}
+  end
 
   @doc false
   def packet_failure(kind, details, opts) do

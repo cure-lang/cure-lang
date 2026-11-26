@@ -493,8 +493,10 @@ Internally, `ProofGoal.new/5` preserves the original obligation and
 `ProofGoal.inspect_goal/1` exposes its target and hypotheses.
 `Tactic.command/1`, sequencing, focus, all-goals, choice, and bounded repetition
 retain checked solutions in `Tactic.Result`; an empty goal list alone is not
-enough to reconstruct a proof. User-defined goal tactic macros and per-command
-editor views remain later work.
+enough to reconstruct a proof. Named template tactics are described in
+[`MACROS.md`](MACROS.md#21-tactic-rules--a-new-proof-command). They compose these
+checked commands and may return an open goal for a later command.
+Goal-inspecting computed tactics and per-command editor views remain later work.
 
 ## 4. Generated defining equations
 

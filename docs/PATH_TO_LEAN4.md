@@ -1,21 +1,26 @@
-# Cure → Lean Feature Parity: Plan
+# Cure → Lean Feature Parity: Audited Roadmap
 
-**This document supersedes [`LEAN4_MIGRATION_PLAN.md`](LEAN4_MIGRATION_PLAN.md).**
-That plan was written from the proof-side documents alone and proposed building
-a tactic framework, a `@[simp]` set, and `apply`/`exact` as if they did not
-exist. Reading `docs/MACROS.md`, `docs/superpowers/specs/types/MASTER.md` and
-`docs/superpowers/specs/kernel/MASTER.md` shows most of that surface is either
-already landed or already specified. The earlier plan also carries a **wrong
-recommendation** — see §9.
+**Status finalized against the 2026-11-21 and 2026-11-22 implementation audits.**
+This document is authoritative for the C1–C10 register, phase numbering and
+completion gates. It supersedes
+[`LEAN4_MIGRATION_PLAN.md`](LEAN4_MIGRATION_PLAN.md);
+[`PATH_TO_LEAN4_PLAN.md`](PATH_TO_LEAN4_PLAN.md) uses historical phase numbers.
+[`LEAN4_PARITY_STATUS.md`](LEAN4_PARITY_STATUS.md) records measured evidence;
+[`PROOFS.md`](PROOFS.md) and [`MACROS.md`](MACROS.md) describe supported syntax.
 
 Scope: make **Cure itself** reach feature parity with Lean 4. No porting. The
-Agda development in `proof/` is untouched by this plan.
+Agda development in `proof/` is a separate metatheory track, not a porting target
+or a substitute for Cure-facing proof tooling.
 
-## Implementation audit — 2026-11-21
+## Audited implementation status
 
-**Phases 1 and 2 below are implemented.** This document's §8 phase numbers are
-authoritative; `PATH_TO_LEAN4_PLAN.md` used a different, historical sequence.
-`LEAN4_PARITY_STATUS.md` records the current evidence and remaining boundaries.
+**Phase 1 is complete within its stated gates. Phase 2's goal infrastructure
+and solver clients are delivered, but its original six-command adequacy gate
+is not fully met.** Ordinary induction still uses declaration-level recursive
+lowering rather than a reusable induction command on the goal API.
+Earlier Phase 2 completion reports describe the delivered infrastructure, not
+evidence that this remaining gate passed. Section 8 makes that distinction
+explicit rather than silently weakening the gate.
 
 - **C5:** certified recursive unfolding already existed through kernel
   normalization; nested computational goals now have explicit positive and
@@ -40,69 +45,111 @@ induction in Lean too, so its rejection is not a delta-reach gap. A parser node
 alone was not evidence that rewrite-all or inline proof commands worked.
 `@lemma` simplification existed but its quantified path was broken.
 
-The remaining sections retain the design and estimates for later phases.
+The remaining sections distinguish implemented mechanisms from future work.
 References to `@[simp]` mean the capability, spelled `@simp` or
 `@lemma(:simp)` in Cure. C6 is only partially implemented: current `apply`
 closes with supplied evidence but does not generate premise subgoals.
+
+### Template-tactic audit — 2026-11-22
+
+Historical `PATH_TO_LEAN4_PLAN.md` Phase 3 now provides contextual
+`tactic ... becomes ...` command templates. The audit repaired command
+composition, declaration/usage printing, contextual expression isolation,
+example pins, nested aliases and imported helper grammar. Its tests invoke
+tactics and compare checked Core with handwritten expansions.
+
+This does **not** complete C1.2 below: a template sees captures, not a goal, and
+the goal-inspecting `computed by` / `Std.Tactic` interface is still absent.
+Authoritative Phase 3 (§8) remains operator fixity; template tactics are a
+prerequisite slice of authoritative Phase 4. See the scorecard for measured
+status. Induction templates are explicitly refused until recursive command
+lowering is supported, but invoking tactics inside ordinary induction arms works.
+Source-backed imported templates retain provider helper grammar; interface-only
+macro grammar loading remains an inherited limitation shared with syntax macros.
+
+### Evidence and claim boundary
+
+The final code-audit run passed **7,104 tests, zero failures, eight excluded**
+(seed 622482), followed by **359 documentation snippets, zero failures**.
+The separate regression task passed **69 stdlib checks and 40 examples**.
+Formatting, strict Credo, Dialyzer and whitespace checks passed without adding
+warning suppressions. These are recorded audit results, not a new claim of
+universal soundness or a fresh audit of every language subsystem.
+
+The parity corpus has **25 cases: 16 accept and 9 reject**. Its accepted
+`g2-tactic-rule-kind` program contains a theorem invoking the tactic and goes
+through elaboration and kernel checking. The corpus measures reach; separate
+tests assert Core-byte equivalence, original-goal preservation, actual
+Core-shaped AST refusal and real induction-arm calls. Neither suite alone is
+a machine-checked soundness theorem. Deliberate negative pins, including false
+goals and unfinished proofs, must remain negative.
 
 ---
 
 ## 1. What "parity" means, and what Cure already has
 
-Lean's power is not one feature; it is eight. Cure's position on each:
+Lean's capabilities span several mechanisms. The table records implementation
+scope, not blanket parity with every Lean tactic, library or calculus feature:
 
 | # | Lean capability | Cure equivalent | Status |
 |---|---|---|---|
 | P1 | Dependent type theory, indexed families, GADTs | `indexed type`, `indices (…)`, dependent `case` | **Landed** |
-| P2 | `simp`/`rw`/`induction`/`omega` tactics | `simplify`, `rewrite`, `induction`, `@lemma` proof search | **Landed** (closed vocabulary) |
+| P2 | Proof commands and automation | `simplify`, `rewrite`, ordinary `induction`, checked search/positivity/decision clients | **Implemented in stated fragments**; no general `omega`/Mathlib automation claim |
 | P3 | `macro` / `syntax` / `elab` — user-extensible frontend | `macro` container, `becomes` / `computed by`, `syntax family` | **Landed** |
 | P4 | Typeclasses + instance resolution | `interface` / `implementation`, coherence, type-directed search | **Landed** |
-| P5 | `instance`-driven operators, precedence | `precedencegroup`, `infix`/`prefix`, sole-route `==`/`<` | **Step 2 landed; Step 3 (fixity) ahead** |
-| P6 | Universe polymorphism (`Type u`) | `Type(l)`, `universe_zero/succ/max`, `TypeLimit` | **Specified (U0–U7), not landed** |
-| P7 | `mutual` blocks, well-founded recursion | Implicit forward/mutual refs; SCC size-change certification | **Landed** (permissive: no `mutual` keyword) |
-| P8 | Metaprogramming over goals (`Lean.Meta`) | `computed by` expanders over `Std.Syntax`; `@lemma` search | **Landed for syntax; absent for goals** |
+| P5 | Instance-driven operators and fixity | Operator interfaces and declaration-driven fixity machinery | **Completion not certified by this audit**; apply C3's full gate |
+| P6 | Universe polymorphism (`Type u`) | Existing `Type(l)` / level design, U0–U7 | **Open in this roadmap**; surface binders do not establish arbitrary-level kernel support |
+| P7 | Mutual and well-founded recursion | Implicit forward/mutual references; SCC size-change certification | **Mechanisms present**; not a claim of all Lean well-founded-recursion capabilities |
+| P8 | Metaprogramming over goals (`Lean.Meta`) | Host goal API, checked template tactics and syntax `computed by` expanders | **Partial**; Cure-level goal-inspecting computed tactics remain absent |
 
-**The honest headline: Cure is at or near Lean parity on P1, P2, P3, P4, P7.
-The real gaps are P5 (operator fixity), P6 (universe polymorphism), and P8's
-goal-metaprogramming half.**
+**The measured conclusion:** Cure has checked proof commands, bounded solver
+clients and user-defined template composition. Full goal-state metaprogramming,
+premise-generating backward application and interactive per-command goal views
+remain open. Universes, fixity completion and the reach ledger have separate
+gates; this proof-ergonomics audit does not close them.
 
-This is a very different conclusion from the earlier plan, which claimed the
-tactic layer was "structurally absent." It is not. `docs/PROOFS.md` §3 defines
+The tactic layer is not structurally absent. `docs/PROOFS.md` §3 defines
 `have`, `proof chain`, `because`, `simplify` (with `using [rules]` and
 `simpa`-style `using <proof>`), `rewrite` (with `backwards`/`at`/`in`),
 `induction`, holes, and named arguments — all checked, all erasing to nothing.
 
 ---
 
-## 2. The genuine gaps, ranked
+## 2. Gap register: delivered scope and remaining work
 
-| ID | Gap | Lean counterpart | Impact | Effort |
+| ID | Audited status / remaining gap | Lean counterpart | Impact | Gate |
 |---|---|---|---|---|
-| **C1** | **No goal-state metaprogramming.** `computed by` expanders see *syntax*, never a *goal*. A user cannot write a tactic that inspects the goal and decides what to do. | `Lean.Meta` / `Lean.Elab.Tactic` | Every custom tactic | 8–12w |
-| **C2** | **Universe polymorphism unspecified-but-unlanded.** `Type(l)` design is complete (U0–U7) but the kernel still has the fixed ceiling. | `Type u` | All generic stdlib | 12–20w |
-| **C3** | **Operator fixity Step 3 unlanded.** `precedencegroup` + `infix`/`prefix`/`postfix` designed, not built; the static `Precedence.ex` table still exists. | `infixl`/`infixr`/`notation` | Operator ergonomics | 3–4w |
+| **C1** | **Partial:** host goal state, combinators, solvers and template tactics exist; reusable induction-command lowering and goal-inspecting Cure tactics remain. | `Lean.Meta` / `Lean.Elab.Tactic` | Custom tactics | C1.1–C1.3 below |
+| **C2** | **Open:** execute the existing U0–U7 universe design; surface syntax is not its completion gate. | `Type u` | Generic stdlib | Existing spec §21 |
+| **C3** | **Unaudited completion:** fixity machinery exists; neither its parser support nor the presence of a `Precedence.ex` module settles the end-to-end gate. | Declared fixity / notation | Operator ergonomics | Section 5 |
 | **C4** | **Closed:** explicit decreasing simp declarations and checked quantified ambient rules. | `@[simp]` attribute | Proof tedium | Landed |
 | **C5** | **Closed:** certified recursive definitions compute; uncertified recursion stays opaque. | `simp` + certified unfolding | Every proof | Verified existing path |
 | **C6** | **Partial:** `exact` and closing `apply` work; premise-generating backward application remains. | `apply`/`exact` | Proof style | Phase 4 |
-| **C7** | **No interactive goal display.** `:hole_goal` exists; no goal view after each command. | InfoView | All proof authoring | 4–6w |
+| **C7** | **Partial:** diagnostic/hole introspection exists; per-command cursor-position goal views are not complete. | InfoView | Proof authoring | Phase 4 |
 | **C8** | **Closed:** opt-in `rewrite … all`; default still requires one occurrence. | occurrence selection | Proof tedium | Landed |
-| **C9** | **Guarded-lambda recursion uncertified** (K-bug 2, open). | `%default total` | Reach, not soundness | 2–3w |
-| **C10** | **Elaborator reach gaps** E9, E10, E12, E13, K-bug 1 (open ledger, `kernel/MASTER.md` §9). | — | Reach only | 10–15w |
+| **C9** | **Not closed by this audit:** follow the guarded-lambda recursion entry, K-bug 2. | Termination certification | Reach | Existing kernel ledger |
+| **C10** | **Not closed by this audit:** follow the individual elaborator reach entries; E9's premise was falsified and is not an active gap. | — | Reach | Existing kernel ledger |
 
-**Critical sequencing constraint:** C1 must land before C4, C6, and C7 can be
-built well — all three are clients of a goal API. C5 is independent. C2 and C3
-are independent of everything.
+**Dependency rule:** the evidence-preserving C1.1 infrastructure supports
+C1.2, C6 and C7. Full goal-inspecting C1.2 is not a prerequisite for the
+already-delivered C4/C5/C8 features. C2 and C3 remain independent tracks.
+Original week estimates are not a measured remaining-work forecast and are not
+used as completion evidence.
 
 ---
 
-## 3. C1 — Goal metaprogramming (the one real architectural gap)
+## 3. C1 — Goal infrastructure and metaprogramming
 
-Lean's `Lean.Meta` is what makes `simp`, `omega`, `aesop`, `positivity`, and
-every Mathlib tactic possible. Cure has the *syntax* half (`Std.Syntax`,
-`computed by`) and the *search* half (`Cure.Elab.ProofSearch`), but no API that
-lets user code manipulate a goal.
+Lean's metaprogramming libraries underpin extensible proof automation. Cure has
+the syntax interface (`Std.Syntax`,
+`computed by`), checked template composition and `Cure.Elab.ProofSearch`, but
+no Cure-level interface that lets a computed tactic inspect and manipulate a goal.
 
-### C1.1 — Extract the goal state (3w)
+### C1.1 — Goal state and command adequacy
+
+**Delivered:** the goal state, checked result shape and combinators below.
+**Remaining:** the original all-six-command adequacy requirement, specifically
+induction as a reusable checked command rather than declaration-only lowering.
 
 1. Use `Cure.Elab.ProofGoal` as the single goal state, with `new/5` and
    `inspect_goal/1` for construction and hypothesis/target inspection.
@@ -110,37 +157,61 @@ lets user code manipulate a goal.
    closure evidence must survive composition and check at the original goal.
    Legacy list-only results remain scheduling projections, not proof artifacts.
 3. Expose combinators: `focus`, `all_goals`, `seq`, `or_else`, `repeat_until_fail`.
-4. **Reimplement the six existing proof commands on this API.** This is the
-   adequacy proof: if `simplify`/`rewrite`/`induction` can be expressed, the API
-   is right. Pure refactor; `E109`–`E115` diagnostics stay byte-identical.
+4. Route justification commands through this API while preserving original
+   obligations and proof reconstruction. Ordinary induction currently retains
+   its declaration-level path; accepting an `:induction` AST tag without an
+   executable lowering does not meet the adequacy requirement.
 
-**Gate:** all existing proof-language tests pass unchanged.
+**Remaining gate:** demonstrate all six original proof forms as genuine API
+clients, including induction, with unchanged existing E109–E115 compatibility
+tests and non-vacuous execution/evidence tests. Passing the existing suite alone
+does not establish that the refactor covers every command.
 
-### C1.2 — A `tactic` rule kind in `macro` (4w)
+### C1.2 — Goal-inspecting library tactics
 
-1. Extend the `macro` container (`docs/MACROS.md` §2) with
+**Delivered prerequisite:** contextual `tactic ... becomes ...` templates,
+finite nested aliases, sequence and typed example pins, source-backed imports,
+printer round-trips, open-goal composition and checked closure.
+
+**Not implemented:** the goal-inspecting interface below. Its syntax is a
+design target, not a currently accepted form.
+
+1. Extend the macro container with a goal-aware form such as
    `tactic <rule> computed by <fn>`, where the expander receives a **goal**
-   (not just syntax) and returns goals.
+   and can inspect its target/hypotheses before choosing checked operations.
 2. The expander is ordinary Cure over a new `Std.Tactic` module — the goal
    analogue of `Std.Syntax`.
-3. **Firewall:** a tactic may only *produce goals* and *apply existing
-   commands*. It cannot mint a `reflexive`. Every term it emits is re-elaborated
-   and kernel-checked — the existing K3 firewall, unchanged.
+3. **Firewall:** goal operations and emitted evidence remain untrusted.
+   Validate operations, reconstruct proofs and kernel-check evidence at the
+   original goal. Neither a syntax whitelist nor a host Boolean is a proof.
 
-**Gate:** a test library defines `my_simp` as a tactic macro; the resulting Core
-is byte-identical to the hand-written expansion.
+**Remaining gate:** a test library must actually inspect a goal value and
+select an operation based on it, not merely expand captures into a fixed script.
+Compare resulting Core bytes with a handwritten expansion and include
+false-goal, malformed-operation and original-goal-preservation controls.
+The existing template tests satisfy the template slice, not this whole gate.
 
-### C1.3 — Surface the existing solvers as tactics (3w)
+### C1.3 — Checked solver clients
 
-`Cure.Elab.ProofSearch` already has a tagged-lemma resolver and a
-`positivity`-style sign solver (`kernel/MASTER.md` §6.3). Wrap them:
-`by search`, `by positivity`, `by decide` (over `Std.Decision`).
+**Implemented within explicit fragments:**
+- `by search`: local evidence, checked projections and tagged lemmas, refusing
+  missing or ambiguous evidence.
+- `by positivity`: the curated natural-number sign fragment, not generic search.
+- `by decide`: inferred Boolean equality decisions; `by decide using expression`
+  handles an explicit `Decision(P)` from `Std.Decision` whose certified reduction
+  exposes checked `Yes` evidence.
 
-**Gate:** each has a positive corpus and a negative corpus it must refuse.
+**Gate met for these clients:** positive and negative corpora, with refusal for
+false, unsupported or stuck goals. This does not claim unrestricted arithmetic
+automation or completion of every dependent decision-procedure library call.
 
 ---
 
 ## 4. C2 — Universe polymorphism (execute the existing spec)
+
+**Status:** not closed or re-audited by the proof-ergonomics work. Accepted
+surface level binders are not evidence that the full kernel level algebra,
+generic walkers and artifact migration are complete.
 
 The design is **complete and authoritative**:
 `docs/superpowers/specs/types/2026-07-20-agda-style-universe-polymorphism-design.md`,
@@ -149,9 +220,10 @@ phases U0–U7, with §21 completion criteria. **Do not redesign it.** Execute i
 Two things to get right, both already flagged in the spec:
 
 1. **Every generic Core walker must descend into level atoms.** The spec names
-   this as a soundness bug if missed. `kernel/MASTER.md` §8 documents that the
-   walker-drift class was already instantiated 12×; this is the same failure
-   mode with a new former. Add a coverage cell per (walker × level-former).
+   this as a soundness bug if missed.
+   `docs/superpowers/specs/kernel/MASTER.md` §8 records prior walker-drift
+   failures; this is the same failure mode with a new former. Add a coverage
+   cell per (walker × level-former).
 2. **Serialization version bump.** Every cache/hash containing Core must include
    the universe representation version — artifacts, certificates, interfaces,
    incremental hashes, Antigen corpus.
@@ -164,8 +236,13 @@ sensitive to weakened level equality/ordering/scope.
 
 ## 5. C3 — Operator fixity (execute Step 3)
 
-Step 2 (sole route) is **landed** (`93ed411d`). Step 3 is specified in
-`types/MASTER.md` §7.3 and §7.4:
+**Status:** completion not certified by this audit. Operator declaration and
+fixity machinery is present; the earlier assertion that Step 3 was simply
+"designed, not built" was not justified. Do not infer completion from parser
+support or infer a fixed semantic table merely from a module's name.
+
+Step 2 (sole route) was recorded as landed (`93ed411d`). The end-to-end Step 3
+requirements remain those in `docs/superpowers/specs/types/MASTER.md` §7.3 and §7.4:
 
 1. `precedencegroup Name` with `associativity: left|right|none`,
    `higher_than:` / `lower_than:` — a partial order compiled to topological
@@ -178,31 +255,36 @@ Step 2 (sole route) is **landed** (`93ed411d`). Step 3 is specified in
    plus `@prelude` providers. **The `DepGraph.scan_file` statement-level
    recovery precondition is load-bearing** — without it a module using a
    not-yet-propagated operator is dropped wholesale.
-5. Delete the static `Precedence.ex` table; seed builtins from `Std.Operators`.
+5. Seed semantic fixity from `Std.Operators`, not a competing compiler-owned
+   fixed operator table. Compatibility helpers are not themselves evidence of
+   a second table; inspect their live callers before deleting them.
 
 **Gate:** end state is "the compiler owns NO fixed operator list"; printer
 callers thread `fixity(M)`.
 
 ---
 
-## 6. C4–C8 — Proof ergonomics (small, independent)
+## 6. C4–C8 — Proof ergonomics: implemented and remaining
 
-| ID | Work | Notes |
+| ID | Status | Boundary / remaining work |
 |---|---|---|
-| **C4** | `@[simp]` on `@lemma`; `simplify` consults a global set | **Orientation checking is mandatory** — reject a lemma whose LHS does not strictly decrease; reject looping sets. This is what keeps `simplify` terminating. |
-| **C5** | Extend `simplify`'s default rules to **certified** unfolding | Reuse `Normalise.unfold_certified_head/3` — do not write a second unfold path. The size-change certificate is the termination witness. Keep the refusal for *uncertified* recursion. |
-| **C6** | `apply` / `exact` | Thin clients of C1.1. **Correct `docs/PROOFS.md` §3.8** — its "nothing for `apply` to do" is wrong for backward reasoning. |
-| **C7** | `:proof_state` pipeline event + InfoView-protocol goal view | `Cure.Pipeline.Events` already exists and is Registry-backed. Wire into `cure-lsp`, `vscode-cure`, and a `:proof` REPL meta-command. |
-| **C8** | `rewrite … all` | **Keep single-occurrence as the default** — it is safer than Lean's silent rewrite-all. `all` is opt-in. |
+| **C4** | Implemented | `@simp` / `@lemma(:simp)` with declaration-time strict decrease and non-increasing variable multiplicities; checked quantified/imported rules and bounded fixed points. Safe legacy `@lemma` rules remain ambient. This is not Lean's literal `@[simp]` syntax or an unrestricted simp-rule admission policy. |
+| **C5** | Verified existing path | Certified recursive computation uses existing kernel normalization and certified unfolding, including `Normalise.unfold_certified_head/3`; no second unfold implementation. Uncertified recursion remains opaque. |
+| **C6** | Partial | `exact` and closing `apply` exist. Remaining backward application must infer premises as new goals and reconstruct evidence checked at the original goal. Ordinary calls alone do not provide this capability; `PROOFS.md` now records that correction. |
+| **C7** | Partial | Hole/diagnostic introspection exists. Remaining work is per-command proof states, cursor-position editor integration and a corresponding REPL view. Existing events or hole inlay hints alone do not close this gate. |
+| **C8** | Implemented | Opt-in `rewrite … all` visits original normalized occurrences, composes checked transports, respects binder scope and does not revisit replacement-introduced occurrences. Keep the strict single-occurrence default. |
 
 ---
 
 ## 7. C9–C10 — Reach gaps (execute the existing ledger)
 
-Both are already scoped in `kernel/MASTER.md` §5.3 and §9. **Do not re-plan.**
+Both are already scoped in `docs/superpowers/specs/kernel/MASTER.md` §5.3 and §9.
+**Do not re-plan.**
+This audit did not certify their closure or authorize new kernel changes.
 
 - **C9 (K-bug 2):** recognise deferred self-calls under an unapplied lambda as
-  not owing the decrease (mirror Idris). TCB change, hard-stop-approved.
+  not owing the decrease (mirror Idris). Follow the recorded design decision
+  and project hard-stop requirements for any TCB change.
   Antibody = a must-certify pin. Completeness, not soundness.
 - **C10:** E9 (premise falsified — not a gap), E10 (higher-order in index
   position; do last), E12 (`rewrite` δ-blind occurrence finder), E13 (diagonal
@@ -212,59 +294,72 @@ Both are already scoped in `kernel/MASTER.md` §5.3 and §9. **Do not re-plan.**
 
 ---
 
-## 8. Execution order
+## 8. Authoritative phases and closure gates
 
-```
-Phase 1 (wks 1–4)   ── C5, C8, C4        (independent, immediate payoff)
-Phase 2 (wks 1–7)   ── C1.1, C1.3        (goal API + solver tactics)
-Phase 3 (wks 5–9)   ── C3                (fixity, parallel to Phase 2)
-Phase 4 (wks 8–12)  ── C1.2, C6, C7      (clients of the goal API)
-Phase 5 (wks 1–20)  ── C2                (universe polymorphism, long pole)
-Phase 6 (parallel)  ── C9, C10           (reach ledger, as capacity allows)
-```
+Phase numbers below are stable. In particular, **Phase 3 means C3 fixity**.
+The template-tactic work called "Phase 3" in the historical execution companion
+is a delivered slice of **Phase 4**, not a renumbering or completion of it.
 
-**Phase 1 gate:** `simplify` closes a certified-recursive goal; a looping
-`@[simp]` lemma is rejected at declaration; `rewrite … all` closes a
-multi-occurrence goal.
+| Phase | Scope | Audited status | Closure gate |
+|---|---|---|---|
+| **1** | C4, C5, C8 | **Complete for stated scope** | Certified-recursive simplification closes; unsafe/looping explicit simp declarations are rejected; multi-occurrence rewrite-all closes through checked transports; uncertified/false-goal refusals remain. |
+| **2** | C1.1, C1.3 | **Core delivered; strict adequacy gate incomplete** | Evidence-preserving goals/combinators and bounded solver clients are implemented. The original all-six-command gate additionally requires a genuine induction client on the goal API, with unchanged compatibility tests and checked evidence. |
+| **3** | C3 | **Completion unaudited** | Establish declaration-driven semantic fixity across transitive `use`/prelude closure, ambiguity/refusal behavior and printer callers; no competing fixed semantic operator list. |
+| **4** | C1.2, C6, C7 | **Partial: template tactics delivered** | A Cure library actually inspects a goal through a computed tactic; backward `apply` generates and reconstructs premise goals; per-command cursor-position views work in VS Code and the REPL. A named template alias alone does not satisfy this gate. |
+| **5** | C2 | **Not closed by this audit** | Meet the existing universe spec's §21 criteria, including arbitrary-level polymorphism, prohibited self-typing, walker coverage and artifact/version obligations. |
+| **6** | C9, C10 | **Per-ledger work remains** | Close each genuine reach item with oracle-anchored positive/negative pins and remove its workaround from a real module that still replays `rel=same`, or explicitly retain it as deliberate. |
 
-**Phase 2 gate:** the six existing commands are reimplemented on the goal API
-with byte-identical diagnostics and passing tests.
+C2 and C3 can proceed independently. Complete the induction-client adequacy
+work rather than treating a passing old suite as proof that every command is
+already exposed. Phase 4 builds on the delivered goal infrastructure; metatheory,
+second-checker and runtime correspondence obligations remain separate tracks.
 
-Evidence: `test/cure/elab/tactic_integration_test.exs`, `simp_set_test.exs`,
-`solver_test.exs`, `proof_ergonomics_test.exs`, the existing proof-language and
-diagnostic suites, and `test/lean4_parity_test.exs`. The latter also retains
-deliberate negative safety pins; completing a phase does not mean flipping them.
+**Evidence:**
+- Goal state, proof reconstruction, combinators and certified unfolding:
+  `test/cure/elab/tactic_integration_test.exs` and `test/cure/elab/tactic_test.exs`.
+- Simp admission and source diagnostics: `test/cure/elab/simp_set_test.exs`
+  and `test/cure/diagnostic/simp_declaration_test.exs`.
+- Solver and existing proof compatibility:
+  `test/cure/elab/solver_test.exs`, `test/cure/elab/proof_ergonomics_test.exs`, and the
+  existing proof-language/compiler/diagnostic suites.
+- Actual template execution, Core-byte equivalence, original-goal controls,
+  source imports and printer fixpoints: `test/cure/elab/tactic_macro_test.exs`,
+  `test/cure/elab/tactic_macro_audit_test.exs`, and
+  `test/cure/compiler/tactic_macro_audit_test.exs`.
+- Reach through the real compiler, including deliberate refusals:
+  `test/lean4_parity_test.exs` and `test/lean4_parity/corpus.exs`.
 
-**Phase 4 gate:** a library defines a custom tactic macro; cursor-position goal
-display works in VS Code and the REPL.
-
-**Phase 5 gate:** the spec's §21 completion criteria.
+Scope-specific test success is not a completion claim for unexercised
+interfaces or a substitute for a kernel soundness/refinement theorem.
 
 ---
 
-## 9. Correction to the earlier plan
+## 9. Relationship to the earlier metatheory plan
 
-`LEAN4_MIGRATION_PLAN.md` §Track E recommended **"Stay on Agda; build
-Cure-native tactic tooling"** and treated the Agda development as the thing to
-extend. That recommendation is **wrong for this goal** and is withdrawn.
+`LEAN4_MIGRATION_PLAN.md` is historical. Retaining Agda and building Cure-native
+tooling is consistent with this roadmap; the withdrawn claim is that extending
+the metatheory or adopting a rule name establishes user-facing proof parity.
+Keep the tracks and their evidence separate:
 
-Reasons:
-
-1. **The Agda development is about the kernel, not about Cure's ergonomics.**
-   Nothing in `proof/` makes a Cure user's proof shorter. Parity work happens in
-   `lib/cure/elab/` and `lib/std/`, not in `proof/`.
-2. **There is a second-checker decision already locked** that the earlier plan
-   missed: `kernel/MASTER.md` §1.1 decision 6 keeps **lean4lean as a second
-   checking backend** via forgetful projection — it witnesses the dependent
-   skeleton only, never the quantitative layer. That is the sanctioned way Lean
-   enters this project, and it is a *checker*, not a toolchain dependency.
+1. **Agda models the kernel; Cure tooling supplies the user-facing capability.**
+   Proof ergonomics work happens in `lib/cure/elab/`, `lib/cure/compiler/` and
+   Cure libraries. A successful metatheory check alone does not add a goal API,
+   a backward application tactic or an editor view.
+2. **A second checking backend is a separate obligation.**
+   `docs/superpowers/specs/kernel/MASTER.md` §1.1 decision 6 records the
+   lean4lean backend direction via forgetful projection. It witnesses the
+   dependent skeleton, not the quantitative layer. The decision is not evidence
+   that the backend is implemented, and the template-tactic audit does not
+   close it or add a Lean toolchain dependency.
 3. **Final Core is deliberately Idris/Agda-shaped, not Lean-shaped**
-   (`kernel/MASTER.md` §1.1 decision 5): QTT multiplicities, predicative
-   cumulative universes, irrelevance via quantity 0, no impredicative `Prop`.
-   The QTT→Lean projection is forgetful/mechanical; the reverse is undecidable.
-   Parity therefore means **parity of capability, not of calculus.**
+   (`docs/superpowers/specs/kernel/MASTER.md` §1.1 decision 5): QTT
+   multiplicities, predicative cumulative universes, irrelevance via quantity
+   0, no impredicative `Prop`.
+   The proposed QTT→Lean projection is forgetful: checking the dependent
+   skeleton does not certify the quantitative layer. Parity therefore means
+   **parity of capability, not equivalence of calculi.**
 
-The earlier plan's §9 non-goals remain correct and are carried forward.
+The applicable non-goals are stated explicitly in §11 below.
 
 ---
 
@@ -275,23 +370,29 @@ Cure reaches Lean feature parity when:
 1. A user can write a tactic that inspects the goal and decides what to do (C1).
 2. `Type(l)` is polymorphic and the ceiling is gone (C2).
 3. Operators have declaration-driven, `use`-propagated fixity (C3).
-4. `@[simp]` + certified unfolding make `simplify` close computational goals
-   (C4, C5).
-5. `apply`/`exact` support backward reasoning (C6).
-6. Goals are visible at the cursor during proof authoring (C7).
+4. Explicit simp admission and certified unfolding close the stated
+   computational/lemma-driven goals while refusing unsafe rules (C4, C5;
+   delivered within their gates).
+5. Backward `apply` produces premise goals and reconstructs checked evidence;
+   accepting the spellings `apply`/`exact` is not enough (C6).
+6. Remaining goals are visible at the cursor after proof commands, not just
+   at holes or in failure diagnostics (C7).
 7. The open reach ledger (C9, C10) is closed or explicitly pinned as
    deliberate.
 
-Items 1–6 are ~35–50 engineer-weeks. Item 7 is open-ended and should be
-capacity-driven, not gated.
+The audited implementation satisfies some of these gates, not all. Original
+effort estimates are historical and have not been recalculated as a remaining
+schedule. Do not infer overall Lean parity from a green scoped test suite.
 
 ---
 
-## 11. Non-goals (carried forward, unchanged)
+## 11. Non-goals and invariants
 
 - Do not port anything to Lean. Final Core stays Idris/Agda-shaped.
-- Do not add `propext` or `Classical.choice` to match Lean's axiom count — the
-  two-postulate base (`funext`, `tree-decides`) is better.
+- Do not add `propext` or `Classical.choice` merely to match Lean's axiom count.
+  Preserve the existing axiom policy and consult `proof/README.md` for its
+  current inventory and caveats; axiom counts alone do not establish comparative
+  soundness or theorem strength.
 - Do not permit termination/positivity pragmas; the bypass allowlist stays empty.
 - Do not change `rewrite`'s single-occurrence default.
 - Do not let `simplify` declare terms equal because the host computed so.

@@ -50,6 +50,7 @@ alternatives:
 | `syntax family <Name>` | a structured, indented body shape | §7 |
 | `accepts <Family>` | the family this macro's body parses as | §7 |
 | `expands with <fn>` | the function that turns that family into syntax | §7 |
+| `tactic <rule> becomes <body>` | a new proof command (contextual) | §2.1 |
 | `literal <rule>` | a suffixed-literal rule (`5 tick`) | §4 |
 | `explain` | per-failure-point error messages | §9 |
 | `fail Name(p: T, …)` | an author-declared semantic failure point | §9 |
@@ -66,6 +67,102 @@ macro fsm <name: ModuleName> with <data: Type>   # several
 
 Doc comments (`##`) and blank lines inside the block are trivia and may appear
 between entries.
+
+### 2.1 `tactic` rules — a new proof command
+
+A `tactic` rule defines a **proof command**. This is the one member whose
+purpose is not to generate code but to name a composition of steps that already
+exist:
+
+```cure
+mod Tactics
+  macro Tactics
+    tactic close becomes simplify
+
+  fn id(n: Int) -> Int = n
+
+  fn theorem(x: Int) -> Equivalent(Int, id(x), x) = proof chain
+    id(x) == x
+    because close
+end
+```
+
+The expansion is **not free-form**. It must be a member of a closed tactic
+vocabulary — the same commands `because` blocks already accept:
+
+| Step | Written as |
+|---|---|
+| simplification | `simplify` / `simplify using [rules]` |
+| rewriting | `rewrite using e` / `rewrite using e all` / `rewrite backwards using e` |
+| backward reasoning | `exact e` / `apply e` |
+| automation | `by search` / `by positivity` / `by decide [using e]` |
+| local facts | `have name: T = e` |
+| composition | another finite template tactic invocation |
+
+An indented body is a **sequence**: the steps run in order and the tactic fails
+where the first one fails. `tactic rewrite_then_close <proof: Code> becomes`
+followed by an indented `rewrite using proof all` / `simplify` is the standard
+shape.
+
+Unsupported expansion shapes are rejected at declaration with E092, and
+instantiated command shapes are checked again at execution. Actual Core-shaped
+nodes, bare proof expressions, lambdas, matches and empty script blocks are not
+commands. `exact expression` is the explicit route for checked evidence.
+The whitelist restricts the frontend vocabulary; **kernel checking against the
+original goal remains the trust boundary**, not the whitelist by itself.
+
+**The keyword is contextual.** Like `apply`/`exact`, a tactic keyword names a
+command only in command position — inside a `because` block or an `induction`
+case body. Everywhere else the word is an ordinary identifier, so a library may
+still define `fn close(x)` and call it, including in an evidence argument.
+A rewrite-only tactic may return an open transformed goal for the caller's next
+command. Only a complete justification ending open reports E110, using its
+actual residual goal. Statements after closure are unreachable-proof-statement
+errors, not silently skipped commands.
+
+`tactic` rules carry the same self-proving obligations as `syntax` rules (§9):
+under an `explain` block they must be pinned by an `example` and their keyword
+must be explained.
+
+Pins work for command sequences as well as single commands:
+
+```cure
+mod PinnedTactic
+  macro Tactics
+    tactic move <e: Code> becomes
+      rewrite using e all
+      simplify
+      example move h expands
+        rewrite using h all
+        simplify
+    explain
+      keyword "move" => "rewrite all original occurrences and simplify"
+      Code => "an equality proof"
+
+  type Pair = Pair(Int, Int)
+  fn theorem(x: Int, y: Int, h: Equivalent(Int, x, y)) -> Equivalent(Pair, Pair(x, x), Pair(y, y)) = proof chain
+    Pair(x, x) == Pair(y, y)
+    because move h
+end
+```
+
+An expansion pin compares the commands, ignoring internal script wrappers.
+A type-only pin such as `example close expands : Equivalent(Int, 0, 0)`
+executes the tactic at that closed goal and checks the result. It is not a
+universal proof about every possible invocation.
+
+Aliases can compose forward references and distinct overloads; cycles and
+chains deeper than the expansion guard are refused. Imported source-backed
+tactics retain their provider's helper grammar rather than reinterpreting it
+under caller shadowing. Optional and repeated invocation syntax survives
+printing.
+
+**Current limits:** this is parser-time template composition, not goal-inspecting
+`computed by` tactics or `Std.Tactic`. Tactics may be invoked in ordinary
+induction arms, but a template that itself expands to `induction` is currently
+refused with E092 because recursive command lowering is not wired into this
+API. Source-backed imports work; loading macro grammar from interfaces alone
+remains an inherited limitation shared with ordinary syntax macros.
 
 ## 3. Syntax rules
 
@@ -640,6 +737,8 @@ Each of these was reproduced against the current tree.
 | `lib/cure/compiler/macro_syntax.ex` | reflection: parser AST ⟷ `Std.Syntax` |
 | `lib/cure/compiler/lift_module.ex` | minting compiled units |
 | `lib/cure/elab/macro_expand.ex` | expansion during elaboration |
+| `lib/cure/elab/tactic/step.ex` | the closed tactic vocabulary of §2.1 |
+| `lib/cure/elab/tactic/script.ex` | running a tactic script through `Tactic` combinators |
 | `lib/cure/diagnostic/adapter/macro.ex` | every macro diagnostic's prose |
 
 **Design specs** live in `docs/superpowers/specs/macros/`. The architecture is

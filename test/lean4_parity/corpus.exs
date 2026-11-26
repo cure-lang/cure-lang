@@ -366,18 +366,58 @@ defmodule Cure.Lean4Parity.Corpus do
         id: "g2-tactic-rule-kind",
         gap: :g2,
         axis: :l4,
-        title: "a `tactic` macro rule kind is NOT available (authoritative Phase 4)",
-        expect: :reject,
-        reason:
-          "the macro container's member table (docs/MACROS.md §2) has no `tactic` " <>
-            "entry, so a library cannot define a proof command. Phase 4 adds the " <>
-            "rule kind, expanding to Cure.Elab.Tactic combinators (never Core terms).",
+        title: "a `tactic` macro rule kind defines a new proof command (Phase 3)",
+        expect: :accept,
+        module: "Cure.Parity.G2TacticRuleKind",
         source: """
         mod Parity.G2TacticRuleKind
-          macro MyTactics
-            tactic my_close becomes simplify
+          macro Tactics
+            tactic close becomes simplify
 
-          fn start() -> Int = 1
+          fn id(n: Int) -> Int = n
+
+          fn theorem(x: Int) -> Equivalent(Int, id(x), x) = proof chain
+            id(x) == x
+            because close
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-tactic-rule-refuses-false-goal",
+        gap: :g2,
+        axis: :l4,
+        title: "a library tactic cannot close a false equality",
+        expect: :reject,
+        reason: "Template expansion must produce evidence checked at the original goal; 0 is not 1.",
+        source: """
+        mod Parity.G2TacticRuleFalseGoal
+          macro Tactics
+            tactic close becomes simplify
+          fn wrong() -> Equivalent(Int, 0, 1) = proof chain
+            0 == 1
+            because close
+        end
+        """
+      ),
+      parity_case(
+        id: "g2-tactic-rule-rejects-core-term",
+        gap: :g2,
+        axis: :l4,
+        title: "a `tactic` rule expanding to a proof TERM (not a command) is rejected",
+        expect: :reject,
+        reason:
+          "A tactic may only produce goals and apply existing steps. The expansion " <>
+            "is checked against the closed tactic vocabulary, so a bare proof term " <>
+            "is refused where the rule is written (E092) rather than bypassing the " <>
+            "goal API. This is a deliberate safety boundary, not a reach gap.",
+        source: """
+        mod Parity.G2TacticRuleRejectsCoreTerm
+          macro Tactics
+            tactic cheat <x: Code> becomes reflexive(x)
+
+          fn theorem(x: Int) -> Equivalent(Int, x, x) = proof chain
+            x == x
+            because cheat x
         end
         """
       )

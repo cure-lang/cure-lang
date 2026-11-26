@@ -89,7 +89,12 @@ defmodule Cure.Elab.ProofChain do
         # block. It must go through `ProofGoal.run` like every other command --
         # the catch-all below sends it to `elaborate_expr_checked`, which has no
         # `proof_application` clause and reports `unsupported_expression`.
-        {kind, command_meta, _args} = command when kind in [:proof_application, :solver_command] ->
+        #
+        # `tactic_script` is the same shape of thing: a user-defined proof
+        # command (Phase 3) used as an inline justification. It is a command, so
+        # it takes the command path.
+        {kind, command_meta, _args} = command
+        when kind in [:proof_application, :solver_command, :tactic_script] ->
           block = {:proof_justification, command_meta, [command]}
 
           case Cure.Elab.ProofGoal.run(block, expected, names, ctx, env, index) do

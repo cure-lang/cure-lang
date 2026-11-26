@@ -4,6 +4,7 @@ defmodule Cure.Elab.ProofGoal do
   alias Cure.Core.{Context, Env, Eval, Grade, Kernel, Quote}
   alias Cure.Diagnostic.{ProofChainMismatchProblem, ProofChainSyntaxProblem, RewriteProblem}
   alias Cure.Elab.{Elaborator, Rewrite, Subst}
+  alias Cure.Elab.Tactic.{Result, Script, Step}
   alias Cure.MetaAST.Metadata
 
   @enforce_keys [:expected, :names, :context, :env, :source, :status, :builders, :trace]
@@ -107,18 +108,7 @@ defmodule Cure.Elab.ProofGoal do
 
       {:ok, %Cure.Elab.Tactic.Result{goals: [], solutions: solutions}} ->
         %{trace: trace} = Map.fetch!(solutions, goal.id)
-        first_unreachable = hd(rest)
-        closed_at = trace |> List.last() |> trace_span()
-
-        {:error,
-         {:proof_chain_syntax,
-          %ProofChainSyntaxProblem{
-            kind: :unreachable_proof_statement,
-            construct: closed_at || surface_span(goal.source),
-            step: surface_span(first_unreachable),
-            observed: expression_kind(first_unreachable),
-            expected: :end_of_justification
-          }}}
+        unreachable_statement(hd(rest), goal.source, trace)
 
       {:error, _} = error ->
         error
@@ -172,7 +162,58 @@ defmodule Cure.Elab.ProofGoal do
   def command({:solver_command, meta, _arguments} = command, goal),
     do: close_with_expression(command, goal, :solver, meta)
 
+  # A user-defined tactic (Phase 3). The expansion is SURFACE syntax that
+  # `Tactic.Step` classified against the closed tactic vocabulary when the rule
+  # was validated; here it is interpreted through `Tactic.Script`, which runs
+  # each step as an ordinary proof command. Nothing about this path can produce
+  # Core terms the kernel has not checked: every step is `Tactic.command/1`,
+  # which re-checks its evidence at the ORIGINAL goal.
+  #
+  # A script may transform a goal and leave it for the caller. Only a complete
+  # justification that ends open reports E110, using the actual residual goal.
+  def command({:tactic_script, meta, [expansion]}, goal) do
+    with {:ok, step} <- Step.classify(expansion) do
+      case Script.run(step, goal) do
+        {:ok, %Result{goals: [], solutions: solutions}} ->
+          case Map.fetch(solutions, goal.id) do
+            {:ok, %{evidence: evidence, trace: trace}} ->
+              {:closed, evidence, trace}
+
+            # Closed but with no solution recorded for THIS goal. That means a
+            # step closed something other than the goal it was handed, which a
+            # single-goal command cannot legitimately do. Fail loudly rather
+            # than fabricate evidence.
+            :error ->
+              tactic_not_closed(meta, goal)
+          end
+
+        {:ok, %Result{goals: [next_goal]}} ->
+          {:open, next_goal}
+
+        {:error, _} = error ->
+          error
+      end
+    else
+      {:error, reason} -> {:error, {:invalid_tactic_expansion, Keyword.get(meta, :keyword), reason}}
+    end
+  end
+
   def command(statement, goal), do: close_with_expression(statement, goal)
+
+  @doc false
+  def unreachable_statement(statement, source, trace) do
+    closed_at = trace |> List.last() |> trace_span()
+
+    {:error,
+     {:proof_chain_syntax,
+      %ProofChainSyntaxProblem{
+        kind: :unreachable_proof_statement,
+        construct: closed_at || surface_span(source),
+        step: surface_span(statement),
+        observed: expression_kind(statement),
+        expected: :end_of_justification
+      }}}
+  end
 
   defp simplify_command_rules(meta, rules, goal) do
     with {:ok, simplified} <- simplify_rules(rules, goal, meta),
@@ -847,6 +888,24 @@ defmodule Cure.Elab.ProofGoal do
       )
 
     {:error, {:rewrite_failed, problem}}
+  end
+
+  # A tactic that ran to completion without closing the goal. Reported as an
+  # unfinished justification so the author sees WHICH goal survived, mirroring
+  # the diagnostic a `because` block gets when its last statement leaves the
+  # goal open (Phase 1's G1 surface).
+  defp tactic_not_closed(meta, goal) do
+    info = Metadata.source_info(meta)
+
+    {:error,
+     {:proof_chain_mismatch,
+      %ProofChainMismatchProblem{
+        kind: :unfinished_justification,
+        step_index: 0,
+        justification: info && info.whole,
+        residual_goal: goal.expected,
+        cause: {:tactic_did_not_close, Keyword.get(meta, :keyword)}
+      }}}
   end
 
   defp fact_names(builders) do

@@ -36,9 +36,9 @@ defmodule Cure.Elab.Tactic do
 
   ## Scope
 
-  This module defines the MONAD and its combinators. It does not yet expose a
-  public registration point for user tactics; that is Phase 4 (`tactic` macro
-  rules), which expands to these combinators rather than to Core terms.
+  This module defines the checked goal API and its combinators. Contextual
+  template tactic rules execute through `Tactic.Step` and `Tactic.Script`.
+  Goal-inspecting `computed by` tactics remain future C1.2 work.
   """
 
   alias Cure.Elab.ProofGoal

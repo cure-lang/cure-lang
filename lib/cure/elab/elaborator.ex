@@ -2914,6 +2914,12 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:solver_command, _meta, _args} = command, expected_core, names, ctx, env),
     do: Cure.Elab.Solver.solve(command, expected_core, names, ctx, env)
 
+  def elaborate_expr_checked({:tactic_script, meta, _args} = command, expected_core, names, ctx, env) do
+    with {:ok, evidence, _trace} <-
+           Cure.Elab.ProofGoal.run({:proof_justification, meta, [command]}, expected_core, names, ctx, env, 0),
+         do: {:ok, evidence}
+  end
+
   # A `match` in nested expression position, in checking mode: the expected type
   # IS the result type its motive needs, so hand it straight to `elaborate_match`
   # (which builds the motive, refines indices per branch, and enforces coverage),

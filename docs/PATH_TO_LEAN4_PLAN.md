@@ -12,6 +12,12 @@ measurement. In particular, certified unfolding required no TCB change, and
 Later-phase descriptions and baseline findings below are retained historically,
 not as assertions about today's implementation.
 
+**Historical Phase 3 (audited 2026-11-22):** contextual `tactic ... becomes`
+templates are implemented. This is a useful command-composition slice of C1.2,
+not the full goal-inspecting `computed by` / `Std.Tactic` design. Authoritative
+Phase 3 remains C3 operator fixity; authoritative Phase 4 includes full C1.2.
+See the scorecard and §4 below for the precise boundary and audit corrections.
+
 ---
 
 ## 0. Relationship to the other documents
@@ -263,27 +269,47 @@ remains hard-coded in the elaborator.
 
 ---
 
-### Phase 3 — `tactic` macro rules (G2 / C1, part 2)
+### Phase 3 — template tactic macros (historical numbering)
 
-**Scope.** A library can define a new proof command. This converts L3 from
-closed to open.
+**Implemented boundary:** a library defines a contextual `tactic ... becomes`
+rule composing existing proof commands. It does not receive a goal value;
+goal-aware `computed by` and `Std.Tactic` remain C1.2 work under authoritative
+Phase 4. Induction templates are rejected until their recursive lowering is
+wired to this API; invoking tactics in ordinary induction arms is supported.
 
-**Work.**
-1. Add a `tactic` rule kind to the `macro` container (`docs/MACROS.md` §2's
-   exhaustive member table).
-2. **Critical:** a `tactic` rule expands to `Cure.Elab.Tactic` combinators —
-   **never** to Core terms. A user tactic may only produce goals and apply
-   existing steps.
-3. Reuse `example`/`explain`/`fail` obligations unchanged (`E092`).
+**Audit corrections (2026-11-22):**
+- Scripts now return transformed open goals to caller commands and report the
+  true residual goal if the entire justification ends open. Extra commands
+  after closure produce the normal unreachable-statement diagnostic.
+- Closed solutions and traces are retained exactly once. The earlier claim
+  that `Tactic.run_all(Result)` discarded evidence was incorrect.
+- Finite aliases, forward references and distinct overloads compose; recursive
+  alias chains are refused. Imported templates keep provider helper grammar.
+- Contextual dispatch applies only to command heads, not nested evidence
+  operands. Structured literal mismatches report errors rather than crashing.
+- Printer round-trips retain declarations, invocations, optional/repeated
+  syntax, rewrite-all, and explicit proof applications.
+- Exact example pins work for single, nested and sequence tactics. Type-only
+  pins execute at the stated goal and refuse false goals. Explain obligations,
+  capture-category checks and authored diagnostics remain enforced.
 
-**Gate.** A **test library** (not the stdlib) defines a tactic macro and closes
-a real goal. Negative controls: a tactic emitting a raw Core node is rejected; an
-unexplained `fail` point is `E092`.
+**Measured gates:** a test library actually invokes its tactics; resulting
+proof definitions kernel-check. Audit tests compare Core bytes to handwritten
+expansions and refuse altered-original-goal closure, actual Core-shaped ASTs,
+malformed commands and empty blocks. The old induction acceptance fixture was
+vacuous for tactic invocation and has been repaired.
 
-**TCB.** None by construction.
+The `g2-tactic-rule-kind` corpus pin compiles a theorem containing a tactic
+invocation through elaboration and the kernel. It measures reach, not an
+independent soundness theorem. Unit-level kernel and negative controls measure
+specific safety properties; neither suite proves universal soundness.
 
-**Files.** `lib/cure/compiler/parser.ex`, `lib/cure/compiler/macro_validate.ex`,
-`lib/cure/elab/macro_expand.ex`, `docs/MACROS.md` §2/§9.
+**Inherited limit:** interface-only macro grammar loading fails for ordinary
+syntax macros too. Source-backed tactic imports are tested; artifact grammar
+publication is not redesigned in this slice.
+
+**TCB:** unchanged. Existing proof commands produce evidence checked against
+the original goal; no new kernel constructors or proof postulates.
 
 ---
 

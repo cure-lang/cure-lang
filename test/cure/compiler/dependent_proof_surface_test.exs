@@ -236,6 +236,53 @@ defmodule Cure.Compiler.DependentProofSurfaceTest do
            "`apply ih` inside a `because` block must become a proof command"
   end
 
+  # -- A `tactic` macro rule's keyword is contextual, exactly like `apply` ----
+  #
+  # Phase 3 adds a `tactic` member to the macro container. Its keyword names a
+  # proof command ONLY in command position; everywhere else it is an ordinary
+  # identifier. Pin both directions, because the failure mode here (a soft
+  # keyword claiming a position in which the word is a name) is the same one
+  # that broke two stdlib modules when `apply`/`exact` were introduced.
+
+  test "a tactic keyword outside a proof block is an ordinary identifier" do
+    src = """
+    mod TacticKeywordAsFunction
+      macro Tactics
+        tactic close becomes simplify
+
+      fn close(x: Int) -> Int = x
+      fn use_it(x: Int) -> Int = close(x)
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+
+    refute contains_tag?(ast, :tactic_script),
+           "`close(x)` outside a proof block must not become a tactic use"
+  end
+
+  test "a tactic keyword inside a justification block is a tactic use" do
+    src = """
+    mod TacticKeywordAsCommand
+      macro Tactics
+        tactic close becomes simplify
+
+      fn id(n: Int) -> Int = n
+
+      fn theorem(x: Int) -> Equivalent(Int, id(x), x) = proof chain
+        id(x) == x
+        because close
+    end
+    """
+
+    assert {:ok, tokens} = Cure.Compiler.Lexer.tokenize(src, emit_events: false)
+    assert {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+
+    assert contains_tag?(ast, :tactic_script),
+           "`close` inside a `because` block must become a tactic use"
+  end
+
   # Walk the MetaAST 3-tuple tree looking for a node tag.
   defp contains_tag?({tag, _meta, _children}, tag), do: true
 

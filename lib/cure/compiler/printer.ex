@@ -1315,6 +1315,7 @@ defmodule Cure.Compiler.Printer do
     target =
       case Keyword.get(meta, :target, :goal) do
         :goal -> ""
+        :all -> " all"
         {:at, occurrence} -> " at #{occurrence}"
         {:in, name} -> " in #{name}"
       end
@@ -1323,6 +1324,19 @@ defmodule Cure.Compiler.Printer do
   end
 
   defp to_string({:simplify_command, _meta, []}, _depth, _indent), do: "simplify"
+
+  defp to_string({:proof_application, meta, [proof]}, depth, indent),
+    do: "#{Keyword.fetch!(meta, :kind)} " <> render(proof, depth, indent)
+
+  defp to_string({:tactic_script, meta, [body]}, depth, indent) do
+    case Keyword.get(meta, :tactic_use_tokens) do
+      tokens when is_list(tokens) ->
+        tactic_invocation_to_string(tokens, depth, indent)
+
+      nil ->
+        render(body, depth, indent)
+    end
+  end
 
   defp to_string({:solver_command, meta, arguments}, depth, indent) do
     head = "by #{Keyword.fetch!(meta, :solver)}"
@@ -1517,6 +1531,40 @@ defmodule Cure.Compiler.Printer do
     end
   end
 
+  defp macro_rule_lines(
+         %{kind: :tactic, keyword: keyword, segments: segments, template: template} = rule,
+         _depth,
+         indent
+       ) do
+    head = Enum.join(["tactic", keyword | Enum.map(segments, &macro_segment_to_string/1)], " ") <> " becomes"
+
+    lines =
+      case template do
+        {:block, _, statements} ->
+          [head | Enum.flat_map(statements, &relative_tactic_lines(&1, 1, indent))]
+
+        _ ->
+          [head <> " " <> render(template, 0, indent)]
+      end
+
+    examples =
+      Enum.flat_map(Map.get(rule, :examples, []), fn example ->
+        use_site = macro_use_site_to_string(example.use_site)
+        expected = elem(example.expected, 1)
+        pin = indent <> "example #{use_site} expands"
+
+        case expected do
+          {:block, _, statements} ->
+            [pin | Enum.flat_map(statements, &relative_tactic_lines(&1, 2, indent))]
+
+          _ ->
+            [pin <> " " <> render(expected, 0, indent)]
+        end
+      end)
+
+    lines ++ examples
+  end
+
   defp macro_rule_lines(%{kind: kind, keyword: keyword, segments: segments, template: template} = rule, depth, indent)
        when kind in [:syntax, :computed] do
     verb =
@@ -1596,6 +1644,39 @@ defmodule Cure.Compiler.Printer do
     do: ["expands with #{render(expander, depth, indent)}"]
 
   defp macro_rule_lines(_rule, _depth, _indent), do: []
+
+  defp relative_tactic_lines(node, depth, indent) do
+    prefix = String.duplicate(indent, depth)
+    node |> render(0, indent) |> String.split("\n") |> Enum.map(&(prefix <> &1))
+  end
+
+  defp tactic_invocation_to_string(tokens, depth, indent) do
+    {pieces, _previous} =
+      Enum.reduce(tokens, {[], nil}, fn token, {pieces, previous} ->
+        case token.type do
+          type when type in [:indent, :dedent, :eof] ->
+            {pieces, previous}
+
+          :newline ->
+            {pieces ++ ["\n"], :newline}
+
+          type ->
+            separator =
+              cond do
+                previous == nil -> ""
+                previous == :newline -> String.duplicate(indent, depth + 1)
+                type in [:rparen, :rbracket, :rbrace, :comma, :dot] -> ""
+                previous in [:lparen, :lbracket, :lbrace, :dot] -> ""
+                type == :lparen and previous == :identifier -> ""
+                true -> " "
+              end
+
+            {pieces ++ [separator, token.lexeme || macro_token_to_string(token)], type}
+        end
+      end)
+
+    Enum.join(pieces)
+  end
 
   defp macro_rule_examples(rule, depth, indent) do
     rule
@@ -1825,6 +1906,11 @@ defmodule Cure.Compiler.Printer do
   defp macro_segment_to_string({:repeat, segment}), do: macro_segment_to_string(segment) <> "..."
   defp macro_segment_to_string({:optional, segments}), do: "(#{macro_segments_to_string(segments)})?"
   defp macro_segment_to_string(other), do: to_string(other)
+
+  defp macro_token_to_string(%Cure.Compiler.Token{type: :string, value: value}), do: inspect(value)
+
+  defp macro_token_to_string(%Cure.Compiler.Token{type: :string_interpolation, value: value}),
+    do: render({:string_interpolation, [], value}, 0, "  ")
 
   defp macro_token_to_string(%Cure.Compiler.Token{value: value}) when is_binary(value), do: value
   defp macro_token_to_string(%Cure.Compiler.Token{value: value}) when is_atom(value), do: Atom.to_string(value)
