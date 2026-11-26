@@ -771,6 +771,9 @@ defmodule Cure.Elab.Declarations do
       |> strip_effect()
 
     case codomain do
+      {:level_type} ->
+        {:error, {:runtime_relevant_level, sig.name, :extern_return}}
+
       {:data, ukey, [], []} ->
         if Cure.Elab.Union.union_family?(ukey) do
           case Cure.Elab.Union.discriminable(Cure.Elab.Union.members_of(env, ukey), env) do
@@ -2527,7 +2530,7 @@ defmodule Cure.Elab.Declarations do
               # grade zero. An explicit attempt to mark one present/linear is
               # rejected.
               case Keyword.get(pmeta, :grade) do
-                g when g in [:linear, :unrestricted] ->
+                g when g in [:linear, :affine, :unrestricted] ->
                   {:halt, {:error, {:runtime_relevant_level, pname, :binder}}}
 
                 _ ->
@@ -2979,6 +2982,24 @@ defmodule Cure.Elab.Declarations do
       ctx = build_context(env, param_tele ++ impl_tele ++ tele)
 
       case idx_to_core(type_expr, scope, fam, env, ctx) do
+        {:ok, {:level_type} = core} ->
+          # §13: UniverseLevel constructor fields must be erased (implicit/grade 0).
+          # Placing a UniverseLevel in a present constructor field is rejected.
+          explicit_grade =
+            case dom do
+              {:named_dom, meta, _} -> Keyword.get(meta, :grade)
+              {:implicit_dom, meta, _} -> Keyword.get(meta, :grade)
+              _ -> nil
+            end
+
+          if plicity == :implicit and explicit_grade in [nil, :erased] do
+            {:cont,
+             {:ok, tele ++ [{String.to_atom(argname), core}], [argname | scope], names ++ [argname], plics ++ [plicity],
+              quantities ++ [Grade.zero()]}}
+          else
+            {:halt, {:error, {:runtime_relevant_level, argname, :ctor_field}}}
+          end
+
         {:ok, core} ->
           {:cont,
            {:ok, tele ++ [{String.to_atom(argname), core}], [argname | scope], names ++ [argname], plics ++ [plicity],

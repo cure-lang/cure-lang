@@ -16909,7 +16909,7 @@ defmodule Cure.Elab.Elaborator do
     do: {:error, :too_many_arguments}
 
   defp finish_ctor_app({:ok, mctx, chosen, []}, cname, family, ctor, pc, ctx) do
-    mctx = solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx)
+    mctx = solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx, ctor)
     all = Enum.map(chosen, &Unify.zonk(&1, mctx))
 
     if Enum.any?(all, &has_meta?/1) do
@@ -18651,12 +18651,14 @@ defmodule Cure.Elab.Elaborator do
   # sorts of solved type arguments (least upper bound via `UniverseLevel.max`),
   # defaulting unconstrained use-site level metas to `universe_zero`. The
   # kernel independently checks the assembled explicit application afterward.
-  defp solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx) do
+  defp solve_ctor_universe_level_metas(family, chosen, pc, mctx, ctx, ctor \\ nil) do
     if ctx != nil do
       env = Context.signature(ctx)
       param_tele = Inductive.param_telescope(env, family) || []
-      domains = Enum.map(param_tele, fn {_name, dom} -> dom end)
-      solve_level_metas_from_domains(domains, Enum.take(chosen, pc), mctx, ctx, env)
+      ctor_tele = if ctor, do: ctor.args, else: []
+      domains = Enum.map(param_tele ++ ctor_tele, fn {_name, dom} -> dom end)
+      slice = if ctor, do: chosen, else: Enum.take(chosen, pc)
+      solve_level_metas_from_domains(domains, slice, mctx, ctx, env)
     else
       mctx
     end
