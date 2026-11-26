@@ -11,7 +11,7 @@ defmodule Antigen.Generators.Universes do
   `:well_typed`/`:ill_typed`, correct by construction (argument in each @doc).
   """
   alias Antigen.{Challenge, Gen}
-  alias Cure.Core.{Env, Inductive, Sort}
+  alias Cure.Core.{Env, Grade, Inductive, Sort, UniverseLevel}
 
   @nat {:data, :Nat, [], []}
 
@@ -23,6 +23,13 @@ defmodule Antigen.Generators.Universes do
   def cover_cells do
     for cell <- [
           :type_in_type,
+          :open_type_in_type,
+          :limit_in_limit,
+          :limit_below_finite,
+          :open_level_order_neg,
+          :open_succ_not_le,
+          :poly_level_max,
+          :limit_sorting,
           :finite_successor_pos,
           :finite_successor_neg,
           :cumulativity,
@@ -46,6 +53,13 @@ defmodule Antigen.Generators.Universes do
   def gen(_opts \\ []) do
     Gen.member_of([
       type_in_type(:ill_typed),
+      open_type_in_type(:ill_typed),
+      limit_in_limit(:ill_typed),
+      limit_below_finite(:ill_typed),
+      open_level_order_neg(:ill_typed),
+      open_succ_not_le(:ill_typed),
+      poly_level_max(:well_typed),
+      limit_sorting(:well_typed),
       finite_successor(:well_typed),
       finite_successor(:ill_typed),
       cumulativity(:well_typed),
@@ -74,6 +88,114 @@ defmodule Antigen.Generators.Universes do
       {:type, {:finite, %Cure.Core.UniverseLevel{constant: 0, atoms: []}}},
       "Type-in-Type: Type 0 : Type 0 must reject (Type 0 : Type 1)",
       :type_in_type
+    )
+  end
+
+  @doc "Open Type-in-Type: `(a : UniverseLevel) -> Type(a)` inhabited by `Type(a)` must reject."
+  @spec open_type_in_type(:ill_typed) :: Challenge.t()
+  def open_type_in_type(:ill_typed) do
+    a = UniverseLevel.atom({:var, 0})
+
+    def_challenge(
+      :ill_typed,
+      [],
+      {:pi, Grade.zero(), {:level_type}, {:type, Sort.finite(a)}},
+      {:lam, Grade.zero(), {:level_type}, {:type, Sort.finite(a)}},
+      "open Type-in-Type: Type(a) : Type(a) must reject",
+      :open_type_in_type
+    )
+  end
+
+  @doc "Limit-in-limit: `TypeLimit0 : TypeLimit0` must reject."
+  @spec limit_in_limit(:ill_typed) :: Challenge.t()
+  def limit_in_limit(:ill_typed) do
+    def_challenge(
+      :ill_typed,
+      [],
+      {:type, Sort.omega(0)},
+      {:type, Sort.omega(0)},
+      "limit-in-limit: TypeLimit0 : TypeLimit0 must reject",
+      :limit_in_limit
+    )
+  end
+
+  @doc "Limit below finite: `TypeLimit0 : Type 37` must reject."
+  @spec limit_below_finite(:ill_typed) :: Challenge.t()
+  def limit_below_finite(:ill_typed) do
+    def_challenge(
+      :ill_typed,
+      [],
+      {:type, Sort.finite_closed(37)},
+      {:type, Sort.omega(0)},
+      "limit below finite: TypeLimit0 : Type 37 must reject",
+      :limit_below_finite
+    )
+  end
+
+  @doc "Unrelated open levels: `(a b : UniverseLevel) -> Type(b)` cannot be inhabited by `Type(a)`."
+  @spec open_level_order_neg(:ill_typed) :: Challenge.t()
+  def open_level_order_neg(:ill_typed) do
+    a = UniverseLevel.atom({:var, 1})
+    b = UniverseLevel.atom({:var, 0})
+
+    def_challenge(
+      :ill_typed,
+      [],
+      {:pi, Grade.zero(), {:level_type}, {:pi, Grade.zero(), {:level_type}, {:type, Sort.finite(b)}}},
+      {:lam, Grade.zero(), {:level_type}, {:lam, Grade.zero(), {:level_type}, {:type, Sort.finite(a)}}},
+      "unrelated open levels: Type(a) must not inhabit Type(b)",
+      :open_level_order_neg
+    )
+  end
+
+  @doc "Open successor ordering: `a + 1 <= a` must reject."
+  @spec open_succ_not_le(:ill_typed) :: Challenge.t()
+  def open_succ_not_le(:ill_typed) do
+    sa = UniverseLevel.succ(UniverseLevel.atom({:var, 0}))
+
+    def_challenge(
+      :ill_typed,
+      [],
+      {:pi, Grade.zero(), {:level_type}, {:type, Sort.finite(sa)}},
+      {:lam, Grade.zero(), {:level_type}, {:type, Sort.finite(sa)}},
+      "open successor ordering: Type(a + 1) : Type(a + 1) must reject",
+      :open_succ_not_le
+    )
+  end
+
+  @doc "Polymorphic max cumulativity: `A : Type(a) |- A : Type(max(a, b))` accepted."
+  @spec poly_level_max(:well_typed) :: Challenge.t()
+  def poly_level_max(:well_typed) do
+    a_outer = UniverseLevel.atom({:var, 1})
+    a_inner = UniverseLevel.atom({:var, 2})
+    b_inner = UniverseLevel.atom({:var, 1})
+    max_ab = UniverseLevel.max(a_inner, b_inner)
+
+    def_challenge(
+      :well_typed,
+      [],
+      {:pi, Grade.zero(), {:level_type},
+       {:pi, Grade.zero(), {:level_type},
+        {:pi, Grade.zero(), {:type, Sort.finite(a_outer)}, {:type, Sort.finite(max_ab)}}}},
+      {:lam, Grade.zero(), {:level_type},
+       {:lam, Grade.zero(), {:level_type}, {:lam, Grade.zero(), {:type, Sort.finite(a_outer)}, {:var, 0}}}},
+      "polymorphic max cumulativity: Type(a) <= Type(max(a, b)) accepted",
+      :poly_level_max
+    )
+  end
+
+  @doc "Rigid level dependency sorts in TypeLimit0: `((l : UniverseLevel) -> Type(l)) : TypeLimit0`."
+  @spec limit_sorting(:well_typed) :: Challenge.t()
+  def limit_sorting(:well_typed) do
+    l = UniverseLevel.atom({:var, 0})
+
+    def_challenge(
+      :well_typed,
+      [],
+      {:type, Sort.omega(0)},
+      {:pi, Grade.zero(), {:level_type}, {:type, Sort.finite(l)}},
+      "rigid level dependency: (l : UniverseLevel) -> Type(l) : TypeLimit0 accepted",
+      :limit_sorting
     )
   end
 

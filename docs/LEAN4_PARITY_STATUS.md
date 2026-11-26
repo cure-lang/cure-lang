@@ -32,12 +32,18 @@ overall Lean parity, unrestricted metaprogramming or universal soundness.
   rejects uncertified recursive evidence without changing trusted rules.
   `simp?`, local-only assumption and bounded integer-order reconstruction do
   not establish unrestricted arithmetic automation or general Farkas soundness.
-- **Phase 5 — C2:** executing the universe spec's U0–U7 sequence. **U0
-  complete** (inventory + characterization tests, no `lib/` change); **U1
-  landed** (`Cure.Core.UniverseLevel` canonical maximum-plus algebra, with
-  algebra property tests and malformed-form rejection, and no kernel semantics
-  changed). U2–U7 remain. The surface is currently *misread*, not merely
-  unimplemented — see the G9 bullet below.
+- **Phase 5 — C2: complete (U0–U7).** Agda-style universe polymorphism
+  (`UniverseLevel`, `universe_zero`, `universe_succ`, `universe_max`, `Type(l)`,
+  `TypeN`, `TypeLimit`, `TypeLimitN`) is implemented end-to-end:
+  canonical maximum-plus level algebra (`Cure.Core.UniverseLevel`), Core sort
+  migration and fail-closed walkers (U2), unbounded trusted sorting and
+  cumulativity with `Universe.ceiling/0` removed (U3), surface universe syntax,
+  LUB family sort inference, level unification and use-site inference (U4),
+  single polymorphic stdlib definitions for `Equivalent`, `List`, `Option`, and
+  `Sigma` across all 82 stdlib modules (U5), grade-0 erasure enforcement,
+  runtime-relevant level rejection, and byte-identical BEAM baseline output
+  (U6), and Antigen polymorphic/adversarial generators, canonical maximum-plus
+  shrinking, and §19.6 weak-kernel sensitivity antibodies (U7).
 - **Phase 6 — C9, C10:** not changed; follow the kernel reach ledger.
 
 The phase numbers in `PATH_TO_LEAN4_PLAN.md` and `LEAN4_MIGRATION_PLAN.md`

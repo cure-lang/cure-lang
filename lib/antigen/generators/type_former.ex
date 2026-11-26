@@ -54,10 +54,9 @@ defmodule Antigen.Generators.TypeFormer do
   # {term, its universe, cover cell} — the claimed type is always a {:type, _}.
   defp former do
     Gen.frequency([
-      # a bare universe: Type N : Type (N+1). Capped at N=1 — the kernel's
-      # universe ceiling rejects Type 2's sort (Type 3).
+      # a bare universe: Type N : Type (N+1) across arbitrary finite levels.
       {2,
-       Gen.bind(Gen.int(0, 1), fn n ->
+       Gen.bind(Gen.int(0, 5), fn n ->
          Gen.return({{:type, Cure.Core.Sort.finite_closed(n)}, {:type, Cure.Core.Sort.finite_closed(n + 1)}, :universe})
        end)},
       # Π/Σ over base types → Type 0
