@@ -443,7 +443,7 @@ defmodule Antigen.Corpus do
   defp decode_pieces64(encoded) do
     with {:ok, rows} <- decode_json64(encoded),
          :ok <- UniverseCodec.bounded(rows, UniverseCodec.max_atoms()),
-         {:ok, pieces} <- decode_piece_rows(rows, MapSet.new(), []),
+         {:ok, pieces} <- decode_piece_rows(rows, %{}, []),
          :ok <- UniverseCodec.budget(Enum.map(pieces, fn {id, term} -> [id, Term.to_external_node(term)] end)) do
       {:ok, pieces}
     end
@@ -453,11 +453,11 @@ defmodule Antigen.Corpus do
 
   defp decode_piece_rows([[id, body] | rest], seen, acc)
        when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 1024 and is_binary(body) do
-    if MapSet.member?(seen, id) do
+    if Map.has_key?(seen, id) do
       {:error, :duplicate_corpus_piece_id}
     else
       with {:ok, term} <- Serialize.decode(body) do
-        decode_piece_rows(rest, MapSet.put(seen, id), [{id, term} | acc])
+        decode_piece_rows(rest, Map.put(seen, id, true), [{id, term} | acc])
       end
     end
   end

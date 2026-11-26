@@ -861,9 +861,13 @@ defmodule Cure.Core.Inductive do
           :params => telescope(),
           :indices => telescope(),
           :sort => Cure.Core.Sort.t(),
-          # Set (to `true`) only by `opaque_family/3` for postulate families the
+          # Set (to `true`) only by `opaque_family/4` for postulate families the
           # kernel refuses to eliminate; absent on ordinary inductive families.
-          optional(:opaque) => boolean()
+          optional(:opaque) => boolean(),
+          # Runtime erasure class declared via `@erases(<class>)` on opaque families.
+          optional(:erasure) => atom() | nil,
+          # Declaration order of constructors, recorded by `declare/3`.
+          optional(:ctor_order) => [atom()]
         }
   @typedoc """
   A constructor argument's **plicity** — whether it is supplied *positionally*
