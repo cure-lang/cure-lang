@@ -323,7 +323,7 @@ defmodule Antigen.Generators.Rewrite do
   # spine arity, so a params-on-spine reflexive is also checkable directly.
   def transport_type(:refl_coherence) do
     dt = {:pi, Cure.Core.Grade.unrestricted(), @p_causal, @p_causal}
-    proof = {:ctor, :reflexive, [@dec, {:ctor, :Causal, []}]}
+    proof = {:ctor, :reflexive, [@l0, @dec, {:ctor, :Causal, []}]}
 
     body =
       {:lam, Cure.Core.Grade.unrestricted(), @p_causal, {:app, transport(proof, @dec, @motive, @causal), {:var, 0}}}

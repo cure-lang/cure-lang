@@ -11580,6 +11580,7 @@ defmodule Cure.Elab.Elaborator do
 
   defp bare_pair_arity(type_term, ctx, sigma_fam) do
     case Kernel.normalize(ctx, type_term) do
+      {:data, ^sigma_fam, [_la, _lb, _domain, _codomain], []} -> {:ok, 2}
       {:data, ^sigma_fam, [_domain, _codomain], []} -> {:ok, 2}
       _ -> :not_applicable
     end

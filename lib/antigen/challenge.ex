@@ -149,6 +149,7 @@ defmodule Antigen.Challenge do
     :P,
     :Equivalent,
     :reflexive,
+    :l,
     :y,
     # universes vertical
     :u,

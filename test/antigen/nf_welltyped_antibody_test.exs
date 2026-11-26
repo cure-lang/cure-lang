@@ -15,6 +15,7 @@ defmodule Antigen.NfWellTypedAntibodyTest do
     sig
   end
 
+  @l0 {:level_value, Cure.Core.UniverseLevel.zero()}
   @nat {:data, :"Std.Nat#Nat", [], []}
   defp z, do: {:ctor, :Z, []}
 
@@ -34,8 +35,8 @@ defmodule Antigen.NfWellTypedAntibodyTest do
   test "B4.i: nf of an indexed-family TYPE term stays well-formed" do
     sig = base_sig()
     ctx = Context.empty(sig)
-    # Equivalent(Nat, Z, Z) : Type
-    ty_term = {:data, :Equivalent, [@nat], [z(), z()]}
+    # Equivalent(0, Nat, Z, Z) : Type
+    ty_term = {:data, :Equivalent, [@l0, @nat], [z(), z()]}
     assert {:ok, _sort} = Kernel.infer(ctx, ty_term)
     normal = Normalise.nf(ctx, ty_term)
     # Pre-B1: reify has no signature, so params++indices (1+2=3 combined values)
@@ -52,7 +53,7 @@ defmodule Antigen.NfWellTypedAntibodyTest do
   test "B4.ii: nf is idempotent on the indexed-family TYPE shape" do
     sig = base_sig()
     ctx = Context.empty(sig)
-    ty_term = {:data, :Equivalent, [@nat], [z(), z()]}
+    ty_term = {:data, :Equivalent, [@l0, @nat], [z(), z()]}
     once = Normalise.nf(ctx, ty_term)
     assert Normalise.nf(ctx, once) == once
   end
@@ -67,8 +68,8 @@ defmodule Antigen.NfWellTypedAntibodyTest do
   test "B4.iii: nf of a binder body containing an indexed-family TYPE re-checks" do
     sig = base_sig()
     ctx = Context.empty(sig)
-    # λx:Nat. Equivalent(Nat, x, x) : Nat -> Type
-    lam = {:lam, Cure.Core.Grade.unrestricted(), @nat, {:data, :Equivalent, [@nat], [{:var, 0}, {:var, 0}]}}
+    # λx:Nat. Equivalent(0, Nat, x, x) : Nat -> Type
+    lam = {:lam, Cure.Core.Grade.unrestricted(), @nat, {:data, :Equivalent, [@l0, @nat], [{:var, 0}, {:var, 0}]}}
     {:ok, ty} = Kernel.infer(ctx, lam)
     normal = Normalise.nf(ctx, lam)
     assert Kernel.check(ctx, normal, ty) == :ok
