@@ -105,18 +105,16 @@ defmodule CureExchangeTest do
       CureExchange.open_trade(account_id, :usd, 10_000, bank_delay_ms: 10, settle_ttl_ms: 1_000)
 
     CureExchange.match_counterparty(pid, :"T-happy")
-    :timer.sleep(50)
 
-    assert %{state: :Completed} = CureExchange.status(pid)
+    assert %{state: :Completed} = wait_for_state(pid, :Completed)
     assert {:ok, %Money{amount: 0, currency: :usd}} = CureExchange.held(account_id)
     assert {:ok, %Money{amount: 990_000, currency: :usd}} = CureExchange.balance(account_id)
   end
 
   test "quote expiry: the hold is released and the escrow is cancelled", %{account_id: account_id} do
     {:ok, pid, _quote_id} = CureExchange.open_trade(account_id, :usd, 5_000, quote_ttl_ms: 10)
-    :timer.sleep(50)
 
-    assert %{state: :Cancelled} = CureExchange.status(pid)
+    assert %{state: :Cancelled} = wait_for_state(pid, :Cancelled)
     assert {:ok, %Money{amount: 0, currency: :usd}} = CureExchange.held(account_id)
     assert {:ok, %Money{amount: 1_000_000, currency: :usd}} = CureExchange.balance(account_id)
   end
@@ -126,9 +124,8 @@ defmodule CureExchangeTest do
       CureExchange.open_trade(account_id, :usd, 7_500, bank_delay_ms: 10, bank_outcome: :failed, settle_ttl_ms: 1_000)
 
     CureExchange.match_counterparty(pid, :"T-failed")
-    :timer.sleep(50)
 
-    assert %{state: :Refunded} = CureExchange.status(pid)
+    assert %{state: :Refunded} = wait_for_state(pid, :Refunded)
     assert {:ok, %Money{amount: 0, currency: :usd}} = CureExchange.held(account_id)
     assert {:ok, %Money{amount: 1_000_000, currency: :usd}} = CureExchange.balance(account_id)
   end
@@ -138,20 +135,21 @@ defmodule CureExchangeTest do
       CureExchange.open_trade(account_id, :usd, 2_500, bank_delay_ms: 10_000, settle_ttl_ms: 10)
 
     CureExchange.match_counterparty(pid, :"T-timeout")
-    :timer.sleep(50)
 
-    assert %{state: :Refunded} = CureExchange.status(pid)
+    assert %{state: :Refunded} = wait_for_state(pid, :Refunded)
     assert {:ok, %Money{amount: 1_000_000, currency: :usd}} = CureExchange.balance(account_id)
   end
 
   test "a late quote-expiry timer after a match is a safe no-op", %{account_id: account_id} do
     {:ok, pid, _quote_id} =
-      CureExchange.open_trade(account_id, :usd, 1_000, quote_ttl_ms: 30, bank_delay_ms: 10, settle_ttl_ms: 1_000)
+      CureExchange.open_trade(account_id, :usd, 1_000, quote_ttl_ms: 1_000, bank_delay_ms: 10, settle_ttl_ms: 1_000)
 
     # match before the quote-expiry timer fires
     CureExchange.match_counterparty(pid, :"T-race")
-    :timer.sleep(80)
+    assert %{state: :Completed} = wait_for_state(pid, :Completed)
 
+    # deliver a late :quote_expired message after completion and verify it is a no-op
+    send(pid, :quote_expired)
     assert %{state: :Completed} = CureExchange.status(pid)
     # the hold was captured, not released twice or double-refunded
     assert {:ok, %Money{amount: 0, currency: :usd}} = CureExchange.held(account_id)
@@ -161,5 +159,23 @@ defmodule CureExchangeTest do
   test "reserving more than the account's balance fails to open the trade", %{account_id: account_id} do
     assert {:error, {:reserve_failed, _reason}} =
              CureExchange.open_trade(account_id, :usd, 10_000_000)
+  end
+
+  # Poll until `CureExchange.status(pid)` reaches `expected_state` (or the
+  # bounded wait elapses). Avoids bare `:timer.sleep` races on slower CI
+  # runners while still returning the actual status for ExUnit's assertion.
+  defp wait_for_state(pid, expected_state, attempts \\ 200)
+
+  defp wait_for_state(pid, _expected_state, 0), do: CureExchange.status(pid)
+
+  defp wait_for_state(pid, expected_state, attempts) do
+    case CureExchange.status(pid) do
+      %{state: ^expected_state} = status ->
+        status
+
+      _other ->
+        Process.sleep(10)
+        wait_for_state(pid, expected_state, attempts - 1)
+    end
   end
 end
