@@ -1038,7 +1038,17 @@ defmodule Cure.Elab.ProofGoal do
          b = Kernel.normalize(goal.context, Quote.reify(b_value, depth)),
          expected = Kernel.normalize(goal.context, goal.expected),
          {:ok, build, rewritten, occurrences} <-
-           Rewrite.directed_plan(proof, ty, a, b, expected, Keyword.fetch!(meta, :direction), occurrence) do
+           Rewrite.directed_plan_with_expose(
+             proof,
+             ty,
+             a,
+             b,
+             goal.expected,
+             expected,
+             goal.context,
+             Keyword.fetch!(meta, :direction),
+             occurrence
+           ) do
       {:open,
        %{
          goal

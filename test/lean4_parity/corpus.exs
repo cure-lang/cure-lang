@@ -1,7 +1,7 @@
 defmodule Cure.Lean4Parity.Corpus do
   @moduledoc """
   The Lean-4-parity corpus: the recorded baseline for
-  `docs/PATH_TO_LEAN4_PLAN.md`.
+  `docs/LEAN4_PARITY.md`.
 
   Every case here pins CURRENT behaviour. Read the `:expect` field as "what
   Cure does today", never as "what Cure should do". A `:reject` pin with a
@@ -33,11 +33,11 @@ defmodule Cure.Lean4Parity.Corpus do
       `:reject` — matching `docs/PROOFS.md` §3.7 ("only `cure compile` reports
       E014").
 
-  Grouped by the gap register in `docs/LEAN4_PARITY_STATUS.md` §3.
+  Grouped by the gap register in `docs/LEAN4_PARITY.md` §4.
 
   Gaps G6, G7, G8 and G11 are proof-side or runtime-side obligations with no
   Cure-source witness, so they have no entries here. They are tracked in
-  `docs/LEAN4_PARITY_STATUS.md` instead. That absence is deliberate, and
+  `docs/LEAN4_PARITY.md` instead. That absence is deliberate, and
   `test/lean4_parity_test.exs` asserts it.
   """
 

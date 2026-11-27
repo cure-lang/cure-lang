@@ -42,37 +42,38 @@ defmodule Cure.Compiler.AlgebraFormatter do
   def format(ast, opts \\ []) do
     width = Keyword.get(opts, :width, @default_width)
     indent = Keyword.get(opts, :indent, @default_indent)
+    fixity = Keyword.get(opts, :fixity) || Printer.fixity_for_ast(ast, opts)
 
     ast
-    |> document(indent)
+    |> document(indent, fixity)
     |> Algebra.format(width)
     |> IO.iodata_to_binary()
     |> ensure_trailing_newline()
   end
 
-  @spec document(term(), binary()) :: Algebra.t()
-  def document(ast, indent) do
+  @spec document(term(), binary(), Cure.Compiler.Parser.FixityTable.t() | nil) :: Algebra.t()
+  def document(ast, indent, fixity \\ nil) do
     case ast do
       {:block, _meta, children} ->
-        sequence_doc(children, indent, 0)
+        sequence_doc(children, indent, 0, fixity)
 
       {:container, meta, body} ->
-        container_doc(meta, body, indent, 0)
+        container_doc(meta, body, indent, 0, fixity)
 
       {:comment, _meta, text} when is_binary(text) ->
         Algebra.string("# " <> text)
 
       _ ->
-        printed_doc(ast, indent)
+        printed_doc(ast, indent, fixity)
     end
   end
 
   # Render a sequence of statements with a blank line between them.
   # Comments attach to the following non-comment statement.
-  defp sequence_doc(children, indent, depth) do
+  defp sequence_doc(children, indent, depth, fixity) do
     children
     |> group_with_comments()
-    |> Enum.map(&group_doc(&1, indent, depth))
+    |> Enum.map(&group_doc(&1, indent, depth, fixity))
     |> intersperse(Algebra.line(2))
     |> Algebra.concat()
   end
@@ -90,38 +91,38 @@ defmodule Cure.Compiler.AlgebraFormatter do
     if pending == [], do: groups, else: groups ++ [pending]
   end
 
-  defp group_doc(nodes, indent, depth) do
+  defp group_doc(nodes, indent, depth, fixity) do
     nodes
-    |> Enum.map(&single_node_doc(&1, indent, depth))
+    |> Enum.map(&single_node_doc(&1, indent, depth, fixity))
     |> intersperse(Algebra.line())
     |> Algebra.concat()
   end
 
-  defp single_node_doc({:comment, _, text}, _indent, _depth) do
+  defp single_node_doc({:comment, _, text}, _indent, _depth, _fixity) do
     Algebra.string("# " <> text)
   end
 
-  defp single_node_doc({:container, meta, body}, indent, depth) do
-    container_doc(meta, body, indent, depth)
+  defp single_node_doc({:container, meta, body}, indent, depth, fixity) do
+    container_doc(meta, body, indent, depth, fixity)
   end
 
-  defp single_node_doc({:block, _meta, children}, indent, depth) do
-    sequence_doc(children, indent, depth)
+  defp single_node_doc({:block, _meta, children}, indent, depth, fixity) do
+    sequence_doc(children, indent, depth, fixity)
   end
 
-  defp single_node_doc(node, indent, _depth) do
-    printed_doc(node, indent)
+  defp single_node_doc(node, indent, _depth, fixity) do
+    printed_doc(node, indent, fixity)
   end
 
   # Module-like containers have their header emitted explicitly so we
   # can walk their body as a sequence of algebra docs (which picks up
   # nested comments). Struct and enum containers fall back to the
   # Printer for compact rendering.
-  defp container_doc(meta, body, indent, depth) do
+  defp container_doc(meta, body, indent, depth, fixity) do
     case Keyword.get(meta, :container_type) do
       type when type in [:module, :protocol, :trait, :proof] ->
         header = container_header(meta)
-        body_doc = sequence_doc(body, indent, depth + 1)
+        body_doc = sequence_doc(body, indent, depth + 1, fixity)
 
         Algebra.concat([
           header,
@@ -131,7 +132,7 @@ defmodule Cure.Compiler.AlgebraFormatter do
         ])
 
       _ ->
-        printed_doc({:container, meta, body}, indent)
+        printed_doc({:container, meta, body}, indent, fixity)
     end
   end
 
@@ -172,8 +173,9 @@ defmodule Cure.Compiler.AlgebraFormatter do
   # enclosing `nest` indents every line of a multi-line node (a `match` or
   # `pickup` body, say), not just the first. A blank line is a bare "\n"
   # so it carries no indentation.
-  defp printed_doc(node, indent) do
-    [first | rest] = String.split(Printer.quoted_to_string(node, indent: indent), "\n")
+  defp printed_doc(node, indent, fixity) do
+    opts = if fixity, do: [indent: indent, fixity: fixity], else: [indent: indent]
+    [first | rest] = String.split(Printer.quoted_to_string(node, opts), "\n")
 
     rest
     |> Enum.map(fn

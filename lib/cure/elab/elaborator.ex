@@ -3019,7 +3019,8 @@ defmodule Cure.Elab.Elaborator do
            a = Kernel.normalize(ctx, Quote.reify(a_value, depth)),
            b = Kernel.normalize(ctx, Quote.reify(b_value, depth)),
            normalized_expected = Kernel.normalize(ctx, expected_core),
-           {:ok, build, body_expected} <- Rewrite.legacy_plan(proof_term, ty, a, b, normalized_expected),
+           {:ok, build, body_expected} <-
+             Rewrite.legacy_plan_with_expose(proof_term, ty, a, b, expected_core, normalized_expected, ctx),
            {:ok, body_term} <- elaborate_expr_checked(body_ast, body_expected, names, ctx, env),
            term = build.(body_term) do
         case Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do

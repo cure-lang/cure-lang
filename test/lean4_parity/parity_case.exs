@@ -3,7 +3,7 @@ defmodule Cure.Lean4Parity.Case do
   One Lean-4-parity corpus entry.
 
   A parity case pins the CURRENT accept/reject behaviour of a Cure program so
-  that later phases of `docs/PATH_TO_LEAN4_PLAN.md` can measure progress
+  that later phases of `docs/LEAN4_PARITY.md` can measure progress
   against a recorded baseline rather than against memory.
 
   ## Why pins, not goals
@@ -15,9 +15,8 @@ defmodule Cure.Lean4Parity.Case do
   visible, reviewed diff in this directory rather than a silent behavioural
   drift.
 
-  That is the whole point: `docs/PATH_TO_LEAN4_PLAN.md` §10 invariant 8 says
-  "preserve older artifact bytes unless a reviewed semantic change requires
-  migration". A flipped pin IS the review.
+  That is the whole point: `docs/LEAN4_PARITY.md` §5 invariant 8 says
+  a flipped pin IS the review.
 
   ## Fields
 

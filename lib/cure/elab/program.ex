@@ -87,10 +87,10 @@ defmodule Cure.Elab.Program do
   def check_ast(ast), do: AttemptCache.scope(fn -> check_ast(ast, []) end)
 
   @doc false
-  @spec prepare_canonical_declarations(tuple() | list()) ::
+  @spec prepare_canonical_declarations(tuple() | list(), keyword()) ::
           {:ok, PreparedDeclarations.t()} | {:error, term()}
-  def prepare_canonical_declarations(ast) do
-    with :ok <- check_declarations(ast),
+  def prepare_canonical_declarations(ast, opts \\ []) do
+    with :ok <- check_declarations(ast, opts),
          {:ok, lifted} <- Cure.Elab.Induction.lift_declarations(declarations(ast)) do
       items = lifted |> expand_where_declarations() |> annotate_overload_ordinals()
 
@@ -361,14 +361,16 @@ defmodule Cure.Elab.Program do
   # parsed AST with no guards at all, so a duplicate inside a `Std.*` source was silently kept
   # last-wins — the exact `Map.put`-overwrite hole these checks exist to close, reachable
   # through two doors they never covered.
-  @spec check_declarations(tuple() | list()) :: :ok | {:error, term()}
-  defp check_declarations(ast) do
+  @spec check_declarations(tuple() | list(), keyword()) :: :ok | {:error, term()}
+  defp check_declarations(ast, opts \\ []) do
+    prelude_providers = Keyword.get(opts, :prelude_providers, [])
+
     with :ok <- check_implementation_structure(ast),
          :ok <- check_no_duplicate_defs(ast),
          :ok <- check_no_duplicate_types(ast),
          :ok <- check_no_duplicate_ctors(ast),
          :ok <- check_no_fn_ctor_collision(ast),
-         :ok <- check_no_precedence_cycle(ast),
+         :ok <- check_no_precedence_cycle(ast, prelude_providers),
          :ok <- check_proof_shapes(ast),
          :ok <- MacroValidate.check_tactic_expansions_in(ast) do
       check_no_sibling_collision(ast)
@@ -378,7 +380,7 @@ defmodule Cure.Elab.Program do
   defp prepared_declarations(ast, opts) do
     case Keyword.get(opts, :prepared_declarations) do
       %PreparedDeclarations{} = prepared -> {:ok, prepared}
-      nil -> prepare_canonical_declarations(ast)
+      nil -> prepare_canonical_declarations(ast, opts)
       other -> {:error, {:invalid_prepared_declarations, other}}
     end
   end
@@ -511,12 +513,12 @@ defmodule Cure.Elab.Program do
   # builds (`FixityResolver.assemble/5`), so a cycle closed only through a used
   # module's group is caught. Elaborating `Std.Operators` itself is a no-op — its
   # groups re-add idempotently onto the identical built-in base.
-  defp check_no_precedence_cycle(ast) do
+  defp check_no_precedence_cycle(ast, prelude_providers) do
     base = Cure.Compiler.Parser.BuiltinFixity.table()
     own_fixity = Cure.Compiler.Parser.FixityScan.collect_fixity(ast)
     own_uses = Cure.Compiler.Parser.FixityScan.collect_use_targets(ast)
 
-    case Cure.Compiler.Parser.FixityResolver.assemble(base, own_fixity, own_uses, []) do
+    case Cure.Compiler.Parser.FixityResolver.assemble(base, own_fixity, own_uses, prelude_providers) do
       {:ok, table} ->
         case Cure.Compiler.Parser.FixityTable.cyclic_groups(table) do
           [] ->

@@ -43,6 +43,91 @@ defmodule Cure.Elab.Rewrite do
     end
   end
 
+  @expose_fuel 32
+
+  @doc """
+  Like `legacy_plan/5`, but when the default `stuck_cases: :preserve` normal
+  form hides the rewrite target inside a certified definition's stuck `case`
+  scrutinee (E12), retries once by WHNF-exposing the goal's head/index terms
+  (and `a`/`b`) with `stuck_cases: :expose` and bounded fuel. Using WHNF
+  rather than full NF avoids unfolding recursive calls inside stuck branches.
+  The resulting transport is still kernel-checked against `raw_expected`.
+  """
+  def legacy_plan_with_expose(proof, ty, a, b, _raw_expected, normalized_expected, ctx) do
+    case legacy_plan(proof, ty, a, b, normalized_expected) do
+      {:error, {:rewrite_no_match, _, _, _}} = miss ->
+        exposed_expected = expose_goal_heads(ctx, normalized_expected)
+        exposed_a = whnf_expose(ctx, a)
+        exposed_b = whnf_expose(ctx, b)
+
+        with true <- exposed_expected != normalized_expected or exposed_a != a or exposed_b != b,
+             {:ok, _, _} = ok <- legacy_plan(proof, ty, exposed_a, exposed_b, exposed_expected) do
+          ok
+        else
+          _ ->
+            # Also try matching un-exposed `a`/`b` against `exposed_expected`
+            # (e.g. when `a` is a subterm inside a branch rather than the outer scrutinee).
+            if exposed_expected != normalized_expected do
+              case legacy_plan(proof, ty, a, b, exposed_expected) do
+                {:ok, _, _} = ok -> ok
+                {:error, _} -> miss
+              end
+            else
+              miss
+            end
+        end
+
+      other ->
+        other
+    end
+  end
+
+  @doc """
+  Like `directed_plan/7`, retrying once with WHNF `stuck_cases: :expose`
+  (bounded fuel) on `:no_occurrence` so rewrite targets hidden under certified
+  definitions are reachable (E12).
+  """
+  def directed_plan_with_expose(proof, ty, a, b, _raw_expected, normalized_expected, ctx, direction, occurrence) do
+    case directed_plan(proof, ty, a, b, normalized_expected, direction, occurrence) do
+      {:error, {:no_occurrence, _}} = miss ->
+        exposed_expected = expose_goal_heads(ctx, normalized_expected)
+        exposed_a = whnf_expose(ctx, a)
+        exposed_b = whnf_expose(ctx, b)
+
+        with true <- exposed_expected != normalized_expected or exposed_a != a or exposed_b != b,
+             {:ok, _, _, _} = ok <-
+               directed_plan(proof, ty, exposed_a, exposed_b, exposed_expected, direction, occurrence) do
+          ok
+        else
+          _ ->
+            if exposed_expected != normalized_expected do
+              case directed_plan(proof, ty, a, b, exposed_expected, direction, occurrence) do
+                {:ok, _, _, _} = ok -> ok
+                {:error, _} -> miss
+              end
+            else
+              miss
+            end
+        end
+
+      other ->
+        other
+    end
+  end
+
+  defp expose_goal_heads(ctx, {:data, name, params, indices}) do
+    {:data, name, params, Enum.map(indices, &whnf_expose(ctx, &1))}
+  end
+
+  defp expose_goal_heads(ctx, term), do: whnf_expose(ctx, term)
+
+  defp whnf_expose(ctx, term) do
+    case Normalise.whnf(ctx, term, stuck_cases: :expose, fuel: @expose_fuel) do
+      :fuel_exhausted -> term
+      exposed -> exposed
+    end
+  end
+
   @doc """
   Rewrite EVERY occurrence of the theorem's target side, left to right.
 

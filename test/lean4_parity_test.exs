@@ -17,10 +17,10 @@ defmodule Cure.Lean4ParityTest do
   When a pin fails, do NOT "fix" the test by relaxing it. Either:
 
     * the change was intended — flip `:expect` in `corpus.exs` and update
-      `docs/LEAN4_PARITY_STATUS.md` in the same commit; or
+      `docs/LEAN4_PARITY.md` in the same commit; or
     * the change was a regression — revert the change that caused it.
 
-  See `docs/PATH_TO_LEAN4_PLAN.md` §10 invariant 8.
+  See `docs/LEAN4_PARITY.md` §5 invariant 8.
   """
 
   use ExUnit.Case, async: false
@@ -127,7 +127,7 @@ defmodule Cure.Lean4ParityTest do
 
             If a plan phase intentionally closed this gap, flip the pin to
             :accept with a :module in test/lean4_parity/corpus.exs and update
-            docs/LEAN4_PARITY_STATUS.md in the SAME commit -- that diff is the
+            docs/LEAN4_PARITY.md in the SAME commit -- that diff is the
             review of the semantic change.
             """)
         end
@@ -140,7 +140,7 @@ defmodule Cure.Lean4ParityTest do
       covered = Corpus.all() |> Enum.map(& &1.gap) |> Enum.uniq() |> Enum.sort()
 
       # G6, G7, G8 and G11 are proof-side/runtime-side obligations with no
-      # Cure-source witness; they are tracked in docs/LEAN4_PARITY_STATUS.md
+      # Cure-source witness; they are tracked in docs/LEAN4_PARITY.md
       # instead. Assert that split explicitly so a silently-dropped gap is loud.
       source_pinnable = [:g1, :g2, :g3, :g4, :g5, :g9, :g10]
       proof_side = [:g6, :g7, :g8, :g11]

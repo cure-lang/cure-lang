@@ -31,6 +31,36 @@ defmodule Cure.Compiler.Printer do
   @fixity_key :cure_printer_fixity_table
 
   @doc """
+  Assemble the `FixityTable` for a parsed module/program AST (`fixity(M)`).
+
+  For module-level ASTs (`:container` or `:block`), merges `BuiltinFixity.table/0`
+  with the AST's own `precedencegroup`/`infix`/`prefix`/`postfix` declarations,
+  its transitive `use` targets, and any `:prelude_providers` in `opts`. For
+  expression fragments or when assembly encounters a conflict, falls back to
+  `BuiltinFixity.table/0`.
+  """
+  @spec fixity_for_ast(term(), keyword()) :: Cure.Compiler.Parser.FixityTable.t()
+  def fixity_for_ast(ast, opts \\ [])
+
+  def fixity_for_ast({tag, _, _} = ast, opts) when tag in [:container, :block] do
+    base = Cure.Compiler.Parser.BuiltinFixity.table()
+    own_fixity = Cure.Compiler.Parser.FixityScan.collect_fixity(ast)
+    own_uses = Cure.Compiler.Parser.FixityScan.collect_use_targets(ast)
+    prelude_providers = Keyword.get(opts, :prelude_providers, [])
+
+    if own_fixity == [] and own_uses == [] and prelude_providers == [] do
+      base
+    else
+      case Cure.Compiler.Parser.FixityResolver.assemble(base, own_fixity, own_uses, prelude_providers) do
+        {:ok, table} -> table
+        {:error, _} -> base
+      end
+    end
+  end
+
+  def fixity_for_ast(_ast, _opts), do: Cure.Compiler.Parser.BuiltinFixity.table()
+
+  @doc """
   Render a MetaAST node as a Cure source string.
 
   ## Options
@@ -47,7 +77,7 @@ defmodule Cure.Compiler.Printer do
   @spec quoted_to_string(term(), keyword()) :: String.t()
   def quoted_to_string(ast, opts \\ []) do
     indent = Keyword.get(opts, :indent, @default_indent)
-    table = Keyword.get(opts, :fixity) || Cure.Compiler.Parser.BuiltinFixity.table()
+    table = Keyword.get(opts, :fixity) || fixity_for_ast(ast, opts)
     prev = Process.put(@fixity_key, table)
 
     try do

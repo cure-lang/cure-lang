@@ -100,6 +100,8 @@ learning path.
   delivery slices.
 - [`DEPENDENT_KERNEL_PEERNESS_ROADMAP.md`](DEPENDENT_KERNEL_PEERNESS_ROADMAP.md)
   -- the kernel peerness roadmap.
+- [`LEAN4_PARITY.md`](LEAN4_PARITY.md) -- Lean 4 feature-parity roadmap and
+  current status (what's done and what's left).
 - [`STDLIB_DEPENDENT_CLAIMS_AUDIT.md`](STDLIB_DEPENDENT_CLAIMS_AUDIT.md) -- an
   audit of the stdlib's dependent-type claims.
 - [`LAUNCH-CHECKLIST-0.34.md`](LAUNCH-CHECKLIST-0.34.md) -- the historical 0.34

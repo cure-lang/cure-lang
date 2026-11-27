@@ -93,6 +93,20 @@ defmodule Cure.Compiler.PrinterPrecedenceTest do
     refute out =~ "(x <+> x)", "custom operator was over-parenthesised:\n#{out}"
     # And the reprint must still recover the same parse.
     assert strip(ast) == strip(parse!(out))
+
+    # Even without an explicit `:fixity` option, `quoted_to_string/1` and
+    # `AlgebraFormatter.format/1` assemble `fixity(M)` from the module AST.
+    out_auto = Printer.quoted_to_string(ast)
+    assert out_auto =~ "x + x <+> x"
+    refute out_auto =~ "(x <+> x)"
+    assert strip(ast) == strip(parse!(out_auto))
+
+    alg_ast = src |> String.replace(~r/\nend\s*\z/, "\n") |> parse!()
+    out_alg = Cure.Compiler.AlgebraFormatter.format(alg_ast)
+
+    assert out_alg =~ "x + x <+> x"
+    refute out_alg =~ "(x <+> x)"
+    assert strip(alg_ast) == strip(parse!(out_alg))
   end
 
   for expr <- @exprs do
